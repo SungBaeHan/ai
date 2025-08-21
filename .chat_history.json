@@ -1,0 +1,10 @@
+[
+  {
+    "role": "user",
+    "content": "이 문서의 요지는?"
+  },
+  {
+    "role": "assistant",
+    "content": "이 문서는 LangChain, Qdrant, Ollama와 같은 AI 모델과 서비스를 사용한 RAG(Retrrieve-Aggregate-Generate) 파이프라인의 기본 동작을 검증하기 위한 샘플입니다."
+  }
+]

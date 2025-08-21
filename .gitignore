@@ -1,0 +1,9 @@
+﻿__pycache__/
+*.pyc
+.venv/
+.env*
+data/
+_volumes/
+docker_img/
+.DS_Store
+.vscode/
