@@ -1,0 +1,72 @@
+{
+  "layoutVersion": "home_v1",
+  "bands": [
+    {
+      "id": "band_row_1",
+      "title": "캐릭터 선택 ①",
+      "layout": "grid",
+      "cardAspect": "2:3",
+      "itemsPerRow": {
+        "phone": 3,
+        "tablet": 4
+      },
+      "items": [
+        {
+          "id": "char_01",
+          "type": "chat",
+          "image": "char_01.png",
+          "title": "세라"
+        },
+        {
+          "id": "char_02",
+          "type": "chat",
+          "image": "char_02.png",
+          "title": "리나"
+        },
+        {
+          "id": "char_03",
+          "type": "chat",
+          "image": "char_03.png",
+          "title": "하나"
+        }
+      ]
+    },
+    {
+      "id": "band_row_2",
+      "title": "캐릭터 선택 ②",
+      "layout": "grid",
+      "cardAspect": "2:3",
+      "itemsPerRow": {
+        "phone": 3,
+        "tablet": 4
+      },
+      "items": [
+        {
+          "id": "char_04",
+          "type": "chat",
+          "image": "char_04.png",
+          "title": "미노"
+        },
+        {
+          "id": "char_05",
+          "type": "chat",
+          "image": "char_05.png",
+          "title": "유키"
+        },
+        {
+          "id": "char_06",
+          "type": "chat",
+          "image": "char_06.png",
+          "title": "레이"
+        }
+      ]
+    }
+  ],
+  "nav": [
+    "Logo",
+    "Search",
+    "Create",
+    "My List",
+    "My"
+  ]
+}

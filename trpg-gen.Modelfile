@@ -1,0 +1,4 @@
+FROM qwen2.5:7b-instruct
+PARAMETER temperature 0.9
+PARAMETER top_p 0.95
+PARAMETER repeat_penalty 1.25

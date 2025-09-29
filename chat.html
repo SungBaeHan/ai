@@ -1,291 +1,234 @@
 <!doctype html>
 <html lang="ko">
 <meta charset="utf-8" />
-<title>RAG Chat</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Chat · TRPG</title>
 <style>
+  :root{ --bg:#0b0f14; --ink:#e5ecf3; --sub:#a7bed6; --accent:#60a5fa; --border:#1f2a36; }
+  *{box-sizing:border-box} body{margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
+  .page{min-height:100dvh; display:flex; flex-direction:column; position:relative;}
+  .hero{position:fixed; inset:0; z-index:-2; background:center/cover no-repeat; filter: blur(14px) brightness(.45); transform:scale(1.04);}
+  .veil{position:fixed; inset:0; z-index:-1; background: radial-gradient(ellipse at 50% 20%, rgba(0,0,0,.12), rgba(0,0,0,.7) 60%, rgba(0,0,0,.9));}
+  header{ display:flex; align-items:center; gap:10px; padding:12px 14px; position:sticky; top:0; z-index:5; background:linear-gradient(180deg, rgba(11,15,20,.92), rgba(11,15,20,.7), rgba(11,15,20,0)); }
+  header img.avatar{ width:28px; height:28px; border-radius:50%; object-fit:cover; border:1px solid rgba(255,255,255,.2);}
+  header .title{ font-weight:700; letter-spacing:.2px; }
+  a.back{ color:#cfe4ff; text-decoration:none; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,.25); border:1px solid var(--border);}
+  main{ flex:1 1 auto; padding:10px 12px 94px; }
+  .day{ align-self:center; background:rgba(0,0,0,.35); padding:6px 10px; border-radius:999px; color:#cfe4ff; font-size:12px; margin:8px 0; border:1px solid var(--border); }
+  .row{ display:flex; gap:10px; margin:10px 0; align-items:flex-end; }
+  .row .bubble{ max-width: 76vw; padding:12px 14px; border-radius:16px; line-height:1.6; box-shadow:0 6px 18px rgba(0,0,0,.35); }
+  .row.me{ justify-content:flex-end; }
+  .row.me .bubble{ background: linear-gradient(180deg, rgba(96,165,250,.15), rgba(96,165,250,.08)); border:1px solid rgba(96,165,250,.35); }
+  .row.ai .bubble{ background: rgba(10,14,18,.78); border:1px solid var(--border); }
+  .row img.avatar{ width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid rgba(255,255,255,.2);}
+  .inputbar{ position:fixed; left:0; right:0; bottom:0; background:linear-gradient(0deg, rgba(11,15,20,1), rgba(11,15,20,.92)); border-top:1px solid var(--border); padding:10px 12px calc(env(safe-area-inset-bottom)+10px); display:flex; gap:8px; }
+  .inputbar textarea{ flex:1 1 auto; resize:none; border:1px solid var(--border); background:rgba(15,20,26,.8); color:var(--ink); border-radius:12px; min-height:42px; max-height:120px; padding:10px 12px; }
+  .inputbar button{ background: var(--accent); color:#05223e; border:none; border-radius:12px; padding: 0 14px; font-weight:700; min-width:74px; }
+  .choices{ display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 0 42px; }
+  .choice{ background:rgba(96,165,250,.15); border:1px solid rgba(96,165,250,.35); color:#cfe4ff; padding:8px 10px; border-radius:12px; cursor:pointer; }
+  .hint{ color:var(--sub); font-size:12px; }
 
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 780px; margin: 40px auto; padding: 0 16px; }
-  h1 { font-size: 20px; margin-bottom: 8px; }
-  .row { display:flex; gap:8px; align-items:center; margin:6px 0; }
-  select, input, button { padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; }
-  #log { border: 1px solid #ddd; border-radius: 12px; padding: 16px; min-height: 320px; max-height: 60vh; overflow: auto; background: rgba(0,0,0,0.03); }
-  .me { color: #444; margin: 8px 0; white-space: pre-wrap; }
-  .bot { color: #0a5; margin: 8px 0; white-space: pre-wrap; }
-  form { display: flex; gap: 8px; margin-top: 12px; }
-  input[type="text"] { flex: 1; }
-  button { background: #0a5; color: white; border: none; cursor: pointer; }
-  button:disabled { opacity: .6; cursor: not-allowed; }
-  .hint { font-size: 12px; color: #666; margin-top: 8px; }
-
-  /* ===== ChatGPT 스타일 입력 컴포저 ===== */
-  :root{
-    --send: 40px;     /* 전송 버튼 지름 */
-    --gap:  12px;     /* 좌우 여백 */
+  /* --- profile card in first message --- */
+  .profile { width: 100%; }
+  .profile-hero{
+    height: 200px; border-radius:12px;
+    background-size:cover; background-position:center;
+    margin:-6px -6px 8px -6px; filter: brightness(.9);
   }
-  /* 하단 고정 느낌의 래퍼(선택) */
-  /* fixed 모드 */
-  .composer-wrap.fixed {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
-    background: linear-gradient(180deg, rgba(255,255,255,0), #fff 24%, #fff 100%);
-    padding: 12px 16px calc(env(safe-area-inset-bottom) + 12px);
+  .profile-body{ display:flex; flex-direction:column; gap:6px; }
+  .profile-title{ font-weight:700; opacity:.9; }
+  .profile-name{ font-size:18px; font-weight:800; letter-spacing:.2px; }
+  .profile-arch{ font-size:13px; color:var(--sub); }
+  .profile-bio{ font-size:14px; color:#cfe4ff; line-height:1.6; }
+  .profile-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:2px; }
+  .profile-tags span{
+    font-size:12px; color:#cfe4ff; background:rgba(96,165,250,.15);
+    border:1px solid rgba(96,165,250,.35); border-radius:999px; padding:4px 8px;
   }
-  /* 본문이 가려지지 않게 바닥 여백 추가 */
-  body { padding-bottom: 140px; } /* 컴포저 높이에 맞춰 조절 */
-
-  /* 큰 라운드 박스 */
-  .composer-wrap{
-    position: sticky; bottom: 0; z-index: 10;
-    background: linear-gradient(180deg, rgba(255,255,255,0), var(--bg, #fff) 24%, var(--bg, #fff) 100%);
-    padding-top: 12px;
-    margin-top: auto; /* ⬅️ 바닥 밀착의 핵심 */
-    padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
-  }
-
-  .composer{
-    position: relative;
-    display:flex; align-items:flex-end; gap:12px;
-    border:1px solid var(--border, #e5e7eb);
-    border-radius: var(--radius, 20px);
-    /* ⬇︎ 오른쪽 패딩을 버튼 크기 + 여백만큼 확보 */
-    padding: 12px calc(var(--send) + 16px) 12px 44px;
-    background: var(--bg, #fff);
-    box-shadow: var(--shadow, 0 2px 10px rgba(0,0,0,.06));
-    min-height: calc(var(--send) + 24px); 
-    box-sizing: border-box;
-  }
-
-  /* 컴포저 내부 버튼은 기본 배경 제거 */
-  .composer button{ background: transparent; border: 0; }
-
-  /* 텍스트 영역: 투명 배경, 자동 확장, 최대 45vh */
-  #chat-input{
-    flex:1; border:none; outline:none; resize:none; background:transparent;
-    font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-    min-height:28px; max-height:45vh; overflow-y:auto; padding:0; margin:0;
-  }
-  #chat-input::placeholder{ color:#9ca3af; }
-  #chat-input.collapsed{ height:28px; overflow:hidden; }
-
-  /* 포커스 시 강조 */
-  .composer:focus-within{
-    border-color:#93c5fd;
-    box-shadow: 0 0 0 3px rgba(59,130,246,.12), var(--shadow, 0 2px 10px rgba(0,0,0,.06));
-  }
-
-  /* 왼쪽 + 버튼(아이콘 버튼) — 필요 없으면 숨겨도 됨 */
-  /* 왼쪽 + 버튼 */
-  .attach-btn{
-    position:absolute; left: var(--gap); top:50%;
-    transform: translateY(-50%);
-    width:28px; height:28px; border-radius:999px;
-    color: var(--muted, #6b7280);
-    display:grid; place-items:center; cursor:pointer;
-    left: var(--gap); bottom: 12px; top:auto; transform:none; 
-  }
-  .attach-btn:hover{ background:rgba(0,0,0,.04); }
-
-  /* 오른쪽 둥근 전송 FAB 버튼 */
-  #send-btn{
-    position:absolute;
-    right: var(--gap);
-    bottom: 12px;          /* ⬅️ 아래쪽 고정 */
-    top: auto;
-    transform: none;
-    width: var(--send);
-    height: var(--send);
-    border-radius: 9999px;
-    background: var(--blue, #0ea5e9);
-    color:#fff; display:grid; place-items:center;
-    box-shadow:0 2px 6px rgba(14,165,233,.3);
-    cursor:pointer;
-  }
-  #send-btn:active{ transform: translateY(1px); }  /* 눌렀을 때만 살짝 */
-
-  /* 사용자 메시지 줄바꿈 표시(이미 있으나 합쳐서 한 줄로) */
-  .me { color:#444; margin:8px 0; white-space:pre-wrap; }
-
-  html, body { height: 100%; }
-  .page { min-height: 100dvh; display: flex; flex-direction: column; }
-  #log { flex: 1 1 auto; }
-
-  /* 위쪽 콘텐츠가 모자랄 때도 컴포저를 바닥으로 밀어내기 */
-  .composer-wrap { margin-top: auto; }
-
-  /* iOS 하단 안전영역 여백 (선택) */
-  .composer-wrap { padding-bottom: calc(env(safe-area-inset-bottom) + 8px); }
-
 
 </style>
 
-<main class="page">
-  
-<h1>RAG Chat</h1>
+<body class="page">
+  <div id="hero" class="hero"></div>
+  <div class="veil"></div>
 
-<div class="row">
-  <label>모드</label>
-  <select id="mode">
-    <option value="qa" selected>QA</option>
-    <option value="trpg">TRPG</option>
-  </select>
-  <label>모델</label>
-  <input id="model" value="llama3.1" size="12" />
-  <label>Temp</label>
-  <input id="temp" type="number" step="0.1" min="0" max="1.5" value="0.7" style="width:80px" />
-</div>
+  <header>
+    <a class="back" href="home.html">← 홈</a>
+    <img id="avatar" class="avatar" alt="">
+    <div id="title" class="title">세션</div>
+  </header>
 
-<div id="log" aria-live="polite"></div>
+  <main id="log"><div class="day">오늘</div></main>
 
-<div class="row">
-  <button id="clear" style="background:#777">대화 초기화</button>
-</div>
-<div class="hint">API: <code>http://localhost:8000/chat</code></div>
-
-<!-- 반드시 마지막 -->
-<div class="composer-wrap">
-  <form id="f" class="composer" autocomplete="off">
-    <button type="button" id="attach-btn" class="attach-btn">＋</button>
-    <textarea id="chat-input" class="collapsed" rows="1" placeholder="메시지를 입력하세요…"></textarea>
-    <button id="send-btn" type="submit" aria-label="메시지 전송">▶</button>
-  </form>
-</div>
-</main>
+  <div class="inputbar">
+    <textarea id="input" placeholder="메시지 입력..."></textarea>
+    <button id="send">보내기</button>
+  </div>
 
 <script>
-  const API = 'http://localhost:8000';
-  const log   = document.getElementById('log');
-  const mode  = document.getElementById('mode');
-  const model = document.getElementById('model');
-  const temp  = document.getElementById('temp');
-  const clearBtn = document.getElementById('clear');
-  
-  const form = document.getElementById('f');
-  const ta   = document.getElementById('chat-input');
-  const sendBtn = document.getElementById('send-btn');
-  
-  // 기존: const MAX_PX = 220;
-  let MAX_PX = Math.round(window.innerHeight * 0.45);
-  function autoResize(){
-    ta.style.height = 'auto';
-    ta.style.height = Math.min(ta.scrollHeight, MAX_PX) + 'px';
-  }
-  window.addEventListener('resize', () => {
-    MAX_PX = Math.round(window.innerHeight * 0.45);
-    if (!ta.classList.contains('collapsed')) autoResize();
-  });
+  // 👉 필요하면 /json/characters.json 대신 같은 디렉토리의 characters.json도 탐색
+  const CANDIDATES = ['characters.json','json/characters.json','/json/characters.json'];
+  const API = ''; // same-origin
 
-  function add(type, text){
-    const div = document.createElement('div');
-    div.className = type;
-    div.textContent = (type === 'me' ? '🙂 ' : '🤖 ') + text;
-    log.appendChild(div);
-    log.scrollTop = log.scrollHeight;
+  function qs(key){ return new URL(location.href).searchParams.get(key); }
+  function resolvePath(p){ if(!p) return ''; if(/^https?:|^data:/.test(p)) return p; return p.replace(/^\/+/, ''); }
+
+  function profileHTML(ch){
+    const tags = (ch.tags||[]).map(t=>`<span>${t}</span>`).join('');
+    const bio  = ch.longBio || ch.shortBio || '';
+    return `
+      <div class="profile">
+        <div class="profile-hero" style="background-image:url('${resolvePath(ch.image||'')}')"></div>
+        <div class="profile-body">
+          <div class="profile-title">소개</div>
+          <div class="profile-name">${ch.name||''}</div>
+          <div class="profile-arch">${ch.archetype||''}</div>
+          <div class="profile-bio">${bio}</div>
+          ${tags ? `<div class="profile-tags">${tags}</div>`:''}
+        </div>
+      </div>`;
   }
-  
-  async function callChat(message){
-    const payload = {
-      message,
-      mode: mode.value,
-      model: model.value,
-      temperature: parseFloat(temp.value || "0.7"),
-    };
-    const res = await fetch(API + '/chat', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload),
-      credentials: 'include'
-    });
-    if(!res.ok) throw new Error(res.status + ' ' + res.statusText);
-    return res.json();
+
+  function appendHTML(kind, html, avatar){
+    const wrap = row(kind, html, avatar);
+    // md() 변환 없이 raw HTML 그대로
+    wrap.querySelector('.bubble').innerHTML = html;
+    document.getElementById('log').appendChild(wrap);
+    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
   }
-  
-  // --- 자동 리사이즈 & 컴포저 UX ---
-  function autoResize(){
-    ta.style.height = 'auto';
-    const next = Math.min(ta.scrollHeight, MAX_PX);
-    ta.style.height = next + 'px';
-  }
-  function collapseIfEmpty(){
-    if(!ta.value.trim()){
-      ta.classList.add('collapsed');
-      ta.style.height = '';
+
+  async function loadFirst(paths){
+    for(const p of paths){
+      try{ const r = await fetch(p); if(!r.ok) throw new Error(r.statusText); return await r.json(); }
+      catch(_){}
     }
+    // 아주 최소한의 폴백
+    return {characters:[{id:'char_01',name:'동료',image:'',greeting:'안녕! 같이 시작해보자.'}]};
   }
-  
-  let busy = false;
 
-  // --- 전송 로직 ---
-  async function send(){
-    if (busy) return;                 // 전송 중이면 무시
-    const text = ta.value.trim();
-    if (!text) return;
-
-    busy = true;
-    add('me', text);
-
-    // 입력창 리셋 & 접기
-    ta.value = '';
-    ta.style.height = '';
-    ta.classList.add('collapsed');
-    autoResize();
-
-    sendBtn.disabled = true;
-    add('bot', '생각중…');
-    const placeholder = log.lastChild;  // 방금 추가한 "생각중…" 노드
-
-    try {
-      const data = await callChat(text);
-      placeholder.textContent = '🤖 ' + (data.answer || '(응답 없음)');
-    } catch (err) {
-      placeholder.textContent = '🤖 에러: ' + (err?.message || String(err));
-    } finally {
-      sendBtn.disabled = false;
-      ta.focus();
-      busy = false;
-    }
+  function md(text){
+    return (text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/\n/g,'<br>');
   }
-  
-  // 폼 제출(버튼 클릭/엔터) 처리
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    send();
-  });
-  
-  // 입력 확장
-  ta.addEventListener('input', autoResize);
-  
-  // 포커스 시 펼치기
-  ta.addEventListener('focus', () => {
-    ta.classList.remove('collapsed');
-    autoResize();
-  });
-  
-  // 포커스 아웃 시 비어있으면 접기
-  ta.addEventListener('blur', collapseIfEmpty);
-  
-  // IME(한글 조합) 중 엔터 전송 방지 + Enter 전송 / Shift+Enter 줄바꿈
-  let composing = false;
-  ta.addEventListener('compositionstart', () => composing = true);
-  ta.addEventListener('compositionend',   () => composing = false);
-  ta.addEventListener('keydown', (e) => {
-    if(e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey){
-      if(composing || e.isComposing) return; // 조합 중이면 무시
-      e.preventDefault();
-      send();
+
+  function row(kind, html, avatarSrc){
+    const me = kind==='me';
+    const wrap = document.createElement('div');
+    wrap.className = 'row ' + (me?'me':'ai');
+    if(!me){
+      const av = document.createElement('img'); av.className='avatar'; av.src = resolvePath(avatarSrc||''); av.alt=''; wrap.appendChild(av);
     }
-  });
-  
-  // 대화 초기화
-  clearBtn.onclick = async ()=>{
-    try {
-      await fetch(API + '/reset', {method:'POST', credentials: 'include'});
-      add('bot', '(대화가 초기화되었습니다)');
-    } catch(e) {
-      add('bot', '초기화 실패: ' + e.message);
+    const b = document.createElement('div'); b.className='bubble'; b.innerHTML = html; wrap.appendChild(b);
+    return wrap;
+  }
+
+  function extractChoices(answer){
+    const out = []; let seen = new Set(); let inChoices = false;
+    for(const raw of (answer||'').split(/\r?\n/)){
+      const line = raw.trim();
+      if(!inChoices){ if(/\[선택지\]/.test(line)) inChoices = true; continue; }
+      if(!line) break;
+      const m = line.match(/^(?:[-•]|\(?\d+\)?[.)])\s*(.+)$|^\((.+)\)$|^\[(.+)\]$/);
+      const t = (m ? (m[1]||m[2]||m[3]) : line).replace(/^[\(\[]|[\)\]]$/g,'');
+      if(t && !seen.has(t)){ out.push(t); seen.add(t); }
+      if(out.length>=3) break;
     }
-  };
-  
-  // 초기 상태 접힘 유지
-  ta.classList.add('collapsed');
-  </script>
+    return out;
+  }
+
+  (async function init(){
+    const charId = qs('character') || sessionStorage.getItem('lastChar') || 'char_01';
+    const data = await loadFirst(CANDIDATES);
+    const byId = Object.fromEntries((data.characters||[]).map(c=>[c.id,c]));
+    const ch = byId[charId] || (data.characters||[])[0];
+
+    // UI 세팅
+    document.getElementById('title').textContent = (ch.name||'세션');
+    document.getElementById('avatar').src = resolvePath(ch.image||'');
+    document.getElementById('hero').style.backgroundImage = 'url(' + resolvePath(ch.image||'') + ')';
+    sessionStorage.setItem('lastChar', ch.id);
+
+    const log   = document.getElementById('log');
+    const input = document.getElementById('input');
+    const send  = document.getElementById('send');
+
+    function append(kind, text){ log.appendChild(row(kind, md(text), ch.image)); window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); }
+
+    // 1) 캐릭터 전체 프로필 먼저 노출
+    appendHTML('ai', profileHTML(ch), ch.image);
+
+    // 2) 배경 설명 출력 (longBio 우선)
+    if(ch.longBio || ch.shortBio){
+      append('ai', `배경\n${ch.longBio || ch.shortBio}`);
+    }
+
+    // 3) 이어서 캐릭터 고유 greeting 출력
+    if(ch.greeting){
+      append('ai', ch.greeting);
+    }
+
+    // 첫 전송만 캐릭터 페르소나를 메시지 앞에 주입(백엔드 수정 없이 캐릭터 톤 반영)
+    let injected = false;
+
+    async function callChat(message){
+      let msg = message;
+      if(!injected){
+        const persona =
+          '[캐릭터 동료]\n'
+          + `- 이름: ${ch.name||''}\n`
+          + `- 성격/역할: ${ch.archetype||''}\n`
+          + `- 배경요약: ${(ch.longBio||ch.shortBio||'')}\n`
+          + `- 태그: ${(ch.tags||[]).join(', ')}\n`
+          + '- 말투: 구어체, 간결, 1인칭.\n\n';
+        msg = persona + message;
+        injected = true;
+      }
+      const payload = {
+        message: msg,           // ← 페르소나+사용자 입력
+        mode: 'trpg',           // ← TRPG 모드 고정
+        model: 'trpg-gen',
+        temperature: 0.9,
+        top_p: 0.95
+      };
+      const r = await fetch(API + '/chat', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload), credentials:'include'
+      });
+      if(!r.ok) throw new Error(r.statusText);
+      return await r.json();
+    }
+
+    async function handleSend(){
+      const t = (input.value||'').trim(); if(!t) return;
+      append('me', t); input.value='';
+      const ph = row('ai','<span class="hint">생각 중…</span>', ch.image); log.appendChild(ph);
+      try{
+        const data = await callChat(t);
+        const ans = data.answer || '';
+        // 본문
+        ph.querySelector('.bubble').innerHTML = md(ans.split('\n\n[선택지]')[0]||ans);
+        // 선택지 버튼
+        const choices = extractChoices(ans);
+        if(choices.length){
+          const bar = document.createElement('div'); bar.className='choices';
+          for(const c of choices){
+            const btn = document.createElement('button'); btn.className='choice'; btn.textContent = c;
+            btn.onclick = ()=>{ input.value = c; handleSend(); };
+            bar.appendChild(btn);
+          }
+          log.appendChild(bar);
+        }
+      }catch(e){
+        ph.querySelector('.bubble').innerHTML = '에러: ' + (e?.message || String(e));
+      }finally{
+        window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+      }
+    }
+
+    send.addEventListener('click', handleSend);
+    input.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); handleSend(); } });
+  })();
+</script>
+</body>
 </html>
