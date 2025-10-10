@@ -16,7 +16,7 @@
   main{ flex:1 1 auto; padding:10px 12px 94px; }
   .day{ align-self:center; background:rgba(0,0,0,.35); padding:6px 10px; border-radius:999px; color:#cfe4ff; font-size:12px; margin:8px 0; border:1px solid var(--border); }
   .row{ display:flex; gap:10px; margin:10px 0; align-items:flex-end; }
-  .row .bubble{ max-width: 76vw; padding:12px 14px; border-radius:16px; line-height:1.6; box-shadow:0 6px 18px rgba(0,0,0,.35); }
+  .row .bubble{ max-width: 86vw; padding:12px 14px; border-radius:16px; line-height:1.6; box-shadow:0 6px 18px rgba(0,0,0,.35); }
   .row.me{ justify-content:flex-end; }
   .row.me .bubble{ background: linear-gradient(180deg, rgba(96,165,250,.15), rgba(96,165,250,.08)); border:1px solid rgba(96,165,250,.35); }
   .row.ai .bubble{ background: rgba(10,14,18,.78); border:1px solid var(--border); }
@@ -28,33 +28,24 @@
   .choice{ background:rgba(96,165,250,.15); border:1px solid rgba(96,165,250,.35); color:#cfe4ff; padding:8px 10px; border-radius:12px; cursor:pointer; }
   .hint{ color:var(--sub); font-size:12px; }
 
-  /* --- profile card in first message --- */
   .profile { width: 100%; }
-  .profile-hero{
-    height: 200px; border-radius:12px;
-    background-size:cover; background-position:center;
-    margin:-6px -6px 8px -6px; filter: brightness(.9);
-  }
+  .profile-hero{ height: 200px; border-radius:12px; background-size:cover; background-position:center; margin:-6px -6px 8px -6px; filter: brightness(.9); }
   .profile-body{ display:flex; flex-direction:column; gap:6px; }
   .profile-title{ font-weight:700; opacity:.9; }
   .profile-name{ font-size:18px; font-weight:800; letter-spacing:.2px; }
   .profile-arch{ font-size:13px; color:var(--sub); }
   .profile-bio{ font-size:14px; color:#cfe4ff; line-height:1.6; }
   .profile-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:2px; }
-  .profile-tags span{
-    font-size:12px; color:#cfe4ff; background:rgba(96,165,250,.15);
-    border:1px solid rgba(96,165,250,.35); border-radius:999px; padding:4px 8px;
-  }
-
+  .profile-tags span{ font-size:12px; color:#cfe4ff; background:rgba(96,165,250,.15); border:1px solid rgba(96,165,250,.35); border-radius:999px; padding:4px 8px; }
 </style>
 
 <body class="page">
-  <div id="hero" class="hero"></div>
+  <div id="hero" class="hero" style="background-image:url('/assets/img/bg_default.jpg')"></div>
   <div class="veil"></div>
 
   <header>
-    <a class="back" href="home.html">← 홈</a>
-    <img id="avatar" class="avatar" alt="">
+    <a class="back" href="/">← 홈</a>
+    <img id="avatar" class="avatar" src="/assets/img/placeholder.png" alt="">
     <div id="title" class="title">세션</div>
   </header>
 
@@ -66,19 +57,25 @@
   </div>
 
 <script>
-  // 👉 필요하면 /json/characters.json 대신 같은 디렉토리의 characters.json도 탐색
-  const CANDIDATES = ['characters.json','json/characters.json','/json/characters.json'];
+  const CANDIDATES = ['characters.json','/json/characters.json'];
   const API = ''; // same-origin
 
   function qs(key){ return new URL(location.href).searchParams.get(key); }
-  function resolvePath(p){ if(!p) return ''; if(/^https?:|^data:/.test(p)) return p; return p.replace(/^\/+/, ''); }
+
+  // ← 핵심: 값이 있을 땐 그대로 쓰고, 없을 때만 fallback 사용
+  function resolvePath(p, fallback = '/assets/img/placeholder.png') {
+    if (!p) return fallback;
+    if (/^https?:|^data:/.test(p)) return p;
+    if (p.startsWith('/')) return p;
+    return '/assets/img/' + p.replace(/^(\.\/)+/, '');
+  }
 
   function profileHTML(ch){
     const tags = (ch.tags||[]).map(t=>`<span>${t}</span>`).join('');
     const bio  = ch.longBio || ch.shortBio || '';
     return `
       <div class="profile">
-        <div class="profile-hero" style="background-image:url('${resolvePath(ch.image||'')}')"></div>
+        <div class="profile-hero" style="background-image:url('${resolvePath(ch.image, '/assets/img/bg_default.jpg')}')"></div>
         <div class="profile-body">
           <div class="profile-title">소개</div>
           <div class="profile-name">${ch.name||''}</div>
@@ -87,23 +84,6 @@
           ${tags ? `<div class="profile-tags">${tags}</div>`:''}
         </div>
       </div>`;
-  }
-
-  function appendHTML(kind, html, avatar){
-    const wrap = row(kind, html, avatar);
-    // md() 변환 없이 raw HTML 그대로
-    wrap.querySelector('.bubble').innerHTML = html;
-    document.getElementById('log').appendChild(wrap);
-    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
-  }
-
-  async function loadFirst(paths){
-    for(const p of paths){
-      try{ const r = await fetch(p); if(!r.ok) throw new Error(r.statusText); return await r.json(); }
-      catch(_){}
-    }
-    // 아주 최소한의 폴백
-    return {characters:[{id:'char_01',name:'동료',image:'',greeting:'안녕! 같이 시작해보자.'}]};
   }
 
   function md(text){
@@ -117,10 +97,34 @@
     const wrap = document.createElement('div');
     wrap.className = 'row ' + (me?'me':'ai');
     if(!me){
-      const av = document.createElement('img'); av.className='avatar'; av.src = resolvePath(avatarSrc||''); av.alt=''; wrap.appendChild(av);
+      const av = document.createElement('img');
+      av.className='avatar';
+      av.src = resolvePath(avatarSrc, '/assets/img/placeholder.png');
+      av.alt=''; wrap.appendChild(av);
     }
     const b = document.createElement('div'); b.className='bubble'; b.innerHTML = html; wrap.appendChild(b);
     return wrap;
+  }
+
+  function append(kind, text, avatar){
+    const wrap = row(kind, md(text), avatar);
+    document.getElementById('log').appendChild(wrap);
+    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+  }
+
+  function appendHTML(kind, html, avatar){
+    const wrap = row(kind, html, avatar);
+    wrap.querySelector('.bubble').innerHTML = html;
+    document.getElementById('log').appendChild(wrap);
+    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
+  }
+
+  async function loadFirst(paths){
+    for(const p of paths){
+      try{ const r = await fetch(p); if(!r.ok) throw new Error(r.statusText); return await r.json(); }
+      catch(_){}
+    }
+    return {characters:[{id:'char_01',name:'동료',image:'/assets/img/placeholder.png',greeting:'안녕! 같이 시작해보자.'}]};
   }
 
   function extractChoices(answer){
@@ -143,55 +147,33 @@
     const byId = Object.fromEntries((data.characters||[]).map(c=>[c.id,c]));
     const ch = byId[charId] || (data.characters||[])[0];
 
-    // UI 세팅
+    // UI 세팅 (값이 있으면 ch.image가 우선, 없을 땐 fallback 사용)
     document.getElementById('title').textContent = (ch.name||'세션');
-    document.getElementById('avatar').src = resolvePath(ch.image||'');
-    document.getElementById('hero').style.backgroundImage = 'url(' + resolvePath(ch.image||'') + ')';
+    document.getElementById('avatar').src = resolvePath(ch.image, '/assets/img/placeholder.png');
+    document.getElementById('hero').style.backgroundImage = 'url(' + resolvePath(ch.image, '/assets/img/bg_default.jpg') + ')';
     sessionStorage.setItem('lastChar', ch.id);
 
     const log   = document.getElementById('log');
     const input = document.getElementById('input');
     const send  = document.getElementById('send');
 
-    function append(kind, text){ log.appendChild(row(kind, md(text), ch.image)); window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'}); }
-
-    // 1) 캐릭터 전체 프로필 먼저 노출
-    appendHTML('ai', profileHTML(ch), ch.image);
-
-    // 2) 배경 설명 출력 (longBio 우선)
-    if(ch.longBio || ch.shortBio){
-      append('ai', `배경\n${ch.longBio || ch.shortBio}`);
-    }
-
-    // 3) 이어서 캐릭터 고유 greeting 출력
-    if(ch.greeting){
-      append('ai', ch.greeting);
-    }
-
-    // 첫 전송만 캐릭터 페르소나를 메시지 앞에 주입(백엔드 수정 없이 캐릭터 톤 반영)
-    let injected = false;
-
     async function callChat(message){
-      let msg = message;
-      if(!injected){
-        const persona =
-          '[캐릭터 동료]\n'
-          + `- 이름: ${ch.name||''}\n`
-          + `- 성격/역할: ${ch.archetype||''}\n`
-          + `- 배경요약: ${(ch.longBio||ch.shortBio||'')}\n`
-          + `- 태그: ${(ch.tags||[]).join(', ')}\n`
-          + '- 말투: 구어체, 간결, 1인칭.\n\n';
-        msg = persona + message;
-        injected = true;
-      }
+      const persona =
+        '[캐릭터 동료]\n'
+        + `- 이름: ${ch.name||''}\n`
+        + `- 성격/역할: ${ch.archetype||''}\n`
+        + `- 배경요약: ${(ch.longBio||ch.shortBio||'')}\n`
+        + `- 태그: ${(ch.tags||[]).join(', ')}\n`
+        + '- 말투: 구어체, 간결, 1인칭.\n\n';
+
       const payload = {
-        message: msg,           // ← 페르소나+사용자 입력
-        mode: 'trpg',           // ← TRPG 모드 고정
+        message: persona + message,
+        mode: 'trpg',
         model: 'trpg-gen',
         temperature: 0.9,
         top_p: 0.95
       };
-      const r = await fetch(API + '/chat', {
+      const r = await fetch('/v1/chat', {
         method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify(payload), credentials:'include'
       });
@@ -201,14 +183,12 @@
 
     async function handleSend(){
       const t = (input.value||'').trim(); if(!t) return;
-      append('me', t); input.value='';
+      append('me', t, ch.image); input.value='';
       const ph = row('ai','<span class="hint">생각 중…</span>', ch.image); log.appendChild(ph);
       try{
         const data = await callChat(t);
         const ans = data.answer || '';
-        // 본문
         ph.querySelector('.bubble').innerHTML = md(ans.split('\n\n[선택지]')[0]||ans);
-        // 선택지 버튼
         const choices = extractChoices(ans);
         if(choices.length){
           const bar = document.createElement('div'); bar.className='choices';
@@ -226,8 +206,12 @@
       }
     }
 
-    send.addEventListener('click', handleSend);
-    input.addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); handleSend(); } });
+    document.getElementById('send').addEventListener('click', handleSend);
+    document.getElementById('input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); handleSend(); } });
+
+    // 첫 화면: 프로필 카드 + 인사
+    appendHTML('ai', profileHTML(ch), ch.image);
+    if(ch.greeting) append('ai', ch.greeting, ch.image);
   })();
 </script>
 </body>
