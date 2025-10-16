@@ -54,7 +54,14 @@
 </style>
 
 <header><h1>캐릭터 선택</h1></header>
-<main id="root"></main>
+<main id="root">
+  <section class="band">
+    <div class="head">
+      <div class="title">캐릭터 선택</div>
+    </div>
+    <div id="grid" class="grid"></div>
+  </section>
+</main>
 
 <nav class="nav">
   <ul>
@@ -69,84 +76,64 @@
 <div id="toast" class="toast">준비 중입니다</div>
 
 <script>
-  const DEFAULT_HOME = {
-    "layoutVersion": "home_v1",
-    "bands": [
-      {
-        "id": "band_row_1",
-        "title": "캐릭터 선택 ①",
-        "layout": "grid",
-        "cardAspect": "2:3",
-        "items": [
-          { "id": "char_01", "type": "chat", "image": "/assets/img/char_01.jpg", "title": "세라" },
-          { "id": "char_02", "type": "chat", "image": "/assets/img/char_02.jpg", "title": "리나" },
-          { "id": "char_03", "type": "chat", "image": "/assets/img/char_03.jpg", "title": "하나" }
-        ]
-      },
-      {
-        "id": "band_row_2",
-        "title": "캐릭터 선택 ②",
-        "layout": "grid",
-        "cardAspect": "2:3",
-        "items": [
-          { "id": "char_04", "type": "chat", "image": "/assets/img/char_04.jpg", "title": "미노" },
-          { "id": "char_05", "type": "chat", "image": "/assets/img/char_05.jpg", "title": "유키" },
-          { "id": "char_06", "type": "chat", "image": "/assets/img/char_06.jpg", "title": "레이" }
-        ]
-      }
-    ]
-  };
+function toast(msg){
+  const t = document.getElementById('toast');
+  if(!t) return alert(msg);
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2000);
+}
 
-  const DEFAULT_CHARACTERS = {
-    "characters": [
-      { "id": "char_01", "name": "세라", "archetype": "쾌활한 검사", "shortBio": "결단이 빠르고 농담을 좋아한다.", "image": "/assets/img/char_01.jpg" },
-      { "id": "char_02", "name": "리나", "archetype": "차분한 마법사", "shortBio": "정보를 차분히 정리해 준다.", "image": "/assets/img/char_02.jpg" },
-      { "id": "char_03", "name": "하나", "archetype": "엉뚱한 탐정", "shortBio": "호기심이 많고 관찰력이 좋다.", "image": "/assets/img/char_03.jpg" },
-      { "id": "char_04", "name": "미노", "archetype": "무뚝뚝한 경호원", "shortBio": "말수는 적지만 신뢰할 수 있다.", "image": "/assets/img/char_04.jpg" },
-      { "id": "char_05", "name": "유키", "archetype": "생기 넘치는 학생", "shortBio": "밝고 에너지가 넘친다.", "image": "/assets/img/char_05.jpg" },
-      { "id": "char_06", "name": "레이", "archetype": "현실주의 전략가", "shortBio": "실리를 중시한다.", "image": "/assets/img/char_06.jpg" }
-    ]
-  };
-
-  function card(char){
-    const el=document.createElement('a');
-    el.className='card';
-    el.href = '/chat?character=' + encodeURIComponent(char.id);
-    el.innerHTML = `
-      <img src="${char.image}" alt="">
-      <div class="label">
-        <div class="name">${char.name}</div>
-        <div class="bio">${char.shortBio||''}</div>
-      </div>`;
-    return el;
+async function fetchCharacters(offset=0, limit=120){
+  try{
+    const base = location.origin;                            // 절대경로로 고정
+    const r = await fetch(`${base}/v1/characters?offset=${offset}&limit=${limit}`);
+    if(!r.ok){ throw new Error(`HTTP ${r.status}`); }
+    const j = await r.json();
+    console.debug('[characters]', j);
+    return j.items || [];
+  }catch(err){
+    console.error(err);
+    toast('목록을 불러오지 못했어요');
+    return [];
   }
+}
 
-  function band(section, charsById){
-    const wrap=document.createElement('section');
-    wrap.className='band';
-    const head=document.createElement('div');
-    head.className='head';
-    head.innerHTML='<div class="title">'+section.title+'</div>';
-    const grid=document.createElement('div');
-    grid.className='grid';
-    for(const item of section.items){ const ch=charsById[item.id]; if(ch) grid.appendChild(card(ch)); }
-    wrap.appendChild(head); wrap.appendChild(grid);
-    return wrap;
+function card(item){
+  const el = document.createElement('a');
+  el.className = 'card';
+  el.href = `/chat?character_id=${item.id}`;
+  el.innerHTML = `
+    <img src="${item.image}" alt="${item.name}">
+    <div class="label">
+      <div class="name">${item.name}</div>
+      <div class="bio">${item.summary || ''}</div>
+    </div>`;
+  return el;
+}
+
+// 전역 에러도 잡아서 바로 확인
+window.addEventListener('error', (e)=>{
+  console.error('JS Error:', e.error || e.message);
+  toast('스크립트 오류가 있어요 (F12 확인)');
+});
+
+(async function init(){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  const items = await fetchCharacters(0, 120);
+  if(items.length === 0){
+    // 비어있을 때도 표시
+    const empty = document.createElement('div');
+    empty.style.gridColumn = '1 / -1';
+    empty.style.color = '#9fb3c8';
+    empty.style.padding = '12px 4px';
+    empty.textContent = '표시할 캐릭터가 없습니다.';
+    grid.appendChild(empty);
+    return;
   }
-
-  async function loadJSON(path, fallback){
-    try{
-      const r=await fetch(path);
-      return r.ok?await r.json():fallback;
-    }catch{ return fallback; }
-  }
-
-  (async function init(){
-    const root=document.getElementById('root');
-    const home=await loadJSON('/json/home.json',DEFAULT_HOME);
-    const chars=await loadJSON('/json/characters.json',DEFAULT_CHARACTERS);
-    const map=Object.fromEntries((chars.characters||[]).map(c=>[c.id,c]));
-    for(const sec of home.bands||[]) root.appendChild(band(sec,map));
-  })();
+  items.forEach(it => grid.appendChild(card(it)));
+})();
 </script>
 </html>

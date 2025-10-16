@@ -6,7 +6,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, PlainTextResponse
 
 # 라우터
-from apps.api.routes import app_chat, app_api
+from apps.api.routes import app_chat, app_api, characters
+
 
 app = FastAPI(
     title="AI TRPG MVP API",
@@ -86,6 +87,7 @@ def chat_page():
 # ------------------------------
 app.include_router(app_chat.router, prefix="/v1/chat", tags=["Chat"])
 app.include_router(app_api.router,  prefix="/v1/ask",  tags=["Ask"])
+app.include_router(characters.router, prefix="/v1/characters", tags=["Characters"])  # ← 추가
 
 @app.get("/healthz")
 def healthz():

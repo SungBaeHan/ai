@@ -152,14 +152,25 @@ def _enrich_scene_generic(head: str, min_sent: int = 4, max_sent: int = 6) -> st
     return ' '.join(sents[:max_sent]).strip()
 
 def drop_non_korean_lines(s: str) -> str:
+    """한국어 외 문장 제거 (한자, 영어 등 비율 기준으로 필터링 강화)"""
     out = []
     for ln in s.splitlines():
-        if re.search(r'[가-힣]', ln):
-            out.append(ln)
-        elif re.search(r'[\u4E00-\u9FFF]{4,}', ln):
+        # 완전히 비어있으면 패스
+        if not ln.strip():
             continue
-        else:
-            out.append(ln)
+        # 한글 포함 비율 계산
+        hangul = len(re.findall(r'[가-힣]', ln))
+        hanja  = len(re.findall(r'[\u4E00-\u9FFF]', ln))
+        latin  = len(re.findall(r'[A-Za-z]', ln))
+        total  = len(ln)
+        if total == 0:
+            continue
+        ratio_ko = hangul / total
+
+        # 한글 비율이 0.2 미만이거나 한문 비율이 높으면 제거
+        if ratio_ko < 0.2 or hanja > 2 or latin > 5:
+            continue
+        out.append(ln)
     return "\n".join(out)
 
 def polish(text: str, model: str = "trpg-polish") -> str:
@@ -260,6 +271,9 @@ def postprocess_trpg(text: str) -> str:
         out += "\n\n[선택지]\n" + "\n".join(f"- {c}" for c in choices)
     out = re.sub(r'\s+([,.!?])', r'\1', out)
     out = re.sub(r' {2,}', ' ', out)
+    
+    out = re.sub(r'[\u4E00-\u9FFF]+', '', out)  # 모든 한자 제거
+    
     return out
 
 def retrieve_context(query: str, k: int = 5) -> str:
