@@ -14,19 +14,19 @@
         {
           "id": "char_01",
           "type": "chat",
-          "image": "char_01.png",
+          "image": "char_01.jpg",
           "title": "세라"
         },
         {
           "id": "char_02",
           "type": "chat",
-          "image": "char_02.png",
+          "image": "char_02.jpg",
           "title": "리나"
         },
         {
           "id": "char_03",
           "type": "chat",
-          "image": "char_03.png",
+          "image": "char_03.jpg",
           "title": "하나"
         }
       ]
@@ -44,19 +44,19 @@
         {
           "id": "char_04",
           "type": "chat",
-          "image": "char_04.png",
+          "image": "char_04.jpg",
           "title": "미노"
         },
         {
           "id": "char_05",
           "type": "chat",
-          "image": "char_05.png",
+          "image": "char_05.jpg",
           "title": "유키"
         },
         {
           "id": "char_06",
           "type": "chat",
-          "image": "char_06.png",
+          "image": "char_06.jpg",
           "title": "레이"
         }
       ]

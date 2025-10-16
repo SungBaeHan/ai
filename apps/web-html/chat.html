@@ -45,7 +45,7 @@
 
   <header>
     <a class="back" href="/">← 홈</a>
-    <img id="avatar" class="avatar" src="/assets/img/placeholder.png" alt="">
+    <img id="avatar" class="avatar" src="/assets/img/placeholder.jpg" alt="">
     <div id="title" class="title">세션</div>
   </header>
 
@@ -63,7 +63,7 @@
   function qs(key){ return new URL(location.href).searchParams.get(key); }
 
   // ← 핵심: 값이 있을 땐 그대로 쓰고, 없을 때만 fallback 사용
-  function resolvePath(p, fallback = '/assets/img/placeholder.png') {
+  function resolvePath(p, fallback = '/assets/img/placeholder.jpg') {
     if (!p) return fallback;
     if (/^https?:|^data:/.test(p)) return p;
     if (p.startsWith('/')) return p;
@@ -99,7 +99,7 @@
     if(!me){
       const av = document.createElement('img');
       av.className='avatar';
-      av.src = resolvePath(avatarSrc, '/assets/img/placeholder.png');
+      av.src = resolvePath(avatarSrc, '/assets/img/placeholder.jpg');
       av.alt=''; wrap.appendChild(av);
     }
     const b = document.createElement('div'); b.className='bubble'; b.innerHTML = html; wrap.appendChild(b);
@@ -124,7 +124,7 @@
       try{ const r = await fetch(p); if(!r.ok) throw new Error(r.statusText); return await r.json(); }
       catch(_){}
     }
-    return {characters:[{id:'char_01',name:'동료',image:'/assets/img/placeholder.png',greeting:'안녕! 같이 시작해보자.'}]};
+    return {characters:[{id:'char_01',name:'동료',image:'/assets/img/placeholder.jpg',greeting:'안녕! 같이 시작해보자.'}]};
   }
 
   function extractChoices(answer){
@@ -149,7 +149,7 @@
 
     // UI 세팅 (값이 있으면 ch.image가 우선, 없을 땐 fallback 사용)
     document.getElementById('title').textContent = (ch.name||'세션');
-    document.getElementById('avatar').src = resolvePath(ch.image, '/assets/img/placeholder.png');
+    document.getElementById('avatar').src = resolvePath(ch.image, '/assets/img/placeholder.jpg');
     document.getElementById('hero').style.backgroundImage = 'url(' + resolvePath(ch.image, '/assets/img/bg_default.jpg') + ')';
     sessionStorage.setItem('lastChar', ch.id);
 

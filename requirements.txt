@@ -4,3 +4,4 @@ qdrant-client
 sentence-transformers
 ollama
 pydantic==2.*
+langchain-ollama
