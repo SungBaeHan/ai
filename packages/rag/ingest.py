@@ -2,7 +2,7 @@ import os, glob
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qm
 from pypdf import PdfReader
-from embedder import embed
+from packages.rag.embedder import embed
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION = os.getenv("COLLECTION", "my_docs")
 def read_docs(folder: str):
