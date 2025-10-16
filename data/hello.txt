@@ -1,0 +1,2 @@
+LangChain + Qdrant + Ollama 테스트 문서입니다.
+이 문서는 RAG 파이프라인의 기본 동작을 검증하기 위한 샘플입니다.
