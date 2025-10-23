@@ -2,14 +2,35 @@ import os, json, sqlite3, time
 from pathlib import Path
 
 # 프로젝트 루트/DB 경로
-ROOT = Path(__file__).resolve().parents[2]  # .../ai
-DATA = ROOT / "data"
-DATA.mkdir(exist_ok=True)
-DB_PATH = DATA / "app.sqlite3"
+# ROOT = Path(__file__).resolve().parents[2]  # .../ai
+# DATA = ROOT / "data"
+# DATA.mkdir(exist_ok=True)
+# DB_PATH = DATA / "app.sqlite3"
+
+# 기본 경로: 환경변수(DB_PATH) → 홈디렉토리 ai_db → 기존 data 폴더 순서로 탐색
+# DEFAULT_DB = Path("/home/sbhan/ai_db/app.sqlite3")
+# ROOT = Path(__file__).resolve().parents[2]  # .../ai
+# DATA = ROOT / "data"
+# DATA.mkdir(exist_ok=True)
+
+# ✅ DB_PATH 환경변수가 지정되어 있으면 그걸 우선 사용
+# DB_PATH = Path(os.getenv("DB_PATH", DEFAULT_DB))
+# ✅ 기본값을 윈도우 드라이브 경로로
+DB_PATH = Path(os.getenv("DB_PATH", "/mnt/f/git/ai/data/app.sqlite3"))
 
 def get_conn():
-    conn = sqlite3.connect(DB_PATH)
+    # conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    
+    # 🔧 개발 편의 PRAGMA
+    try:
+        conn.execute("PRAGMA journal_mode=DELETE")  # WAL 끄기 (윈도우 GUI 동시접근 편리)
+        conn.execute("PRAGMA synchronous=OFF")      # 디스크 flush 완화 (속도↑, 안정성↓)
+        conn.execute("PRAGMA busy_timeout=2000")    # 잠금 시 2초 대기
+    except Exception:
+        pass
+    
     return conn
 
 def init_db():

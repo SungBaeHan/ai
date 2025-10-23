@@ -1,139 +1,150 @@
+<!-- =============================================
+ home.html (캐릭터 목록) — 상세 주석 버전
+ 구조: 헤더 <style>, 본문 레이아웃, 스크립트(데이터 로드/렌더)
+ ============================================= -->
 <!doctype html>
 <html lang="ko">
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Home · OTT Style</title>
-<style>
-  :root{
-    --bg:#0b0f14; --bg-2:#0f141a; --card:#11161d; --ink:#e5ecf3;
-    --sub:#9fb3c8; --accent:#60a5fa; --muted:#1a232c; --border:#1f2a36;
-  }
-  *{ box-sizing: border-box; }
-  body{ margin:0; background:var(--bg); color:var(--ink); font: 15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
-  .page{ min-height:100dvh; display:flex; flex-direction:column; }
-  header{ padding:14px 16px; position:sticky; top:0; z-index:5; background:linear-gradient(180deg, rgba(11,15,20,.9), rgba(11,15,20,.75), rgba(11,15,20,0) 100%); backdrop-filter: blur(8px); }
-  h1{ font-size:18px; margin:0; color:#cfe4ff; letter-spacing:.2px; }
-  main{ flex:1 1 auto; padding: 8px 12px 80px; }
-  .band{ margin:14px 4px 8px; }
-  .band .head{ display:flex; align-items:center; justify-content:space-between; padding: 4px 4px 8px; }
-  .band .title{ font-weight:700; font-size:16px; color:#cfe4ff; }
-  .grid{ display:grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .card{ position:relative; color:inherit; text-decoration:none; background:var(--card); border-radius:14px; overflow:hidden; aspect-ratio: 2/3; box-shadow: 0 6px 24px rgba(0,0,0,.24); }
-  .card img{ width:100%; height:100%; object-fit:cover; display:block; }
-  .card .label{
-    position:absolute; left:0; right:0; bottom:0;
-    padding:8px 10px;
-    background:linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.75));
-  }
-  .card .label .name{ font-weight:700; font-size:14px; color:#fff; }
-  .card .label .bio{ font-size:12px; color:#cfe4ff; margin-top:2px; }
-  .more{ color:var(--sub); font-size:13px; cursor:not-allowed; }
-  .nav{ position:sticky; bottom:0; z-index:10; background:linear-gradient(0deg, rgba(11,15,20,1), rgba(11,15,20,.9)); border-top:1px solid var(--border); }
-  .nav ul{ margin:0; padding: 10px 12px calc(env(safe-area-inset-bottom)+8px); display:grid; grid-template-columns: repeat(5, 1fr); gap: 10px; list-style:none; }
-  .nav button{ width:100%; background:var(--muted); color:#b8c7d6; border:1px solid var(--border); border-radius:12px; padding:10px 8px; cursor:pointer; }
-  .nav button:active{ transform: translateY(1px); }
-  .toast{ position:fixed; left:50%; bottom: calc(env(safe-area-inset-bottom) + 74px); transform: translateX(-50%);
-          background: rgba(15,20,26,.94); color:#d7e5f5; border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; z-index: 40;
-          box-shadow: 0 8px 26px rgba(0,0,0,.35); display:none; }
-  .toast.show{ display:block; }
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>캐릭터 선택</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:#0b0f14; color:#e5e7eb;}
 
-  .dungeon-card{
-    background:var(--card); border-radius:16px; overflow:hidden;
-    margin:16px 0; box-shadow:0 6px 20px rgba(0,0,0,.3);
-  }
-  .dungeon-card img.hero{ width:100%; height:180px; object-fit:cover; }
-  .dungeon-card .info{ padding:12px; }
-  .dungeon-card h2{ margin:0 0 6px; font-size:18px; }
-  .dungeon-card p{ margin:0 0 10px; font-size:14px; color:var(--sub); }
-  .dungeon-card .start{ display:inline-block; background:var(--accent); color:#05223e;
-    padding:6px 12px; border-radius:10px; font-weight:700; text-decoration:none; }
+    /* top nav (moved from bottom) */
+    .nav { position:sticky; top:0; z-index:30; background:#0b1118; border-bottom:1px solid #18212c; }
+    .navin { max-width:1200px; margin:0 auto; padding:8px 12px; display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; }
+    .tab { text-align:center; padding:10px 8px; border-radius:10px; background:#0f172a; color:#a5b4fc; border:1px solid #1e293b; font-size:12px; cursor:pointer; user-select:none; }
+    .tab:active { transform:translateY(1px); }
 
-  @media(min-width:768px){
-    main{ max-width: 960px; margin: 0 auto; }
-  }
-</style>
+    .wrap { max-width:1200px; margin:24px auto 40px; padding:0 16px;}
+    h1 { font-size:20px; font-weight:700; margin:8px 0 20px; color:#d1d5db; }
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px; }
+    .card { display:block; background:#111827; border-radius:14px; overflow:hidden; border:1px solid #1f2937; text-decoration:none; color:inherit; box-shadow:0 6px 18px rgba(0,0,0,.25); transition: transform .15s ease, box-shadow .15s ease; }
+    .card:hover { transform:translateY(-2px); box-shadow:0 10px 24px rgba(0,0,0,.35); }
+    .thumb { width:100%; aspect-ratio: 16/10; object-fit:cover; background:#0f172a; display:block; }
+    .body { padding:12px 14px 16px; }
+    .name { font-size:16px; font-weight:700; color:#f3f4f6; }
+    .meta { margin-top:6px; font-size:12px; color:#94a3b8; line-height:1.4; display:block; height:32px; overflow:hidden; }
 
-<header><h1>캐릭터 선택</h1></header>
-<main id="root">
-  <section class="band">
-    <div class="head">
-      <div class="title">캐릭터 선택</div>
-    </div>
+    /* toast layer */
+    .toast { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .18s ease; z-index:50; }
+    .toast.show { opacity:1; }
+    .toast .box { pointer-events:auto; min-width:200px; max-width:80vw; background:#0f172a; border:1px solid #1f2937; color:#e5e7eb; padding:14px 18px; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.45); text-align:center; }
+  </style>
+</head>
+<body>
+  <!-- Top Navigation -->
+  <div class="nav"><div class="navin">
+    <div class="tab" data-nav="logo">Logo</div>
+    <div class="tab" data-nav="search">Search</div>
+    <div class="tab" data-nav="create">Create</div>
+    <div class="tab" data-nav="list">My List</div>
+    <div class="tab" data-nav="my">My</div>
+  </div></div>
+
+  <div class="wrap">
+    <h1>캐릭터 선택</h1>
     <div id="grid" class="grid"></div>
-  </section>
-</main>
+  </div>
 
-<nav class="nav">
-  <ul>
-    <li><button data-action="logo">Logo</button></li>
-    <li><button data-action="search">Search</button></li>
-    <li><button data-action="create">Create</button></li>
-    <li><button data-action="mylist">My List</button></li>
-    <li><button data-action="my">My</button></li>
-  </ul>
-</nav>
+  <!-- Toast Layer -->
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true">
+    <div class="box">준비중입니다</div>
+  </div>
 
-<div id="toast" class="toast">준비 중입니다</div>
+  <script>
+    // API 실패 시 로컬 JSON 대체 경로(있다면 사용됨)
+    const CANDIDATES = ['/json/characters.json','/characters.json','/static/characters.json'];
 
-<script>
-function toast(msg){
-  const t = document.getElementById('toast');
-  if(!t) return alert(msg);
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'), 2000);
-}
+        // 서버 API에서 캐릭터 목록 로드
+    async function loadFromApi() {
+      const r = await fetch('/v1/characters?offset=0&limit=200');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      return j.items || [];
+    }
+        // 로컬 정적 JSON에서 캐릭터 목록 로드 (개발/오프라인용)
+    async function loadFromLocal(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      return j.characters || j.items || j || [];
+    }
+        // 캐릭터 목록 로드 진입점: 1) API 시도 → 2) 실패 시 로컬 JSON들 순차 시도
+    async function loadCharacters() {
+      try { return await loadFromApi(); }
+      catch(_) {
+        for (const url of CANDIDATES) { try { return await loadFromLocal(url); } catch(__){} }
+        return [];
+      }
+    }
 
-async function fetchCharacters(offset=0, limit=120){
-  try{
-    const base = location.origin;                            // 절대경로로 고정
-    const r = await fetch(`${base}/v1/characters?offset=${offset}&limit=${limit}`);
-    if(!r.ok){ throw new Error(`HTTP ${r.status}`); }
-    const j = await r.json();
-    console.debug('[characters]', j);
-    return j.items || [];
-  }catch(err){
-    console.error(err);
-    toast('목록을 불러오지 못했어요');
-    return [];
-  }
-}
+        // 숫자/char_XX 형태를 일관된 char_## 로 통일
+    function normalizeCharId(v){
+      if(!v) return 'char_01';
+      if(/^\d+$/.test(v)) return 'char_' + String(parseInt(v,10)).padStart(2,'0');
+      if(/^char_\d{1,2}$/.test(v)) return 'char_' + String(parseInt(v.split('_')[1],10)).padStart(2,'0');
+      return v;
+    }
+        // 이미지 경로를 절대경로(/assets/...)로 정규화
+    function resolvePath(p){
+      if (!p) return '/assets/img/placeholder.jpg';
+      if (/^https?:\/\//i.test(p)) return p;
+      return p.startsWith('/') ? p : '/assets/img/' + p;
+    }
 
-function card(item){
-  const el = document.createElement('a');
-  el.className = 'card';
-  el.href = `/chat?character_id=${item.id}`;
-  el.innerHTML = `
-    <img src="${item.image}" alt="${item.name}">
-    <div class="label">
-      <div class="name">${item.name}</div>
-      <div class="bio">${item.summary || ''}</div>
-    </div>`;
-  return el;
-}
+        // 카드 DOM을 생성하여 그리드에 추가
+    function card(item) {
+      const id = normalizeCharId(item.id || item.pk || item.slug || item.name || 'char_01');
+      const a  = document.createElement('a');
+      a.className = 'card';
+      a.href = `/chat?character=${id}`;
+      a.addEventListener('click', () => { try { sessionStorage.setItem('lastChar', id); } catch(_){ } });
 
-// 전역 에러도 잡아서 바로 확인
-window.addEventListener('error', (e)=>{
-  console.error('JS Error:', e.error || e.message);
-  toast('스크립트 오류가 있어요 (F12 확인)');
-});
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.alt = item.name || id;
+      img.src = resolvePath(item.image || item.cover || '/assets/img/placeholder.jpg');
 
-(async function init(){
-  const grid = document.getElementById('grid');
-  grid.innerHTML = '';
+      const body = document.createElement('div'); body.className='body';
+      const name = document.createElement('div'); name.className='name'; name.textContent = item.name || id;
+      const meta = document.createElement('span'); meta.className='meta';
+      meta.textContent = (item.shortBio || item.oneLiner || item.greeting || '').toString();
 
-  const items = await fetchCharacters(0, 120);
-  if(items.length === 0){
-    // 비어있을 때도 표시
-    const empty = document.createElement('div');
-    empty.style.gridColumn = '1 / -1';
-    empty.style.color = '#9fb3c8';
-    empty.style.padding = '12px 4px';
-    empty.textContent = '표시할 캐릭터가 없습니다.';
-    grid.appendChild(empty);
-    return;
-  }
-  items.forEach(it => grid.appendChild(card(it)));
-})();
-</script>
+      body.appendChild(name); body.appendChild(meta);
+      a.appendChild(img); a.appendChild(body);
+      return a;
+    }
+
+        // 상단 탭 클릭 시 '준비중' 토스트 표시
+    function showToast(ms=1200){
+      const el = document.getElementById('toast');
+      el.classList.add('show');
+      clearTimeout(showToast.tid);
+      showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+        // 초기화: 네비게이션 바 핸들러+캐릭터 목록 렌더링
+    (async function init(){
+      // nav buttons -> “준비중입니다”
+            // 상단 네비게이션 탭 클릭 시 토스트 표시
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          showToast();
+        });
+      });
+
+      const grid = document.getElementById('grid');
+            // 캐릭터 데이터 로드 (API 우선)
+      const items = await loadCharacters();
+            // 데이터 없을 때 안내 문구 표시
+      grid.innerHTML = items.length ? '' : '<div style="opacity:.7">표시할 캐릭터가 없습니다.</div>';
+            // 각 아이템을 카드로 변환해 그리드에 추가
+      items.forEach(it => grid.appendChild(card(it)));
+    })();
+  </script>
+</body>
 </html>

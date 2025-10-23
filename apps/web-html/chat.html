@@ -1,218 +1,168 @@
 <!doctype html>
 <html lang="ko">
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Chat · TRPG</title>
-<style>
-  :root{ --bg:#0b0f14; --ink:#e5ecf3; --sub:#a7bed6; --accent:#60a5fa; --border:#1f2a36; }
-  *{box-sizing:border-box} body{margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;}
-  .page{min-height:100dvh; display:flex; flex-direction:column; position:relative;}
-  .hero{position:fixed; inset:0; z-index:-2; background:center/cover no-repeat; filter: blur(14px) brightness(.45); transform:scale(1.04);}
-  .veil{position:fixed; inset:0; z-index:-1; background: radial-gradient(ellipse at 50% 20%, rgba(0,0,0,.12), rgba(0,0,0,.7) 60%, rgba(0,0,0,.9));}
-  header{ display:flex; align-items:center; gap:10px; padding:12px 14px; position:sticky; top:0; z-index:5; background:linear-gradient(180deg, rgba(11,15,20,.92), rgba(11,15,20,.7), rgba(11,15,20,0)); }
-  header img.avatar{ width:28px; height:28px; border-radius:50%; object-fit:cover; border:1px solid rgba(255,255,255,.2);}
-  header .title{ font-weight:700; letter-spacing:.2px; }
-  a.back{ color:#cfe4ff; text-decoration:none; padding:6px 8px; border-radius:8px; background:rgba(0,0,0,.25); border:1px solid var(--border);}
-  main{ flex:1 1 auto; padding:10px 12px 94px; }
-  .day{ align-self:center; background:rgba(0,0,0,.35); padding:6px 10px; border-radius:999px; color:#cfe4ff; font-size:12px; margin:8px 0; border:1px solid var(--border); }
-  .row{ display:flex; gap:10px; margin:10px 0; align-items:flex-end; }
-  .row .bubble{ max-width: 86vw; padding:12px 14px; border-radius:16px; line-height:1.6; box-shadow:0 6px 18px rgba(0,0,0,.35); }
-  .row.me{ justify-content:flex-end; }
-  .row.me .bubble{ background: linear-gradient(180deg, rgba(96,165,250,.15), rgba(96,165,250,.08)); border:1px solid rgba(96,165,250,.35); }
-  .row.ai .bubble{ background: rgba(10,14,18,.78); border:1px solid var(--border); }
-  .row img.avatar{ width:32px; height:32px; border-radius:50%; object-fit:cover; border:1px solid rgba(255,255,255,.2);}
-  .inputbar{ position:fixed; left:0; right:0; bottom:0; background:linear-gradient(0deg, rgba(11,15,20,1), rgba(11,15,20,.92)); border-top:1px solid var(--border); padding:10px 12px calc(env(safe-area-inset-bottom)+10px); display:flex; gap:8px; }
-  .inputbar textarea{ flex:1 1 auto; resize:none; border:1px solid var(--border); background:rgba(15,20,26,.8); color:var(--ink); border-radius:12px; min-height:42px; max-height:120px; padding:10px 12px; }
-  .inputbar button{ background: var(--accent); color:#05223e; border:none; border-radius:12px; padding: 0 14px; font-weight:700; min-width:74px; }
-  .choices{ display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 0 42px; }
-  .choice{ background:rgba(96,165,250,.15); border:1px solid rgba(96,165,250,.35); color:#cfe4ff; padding:8px 10px; border-radius:12px; cursor:pointer; }
-  .hint{ color:var(--sub); font-size:12px; }
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chat • TRPG</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; background:#0b0f14; color:#e5e7eb; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
+    .topbar-wrap { display:flex; justify-content:center; border-bottom:1px solid #1b2430; background:#0e141c; position:sticky; top:0; z-index:20; }
+    .topbar { width:100%; max-width:980px; display:flex; align-items:center; gap:10px; padding:10px 14px; }
+    .back { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:1px solid #223042; background:#0f172a; color:#cbd5e1; cursor:pointer; }
+    .title { font-weight:700; font-size:15px; color:#f1f5f9; }
+    .hero { position:relative; margin:18px auto; max-width:980px; }
+    .hero img { width:100%; border-radius:14px; border:1px solid #1f2937; box-shadow:0 10px 28px rgba(0,0,0,.35); display:block; }
+    .panel { max-width:980px; margin:10px auto 18px; background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:12px 14px; }
+    .chips { margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; }
+    .chip { padding:3px 8px; font-size:11px; border-radius:999px; border:1px solid #334155; color:#a5b4fc; background:#0b1220; }
+    .chat { max-width:980px; margin:0 auto 90px; }
+    .msg { display:flex; gap:10px; margin:10px 0; }
+    .me  .bubble { background:#0b1220; }
+    .bubble { background:#111827; border:1px solid #1f2937; padding:10px 12px; border-radius:12px; white-space:pre-wrap; }
+    .inputBar { position:fixed; left:0; right:0; bottom:0; border-top:1px solid #1b2430; background:#0e141c; padding:12px; }
+    .inputIn { max-width:980px; margin:0 auto; display:flex; gap:8px; }
+    textarea { flex:1; resize:none; background:#0b1220; border:1px solid #1f2937; border-radius:10px; color:#e5e7eb; padding:10px 12px; min-height:44px; }
+    button { padding:0 14px; border-radius:10px; border:1px solid #334155; background:#111827; color:#c7d2fe; height:44px; }
+    button[disabled] { opacity:.6; cursor:not-allowed; }
+    .bg { position:fixed; inset:0; background-position:center; background-size:cover; opacity:.12; filter:blur(4px); z-index:-1; }
+    .hint { font-size:12px; color:#9ca3af; margin:6px 0 0 0; }
+  </style>
+</head>
+<body>
+  <div class="bg" id="bg"></div>
 
-  .profile { width: 100%; }
-  .profile-hero{ height: 200px; border-radius:12px; background-size:cover; background-position:center; margin:-6px -6px 8px -6px; filter: brightness(.9); }
-  .profile-body{ display:flex; flex-direction:column; gap:6px; }
-  .profile-title{ font-weight:700; opacity:.9; }
-  .profile-name{ font-size:18px; font-weight:800; letter-spacing:.2px; }
-  .profile-arch{ font-size:13px; color:var(--sub); }
-  .profile-bio{ font-size:14px; color:#cfe4ff; line-height:1.6; }
-  .profile-tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:2px; }
-  .profile-tags span{ font-size:12px; color:#cfe4ff; background:rgba(96,165,250,.15); border:1px solid rgba(96,165,250,.35); border-radius:999px; padding:4px 8px; }
-</style>
-
-<body class="page">
-  <div id="hero" class="hero" style="background-image:url('/assets/img/bg_default.jpg')"></div>
-  <div class="veil"></div>
-
-  <header>
-    <a class="back" href="/">← 홈</a>
-    <img id="avatar" class="avatar" src="/assets/img/placeholder.jpg" alt="">
-    <div id="title" class="title">세션</div>
-  </header>
-
-  <main id="log"><div class="day">오늘</div></main>
-
-  <div class="inputbar">
-    <textarea id="input" placeholder="메시지 입력..."></textarea>
-    <button id="send">보내기</button>
+  <div class="topbar-wrap">
+    <div class="topbar">
+      <button id="backBtn" class="back" title="뒤로 가기" aria-label="뒤로">←</button>
+      <div class="title" id="title">로딩 중…</div>
+    </div>
   </div>
 
-<script>
-  const CANDIDATES = ['characters.json','/json/characters.json'];
-  const API = ''; // same-origin
+  <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div>
 
-  function qs(key){ return new URL(location.href).searchParams.get(key); }
+  <div class="panel" id="about">
+    <div style="font-weight:700; margin-bottom:6px;">소개</div>
+    <div id="bio" style="opacity:.9"></div>
+    <div class="chips">
+      <span class="chip">TRPG</span>
+      <span class="chip" id="chip-name">캐릭터</span>
+    </div>
+    <div class="hint">Tip: 메세지를 보내면 /v1/chat (TRPG 모드)로 요청합니다.</div>
+  </div>
 
-  // ← 핵심: 값이 있을 땐 그대로 쓰고, 없을 때만 fallback 사용
-  function resolvePath(p, fallback = '/assets/img/placeholder.jpg') {
-    if (!p) return fallback;
-    if (/^https?:|^data:/.test(p)) return p;
-    if (p.startsWith('/')) return p;
-    return '/assets/img/' + p.replace(/^(\.\/)+/, '');
-  }
+  <div class="chat" id="chat"></div>
 
-  function profileHTML(ch){
-    const tags = (ch.tags||[]).map(t=>`<span>${t}</span>`).join('');
-    const bio  = ch.longBio || ch.shortBio || '';
-    return `
-      <div class="profile">
-        <div class="profile-hero" style="background-image:url('${resolvePath(ch.image, '/assets/img/bg_default.jpg')}')"></div>
-        <div class="profile-body">
-          <div class="profile-title">소개</div>
-          <div class="profile-name">${ch.name||''}</div>
-          <div class="profile-arch">${ch.archetype||''}</div>
-          <div class="profile-bio">${bio}</div>
-          ${tags ? `<div class="profile-tags">${tags}</div>`:''}
-        </div>
-      </div>`;
-  }
+  <div class="inputBar">
+    <div class="inputIn">
+      <textarea id="ta" placeholder="메시지 입력…"></textarea>
+      <button id="send">보내기</button>
+    </div>
+  </div>
 
-  function md(text){
-    return (text||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g,'<em>$1</em>').replace(/\n/g,'<br>');
-  }
+  <script>
+    // ===== utils =====
+    const FALLBACK_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675"><rect width="100%" height="100%" fill="#0e141c"/><text x="50%" y="50%" fill="#94a3b8" font-size="48" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">No Image</text></svg>`);
+    function qs(k){ return new URL(location.href).searchParams.get(k); }
+    function normalizeCharId(v){ if(!v) return null; if(/^char_\d{1,2}$/i.test(v)) return 'char_' + String(parseInt(v.split('_')[1],10)).padStart(2,'0'); if(/^\d+$/.test(v)) return parseInt(v,10); return v; }
+    function resolvePath(p){ if (!p) return '/assets/img/placeholder.jpg'; if (/^https?:\/\//i.test(p)) return p; return p.startsWith('/') ? p : '/assets/img/' + p; }
+    function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":'&#39;'}[c])); }
+    function safeSetHero(imgUrl){ const hero = document.getElementById('hero'); hero.onerror = () => { hero.src = FALLBACK_SVG; }; hero.src = imgUrl || '/assets/img/placeholder.jpg'; }
 
-  function row(kind, html, avatarSrc){
-    const me = kind==='me';
-    const wrap = document.createElement('div');
-    wrap.className = 'row ' + (me?'me':'ai');
-    if(!me){
-      const av = document.createElement('img');
-      av.className='avatar';
-      av.src = resolvePath(avatarSrc, '/assets/img/placeholder.jpg');
-      av.alt=''; wrap.appendChild(av);
+    // ===== data loaders =====
+    const LOCAL_CANDIDATES = ['/json/characters.json','/characters.json','/static/characters.json'];
+    async function loadFromApi(){ const r = await fetch('/v1/characters?offset=0&limit=200', { cache:'no-store' }); if(!r.ok) throw new Error('HTTP '+r.status); const j = await r.json(); return j.items || []; }
+    async function loadFromLocal(url){ const r = await fetch(url, { cache:'no-store' }); if(!r.ok) throw new Error('HTTP '+r.status); const j = await r.json(); return j.characters || j.items || j || []; }
+    async function loadCharacters(){ try { return await loadFromApi(); } catch(_){ for(const url of LOCAL_CANDIDATES){ try{ const v = await loadFromLocal(url); if(v && v.length) return v; }catch(__){} } return []; } }
+
+    // ===== paint =====
+    function paintCharacter(ch){
+      document.getElementById('title').textContent = ch.name || ch.id;
+      document.getElementById('chip-name').textContent = ch.name || '캐릭터';
+      document.getElementById('bio').textContent = (ch.longBio || ch.shortBio || ch.greeting || ch.detail || ch.summary || '').toString();
+      const img = resolvePath(ch.image || ch.cover);
+      safeSetHero(img);
+      document.getElementById('bg').style.backgroundImage = `url("${img}")`;
     }
-    const b = document.createElement('div'); b.className='bubble'; b.innerHTML = html; wrap.appendChild(b);
-    return wrap;
-  }
 
-  function append(kind, text, avatar){
-    const wrap = row(kind, md(text), avatar);
-    document.getElementById('log').appendChild(wrap);
-    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
-  }
-
-  function appendHTML(kind, html, avatar){
-    const wrap = row(kind, html, avatar);
-    wrap.querySelector('.bubble').innerHTML = html;
-    document.getElementById('log').appendChild(wrap);
-    window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
-  }
-
-  async function loadFirst(paths){
-    for(const p of paths){
-      try{ const r = await fetch(p); if(!r.ok) throw new Error(r.statusText); return await r.json(); }
-      catch(_){}
+    // ===== chat helpers =====
+    function addUser(text){
+      const chat = document.getElementById('chat');
+      const row = document.createElement('div'); row.className='msg me';
+      row.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+      chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
     }
-    return {characters:[{id:'char_01',name:'동료',image:'/assets/img/placeholder.jpg',greeting:'안녕! 같이 시작해보자.'}]};
-  }
-
-  function extractChoices(answer){
-    const out = []; let seen = new Set(); let inChoices = false;
-    for(const raw of (answer||'').split(/\r?\n/)){
-      const line = raw.trim();
-      if(!inChoices){ if(/\[선택지\]/.test(line)) inChoices = true; continue; }
-      if(!line) break;
-      const m = line.match(/^(?:[-•]|\(?\d+\)?[.)])\s*(.+)$|^\((.+)\)$|^\[(.+)\]$/);
-      const t = (m ? (m[1]||m[2]||m[3]) : line).replace(/^[\(\[]|[\)\]]$/g,'');
-      if(t && !seen.has(t)){ out.push(t); seen.add(t); }
-      if(out.length>=3) break;
+    function addBot(text){
+      const chat = document.getElementById('chat');
+      const row = document.createElement('div'); row.className='msg';
+      row.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+      chat.appendChild(row); chat.scrollTop = chat.scrollHeight;
     }
-    return out;
-  }
-
-  (async function init(){
-    const charId = qs('character') || sessionStorage.getItem('lastChar') || 'char_01';
-    const data = await loadFirst(CANDIDATES);
-    const byId = Object.fromEntries((data.characters||[]).map(c=>[c.id,c]));
-    const ch = byId[charId] || (data.characters||[])[0];
-
-    // UI 세팅 (값이 있으면 ch.image가 우선, 없을 땐 fallback 사용)
-    document.getElementById('title').textContent = (ch.name||'세션');
-    document.getElementById('avatar').src = resolvePath(ch.image, '/assets/img/placeholder.jpg');
-    document.getElementById('hero').style.backgroundImage = 'url(' + resolvePath(ch.image, '/assets/img/bg_default.jpg') + ')';
-    sessionStorage.setItem('lastChar', ch.id);
-
-    const log   = document.getElementById('log');
-    const input = document.getElementById('input');
-    const send  = document.getElementById('send');
-
-    async function callChat(message){
-      const persona =
-        '[캐릭터 동료]\n'
-        + `- 이름: ${ch.name||''}\n`
-        + `- 성격/역할: ${ch.archetype||''}\n`
-        + `- 배경요약: ${(ch.longBio||ch.shortBio||'')}\n`
-        + `- 태그: ${(ch.tags||[]).join(', ')}\n`
-        + '- 말투: 구어체, 간결, 1인칭.\n\n';
-
-      const payload = {
-        message: persona + message,
-        mode: 'trpg',
-        model: 'trpg-gen',
-        temperature: 0.9,
-        top_p: 0.95
-      };
-      const r = await fetch('/v1/chat', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload), credentials:'include'
+    async function askLLM(message, mode='trpg'){
+      const r = await fetch('/v1/chat/', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          message,
+          mode,              // 'trpg' | 'qa'
+          model:'trpg-gen',  // 서버 올라마 태그에 맞춰 조정
+          polish_model:'trpg-polish'
+        })
       });
-      if(!r.ok) throw new Error(r.statusText);
-      return await r.json();
+      if(!r.ok) throw new Error('HTTP '+r.status);
+      const j = await r.json();
+      return j.answer || '';
     }
 
-    async function handleSend(){
-      const t = (input.value||'').trim(); if(!t) return;
-      append('me', t, ch.image); input.value='';
-      const ph = row('ai','<span class="hint">생각 중…</span>', ch.image); log.appendChild(ph);
-      try{
-        const data = await callChat(t);
-        const ans = data.answer || '';
-        ph.querySelector('.bubble').innerHTML = md(ans.split('\n\n[선택지]')[0]||ans);
-        const choices = extractChoices(ans);
-        if(choices.length){
-          const bar = document.createElement('div'); bar.className='choices';
-          for(const c of choices){
-            const btn = document.createElement('button'); btn.className='choice'; btn.textContent = c;
-            btn.onclick = ()=>{ input.value = c; handleSend(); };
-            bar.appendChild(btn);
-          }
-          log.appendChild(bar);
+    // ===== init =====
+    (async function init(){
+      // back
+      document.getElementById('backBtn').onclick = () => { if (history.length > 1) history.back(); else location.href = '/'; };
+
+      // decide char
+      const raw = qs('character') || qs('character_id') || sessionStorage.getItem('lastChar') || null;
+      const norm = normalizeCharId(raw);
+      const items = await loadCharacters();
+      const byNumId = Object.fromEntries(items.filter(x => typeof x.id === 'number').map(x => [x.id, x]));
+      const byName  = Object.fromEntries(items.map(x => [String(x.name||'').trim(), x]));
+      function findByCharCode(code){ if(!code) return null; const m = String(code).match(/^char_(\d{2})$/i); if(!m) return null; const needle = '/char_' + m[1] + '.'; return items.find(x => typeof x.image === 'string' && x.image.includes(needle)) || null; }
+      let ch = null;
+      if (typeof norm === 'number') ch = byNumId[norm] || null;
+      if (!ch && typeof norm === 'string' && /^char_\d{2}$/i.test(norm)) ch = findByCharCode(norm);
+      if (!ch && typeof raw === 'string') ch = byName[String(raw).trim()] || null;
+      if (!ch && items.length) ch = items[0];
+      if (!ch) ch = { id:'char_01', name:'동료', image:'/assets/img/placeholder.jpg', greeting:'안녕! 같이 시작해보자.' };
+      try { sessionStorage.setItem('lastChar', ch.id); } catch(_){}
+      paintCharacter(ch);
+
+      // first greeting if exists
+      if (ch.greeting) addBot(ch.greeting);
+
+      // send
+      const ta = document.getElementById('ta');
+      const btn = document.getElementById('send');
+      async function send(){
+        const v = ta.value.trim();
+        if(!v) return;
+        addUser(v);
+        ta.value=''; btn.disabled = true;
+        try {
+          const ans = await askLLM(v, 'trpg');
+          addBot(ans || '(응답이 비어있습니다)');
+        } catch(e){
+          addBot('서버 오류: ' + e.message);
+        } finally {
+          btn.disabled = false; ta.focus();
         }
-      }catch(e){
-        ph.querySelector('.bubble').innerHTML = '에러: ' + (e?.message || String(e));
-      }finally{
-        window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'});
       }
-    }
-
-    document.getElementById('send').addEventListener('click', handleSend);
-    document.getElementById('input').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); handleSend(); } });
-
-    // 첫 화면: 프로필 카드 + 인사
-    appendHTML('ai', profileHTML(ch), ch.image);
-    if(ch.greeting) append('ai', ch.greeting, ch.image);
-  })();
-</script>
+      btn.onclick = send;
+      ta.addEventListener('keydown', (ev)=>{
+        if (ev.key === 'Enter' && !ev.shiftKey) {
+          ev.preventDefault();
+          send();
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
