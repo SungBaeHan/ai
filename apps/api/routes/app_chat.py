@@ -1,34 +1,45 @@
-# apps/api/routes/app_chat.py
-import os, time, uuid, random, re
-from typing import Dict, List, Any
+# ========================================
+# apps/api/routes/app_chat.py — 주석 추가 상세 버전
+# /v1/chat 엔드포인트: TRPG 모드/QA 모드 대화 처리, 세션 관리, 후처리 등.
+# ========================================
 
-from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-from qdrant_client import QdrantClient
-from langchain_ollama import ChatOllama
-from packages.rag.embedder import embed  # 경로 보정
+import os, time, uuid, random, re              # 표준 라이브러리: 환경/시간/UUID/난수/정규식
+from typing import Dict, List, Any             # 타입 힌트
 
-# ==== 기존 상수/설정 유지 ====
-QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
-COLLECTION  = os.getenv("COLLECTION", "my_docs")
-SESSION_COOKIE = "sid"
-MAX_TURNS = 12
-SESSION_TTL = 60*60*6
+from fastapi import APIRouter, Request         # 라우터, 요청 객체
+from fastapi.responses import JSONResponse     # JSON 응답
+from pydantic import BaseModel                 # 요청 바디 모델
+from qdrant_client import QdrantClient         # Qdrant 클라이언트
+from langchain_ollama import ChatOllama        # Ollama 채팅형 LLM
+from packages.rag.embedder import embed        # 텍스트 임베딩 함수
 
-SESSIONS: Dict[str, Dict[str, Any]] = {}
-POLISH_OFF = int(os.getenv("POLISH_OFF", "0"))
-GUARD_LEVEL = 0  # 0=off, 1=라이트, 2=스트릭트
+# ==== 환경 상수/설정 ====
+QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")  # Qdrant URL
+COLLECTION  = os.getenv("COLLECTION", "my_docs")               # 콜렉션명
+SESSION_COOKIE = "sid"                                         # 세션 쿠키 키
+MAX_TURNS = 12                                                 # 저장할 대화 턴 수(양방향 *2)
+SESSION_TTL = 60*60*6                                          # 세션 보관 시간(초) 6시간
 
+SESSIONS: Dict[str, Dict[str, Any]] = {}                       # 메모리 기반 세션 저장소
+POLISH_OFF = int(os.getenv("POLISH_OFF", "0"))                 # 후처리(문장 다듬기) 비활성화 플래그
+GUARD_LEVEL = 0  # 0=off, 1=라이트, 2=스트릭트                         # 프리셋 강도
+
+OLLAMA_BASE = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+DEFAULT_GEN = os.getenv("OLLAMA_MODEL", "trpg-gen")
+DEFAULT_POLISH = os.getenv("OLLAMA_POLISH_MODEL", "trpg-polish")
+
+# 모델 파라미터 프리셋: 안정성/창의성 균형을 위해 단계별 설정 제공
 PRESET = {
   0: dict(temperature=0.9, top_p=0.95, repeat_penalty=1.25),
   1: dict(temperature=0.7, top_p=0.9,  repeat_penalty=1.2),
   2: dict(temperature=0.6, top_p=0.85, repeat_penalty=1.3),
 }
 
+# 모드별 히스토리 유지 최대 턴수
 MAX_TURNS_QA = 12
 MAX_TURNS_TRPG = 6
 
+# 한국어 자연화/필터링 패턴(간단 교정 규칙)
 BAD_PATTERNS = [
     (r'appearing', ''), 
     (r'ActionCreators', ''), 
@@ -45,10 +56,12 @@ BAD_PATTERNS = [
     (r'합니다\b', '해요'),
 ]
 
+# 안전장치/선택지 보정 관련 플래그 (환경변수로 토글)
 SAFE_SCENE_FILL   = int(os.getenv("SAFE_SCENE_FILL",   "0"))
 SAFE_MIN_CHOICES  = int(os.getenv("SAFE_MIN_CHOICES",  "1"))
 DEFAULT_CHOICES   = ["조용히 주변을 살핀다", "가까운 사람에게 말을 건다", "잠시 기다리며 상황을 본다"]
 
+# TRPG 시스템 프롬프트 — 출력 형식 강제 및 문체/구성 규칙
 SYS_TRPG = """너는 TRPG 마스터다. 플레이어와 협력해 장면을 한 섹션씩 진행한다.
 
 원칙:
@@ -78,11 +91,13 @@ SYS_TRPG = """너는 TRPG 마스터다. 플레이어와 협력해 장면을 한 
 - 장면(head)에는 불릿 없이 자연스러운 서술 문단(4~6문장)으로 쓰며, 첫 1~2문장은 배경·공기·빛·소리 같은 감각 묘사로 시작한다.
 """
 
+# QA 시스템 프롬프트 — 간결/정확/근거 중심
 SYS_QA = """너는 유능한 한국어 도우미다.
 간결하고 정확하게 답하며, 모르면 모른다고 말한다.
 가능하면 검색 컨텍스트를 근거로 자연스럽게 설명하라.
 """
 
+# 후처리용 폴리싱 프롬프트 — TRPG 장면을 자연스러운 문단으로 다듬음
 POLISH_PROMPT = """다음 한국어 '장면 문단'을 자연스럽고 일상적인 구어체로 다듬어라.
 규칙:
 - 불릿/대시/번호 목록 금지. 반드시 문단(4~6문장)으로 작성.
@@ -95,6 +110,7 @@ POLISH_PROMPT = """다음 한국어 '장면 문단'을 자연스럽고 일상적
 """
 
 def _synthesize_choices(head: str):
+    """장면 내용에서 단어를 뽑아 즉흥적으로 선택지 후보를 생성한다."""
     base = [
         "조용히 주변을 더 살핀다",
         "가까운 사람에게 먼저 말을 건다",
@@ -105,28 +121,30 @@ def _synthesize_choices(head: str):
         "조용히 뒤쪽으로 반 걸음 물러선다",
         "주변 소리를 더 유심히 듣는다",
     ]
-    nouns = re.findall(r'[가-힣]{2,}', head)[:6]
+    nouns = re.findall(r'[가-힣]{2,}', head)[:6]    # 한글 단어 포착
     situ = []
     for w in nouns[:6]:
         situ.append(f"{w} 쪽을 흘끗 살핀다")
         situ.append(f"{w} 근처로 살짝 이동한다")
-    pool = list(dict.fromkeys(base + situ))
-    rnd = random.Random(hash(head) & 0xffffffff)
+    pool = list(dict.fromkeys(base + situ))         # 중복 제거 후 풀 구성
+    rnd = random.Random(hash(head) & 0xffffffff)    # 내용 기반 고정 시드
     picks = rnd.sample(pool, k=min(3, len(pool))) if len(pool) >= 3 else pool[:3]
     return picks
 
 def _bullets_to_scene(text: str) -> str:
+    """불릿 문장을 간단한 자연 문장으로 합쳐 장면 문단으로 전환한다."""
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     out = []
     for ln in lines:
-        ln = re.sub(r'^(?:[-•–—·◦]|[①-⑳]|\(?\d+\)?[.)])\s*', '', ln)
-        ln = re.sub(r'\s*["”]\s*$', '', ln)
-        if not re.search(r'[.!?]$', ln):
+        ln = re.sub(r'^(?:[-•–—·◦]|[①-⑳]|\(?\d+\)?[.)])\s*', '', ln)  # 불릿 마커 제거
+        ln = re.sub(r'\s*["”]\s*$', '', ln)                           # 끝 따옴표 제거
+        if not re.search(r'[.!?]$', ln):                               # 문장부호 보장
             ln += '.'
         out.append(ln)
-    return ' '.join(out[:5]).strip()
+    return ' '.join(out[:5]).strip()                                   # 최대 5문장으로 합침
 
 def _enrich_scene_generic(head: str, min_sent: int = 4, max_sent: int = 6) -> str:
+    """장면 문장을 4~6문장 사이로 다듬고 감각적 문장을 보강한다."""
     sents = [s.strip() for s in re.split(r'(?<=[.!?])\s+', head) if s.strip()]
     sensory_pool = [
         "공기가 살짝 흔들렸다.",
@@ -152,13 +170,11 @@ def _enrich_scene_generic(head: str, min_sent: int = 4, max_sent: int = 6) -> st
     return ' '.join(sents[:max_sent]).strip()
 
 def drop_non_korean_lines(s: str) -> str:
-    """한국어 외 문장 제거 (한자, 영어 등 비율 기준으로 필터링 강화)"""
+    """한국어 비율이 낮거나 한자/영문 비율이 높은 문장은 제거한다."""
     out = []
     for ln in s.splitlines():
-        # 완전히 비어있으면 패스
         if not ln.strip():
             continue
-        # 한글 포함 비율 계산
         hangul = len(re.findall(r'[가-힣]', ln))
         hanja  = len(re.findall(r'[\u4E00-\u9FFF]', ln))
         latin  = len(re.findall(r'[A-Za-z]', ln))
@@ -166,16 +182,22 @@ def drop_non_korean_lines(s: str) -> str:
         if total == 0:
             continue
         ratio_ko = hangul / total
-
-        # 한글 비율이 0.2 미만이거나 한문 비율이 높으면 제거
-        if ratio_ko < 0.2 or hanja > 2 or latin > 5:
+        if ratio_ko < 0.2 or hanja > 2 or latin > 5:  # 임계치 기반 필터링
             continue
         out.append(ln)
     return "\n".join(out)
 
-def polish(text: str, model: str = "trpg-polish") -> str:
+def polish(text: str, model: str = None) -> str:
+    """폴리싱 모델로 장면 문단을 한국어 구어체로 정돈한다(실패 시 원문 반환)."""
     try:
-        polisher = ChatOllama(model=model, temperature=0.3, top_p=0.9)
+        use_model = model or DEFAULT_POLISH
+        polisher = ChatOllama(
+            base_url=OLLAMA_BASE,
+            model=use_model,
+            temperature=0.3,
+            top_p=0.9,
+            timeout=120,
+        )        
         msg = [
             {"role":"system","content":"한국어 문장 다듬기 도우미"},
             {"role":"user","content": POLISH_PROMPT.format(TEXT=text)}
@@ -186,20 +208,26 @@ def polish(text: str, model: str = "trpg-polish") -> str:
         return text
 
 def refine_ko(text: str) -> str:
+    """간단한 어투/어휘 정규식 치환으로 자연스러움을 높인다."""
     for pat, rep in BAD_PATTERNS:
         text = re.sub(pat, rep, text)
-    text = re.sub(r'([^.!?]{24,}?)(,|\s)\s', r'\1. ', text)
+    text = re.sub(r'([^.!?]{24,}?)(,|\s)\s', r'\1. ', text)  # 너무 긴 구를 문장으로 분리
     return text
 
 def postprocess_trpg(text: str) -> str:
+    """TRPG 응답을 장면+선택지 형식으로 정돈하고 한국어 중심으로 다듬는다."""
     text = re.sub(r'^\s*\[[^\]]+\]\s*$', '', text, flags=re.M).strip()
     lines = [ln.rstrip() for ln in text.splitlines()]
     choice_lines = []
     whole = "\n".join(lines)
+
+    # [선택지] 헤더 유무 판단
     has_choice_header = bool(
         re.search(r"\[선택지\]", whole, flags=re.I) or
         re.search(r"(?mi)^[=\-~\s#\[]*선택지[\]=\-~\s:]*$", whole)
     )
+
+    # [선택지] 블록에서 불릿 항목 추출
     i = 0
     if has_choice_header:
         while i < len(lines):
@@ -246,6 +274,7 @@ def postprocess_trpg(text: str) -> str:
         m = re.match(r"^(?:[-•]|\(?\d+\)?[.)])\s*(.+)$", s.strip())
         if m: more_choices.append(m.group(1).strip().strip("()[]"))
 
+    # 중복 제거 및 최대 3개 제한
     choices, seen = [], set()
     for c in more_choices:
         c = c.strip()
@@ -253,12 +282,14 @@ def postprocess_trpg(text: str) -> str:
             seen.add(c); choices.append(c)
     choices = choices[:3]
 
+    # 장면 본문 정리
     head_text = refine_ko(head_text)
     head_text = drop_non_korean_lines(head_text)
     if re.search(r'^(?:[-•–—·◦]|[①-⑳]|\(?\d+\)?[.)])\s', head_text, flags=re.M):
        head_text = _bullets_to_scene(head_text)
     head_text = _enrich_scene_generic(head_text, min_sent=4, max_sent=6)
 
+    # 안전장치: 최소 본문/선택지 보장
     if SAFE_SCENE_FILL and len(re.sub(r'[-•\s]+', '', head_text)) < 10:
         head_text = "공기가 잠시 잦아들었다. 주변을 둘러보는 사이 미묘한 소음이 포개졌다."
     if SAFE_MIN_CHOICES and not choices:
@@ -266,17 +297,17 @@ def postprocess_trpg(text: str) -> str:
     if SAFE_MIN_CHOICES and len(choices) < 3:
         choices.extend(_synthesize_choices(head_text)[:3-len(choices)])
 
+    # 출력 재구성: 장면 + 선택지
     out = head_text.strip()
     if choices:
         out += "\n\n[선택지]\n" + "\n".join(f"- {c}" for c in choices)
     out = re.sub(r'\s+([,.!?])', r'\1', out)
     out = re.sub(r' {2,}', ' ', out)
-    
     out = re.sub(r'[\u4E00-\u9FFF]+', '', out)  # 모든 한자 제거
-    
     return out
 
 def retrieve_context(query: str, k: int = 5) -> str:
+    """QA 모드에서 사용할 검색 컨텍스트를 Qdrant에서 조회한다."""
     try:
         qvec = embed([query])[0]
         cli = QdrantClient(url=QDRANT_URL)
@@ -298,28 +329,35 @@ def retrieve_context(query: str, k: int = 5) -> str:
         return ""
 
 def get_or_create_sid(req: Request) -> str:
+    """요청 쿠키에서 세션 아이디를 가져오거나 새로 생성한다.
+    동시에 만료된 세션을 정리한다."""
     sid = req.cookies.get(SESSION_COOKIE)
     if not sid:
         sid = uuid.uuid4().hex
     sess = SESSIONS.get(sid, {"ts": time.time(), "history": []})
-    sess["ts"] = time.time()
+    sess["ts"] = time.time()                                  # 최근 접근 시간 업데이트
+
+    # TTL 초과 세션 정리
     purge_time = time.time() - SESSION_TTL
     for k in list(SESSIONS.keys()):
         if SESSIONS[k]["ts"] < purge_time:
             del SESSIONS[k]
+
     SESSIONS[sid] = sess
     return sid
 
 def build_messages(mode, history, user_msg, context):
+    """Ollama 대화 메시지 배열을 모드에 맞춰 구성한다."""
     sys_prompt = SYS_TRPG if mode == "trpg" else SYS_QA
     ctx_block = f"\n[검색 컨텍스트]\n{context}\n" if context else ""
-    msgs = [{"role": "system", "content": sys_prompt + ctx_block}]
-    keep = (MAX_TURNS_TRPG if mode == "trpg" else MAX_TURNS_QA) * 2
-    msgs.extend(history[-keep:])
-    msgs.append({"role": "user", "content": user_msg})
+    msgs = [{"role": "system", "content": sys_prompt + ctx_block}]      # 시스템 메시지
+    keep = (MAX_TURNS_TRPG if mode == "trpg" else MAX_TURNS_QA) * 2     # 양방향 길이
+    msgs.extend(history[-keep:])                                         # 최근 히스토리만 유지
+    msgs.append({"role": "user", "content": user_msg})                   # 현재 사용자 질의
     return msgs
 
 class ChatIn(BaseModel):
+    """POST /v1/chat 바디 스키마 — 기본값 포함"""
     message: str
     mode: str = "qa"                  # "qa" | "trpg"
     model: str = "trpg-gen"
@@ -327,46 +365,59 @@ class ChatIn(BaseModel):
     temperature: float = 0.7
     top_p: float = 0.9
 
-# ✅ 여기부터는 APIRouter 엔드포인트
+# 라우터 인스턴스
 router = APIRouter()
 
 @router.post("/")
 def chat(req: Request, body: ChatIn):
-    sid = get_or_create_sid(req)
-    sess = SESSIONS[sid]
-    key = f"history_{body.mode}"
-    sess.setdefault(key, [])
+    """대화 엔드포인트 — 세션 관리, RAG 컨텍스트, 후처리까지 수행한 최종 응답을 반환한다."""
+    sid = get_or_create_sid(req)                                         # 세션 ID 획득/생성
+    sess = SESSIONS[sid]                                                 # 세션 객체
+    key = f"history_{body.mode}"                                         # 모드별 히스토리 키
+    sess.setdefault(key, [])                                             # 없으면 초기화
 
-    params = PRESET.get(GUARD_LEVEL, PRESET[0])
-    llm = ChatOllama(model=body.model, **params)
+    params = PRESET.get(GUARD_LEVEL, PRESET[0])                          # 프리셋 파라미터 선택
+    use_model = (body.model or DEFAULT_GEN)
+    llm = ChatOllama(                                                    # LLM 인스턴스
+        base_url=OLLAMA_BASE,
+        model=use_model,
+        timeout=120,
+        **params
+    )
 
-    q = (body.message or "").strip()
+    q = (body.message or "").strip()                                     # 사용자 입력 정리
     if not q:
+        # 빈 입력이면 빈 답변과 함께 세션 쿠키 설정만 반환
         return JSONResponse({"answer": ""}, headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
 
-    ctx = "" if body.mode == "trpg" else retrieve_context(q)
-    messages = build_messages(body.mode, sess[key], q, ctx)
-    ans = llm.invoke(messages)
-    text = getattr(ans, "content", str(ans))
+    ctx = "" if body.mode == "trpg" else retrieve_context(q)             # QA 모드에서만 컨텍스트 사용
+    messages = build_messages(body.mode, sess[key], q, ctx)              # 메시지 배열 구성
+    ans = llm.invoke(messages)                                           # 모델 호출
+    text = getattr(ans, "content", str(ans))                             # content 추출(안전처리)
 
+    # TRPG 모드: 형식 정돈 + 폴리싱
     if body.mode == "trpg":
         text = postprocess_trpg(text)
         if not POLISH_OFF:
-            text = polish(text, model=body.polish_model)
+            text = polish(text, model=(body.polish_model or DEFAULT_POLISH))
+    # QA 모드인데 불릿 형태가 나오면 TRPG 후처리를 적용해 읽기 좋게
     elif re.match(r'^\s*(?:[-•]|\(?\d+\)?[.)])\s+\S', text):
         text = postprocess_trpg(text)
-        text = polish(text, model=body.polish_model)
+        text = polish(text, model=(body.polish_model or DEFAULT_POLISH))
 
+    # 히스토리 업데이트(양방향)
     user_text = q if body.mode != "trpg" else f"(플레이어의 의도/행동: {q})"
     sess[key].extend([{"role":"user","content": user_text},
                       {"role":"assistant","content": text}])
-    sess[key] = sess[key][-MAX_TURNS*2:]
+    sess[key] = sess[key][-MAX_TURNS*2:]                                  # 최대 길이 유지
 
+    # 최종 응답 + 세션 쿠키
     return JSONResponse({"answer": text, "sid": sid},
                         headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
 
 @router.post("/reset")
 def reset(req: Request):
+    """현재 세션의 히스토리(모든 모드)를 초기화한다."""
     sid = req.cookies.get(SESSION_COOKIE)
     if sid and sid in SESSIONS:
         for k in list(SESSIONS[sid].keys()):
@@ -376,4 +427,5 @@ def reset(req: Request):
 
 @router.get("/health")
 def health():
+    """간단 상태 확인"""
     return {"status": "ok"}

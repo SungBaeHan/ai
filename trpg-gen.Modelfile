@@ -1,4 +1,5 @@
-FROM qwen2.5:7b-instruct
+FROM qwen2.5:7b-instruct-q4_K_M
 PARAMETER temperature 0.9
 PARAMETER top_p 0.95
 PARAMETER repeat_penalty 1.25
+PARAMETER num_ctx 4096

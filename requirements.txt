@@ -1,7 +1,17 @@
+# --- 기본 서버 ---
 fastapi
 uvicorn[standard]
+pydantic==2.*
+
+# --- 벡터DB / 임베딩 ---
 qdrant-client
 sentence-transformers
+
+# --- LLM 엔진 ---
 ollama
-pydantic==2.*
 langchain-ollama
+
+# --- Pinterest 크롤러용 ---
+requests>=2.32.3
+beautifulsoup4>=4.12.3
+playwright>=1.48.0

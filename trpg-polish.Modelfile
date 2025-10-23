@@ -1,3 +1,4 @@
-FROM qwen2.5:7b-instruct
+FROM qwen2.5:7b-instruct-q4_K_M
 PARAMETER temperature 0.3
 PARAMETER top_p 0.9
+PARAMETER num_ctx 2048
