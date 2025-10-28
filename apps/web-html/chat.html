@@ -1,3 +1,9 @@
+<!-- ========================================
+     apps/web-html/chat.html — 상세(채팅) 화면
+     - URL ?character=char_06 또는 ?character=6 지원
+     - /v1/characters/:id 단건 호출해서 렌더
+     - 이미지 경로 보정(resolvePath)로 /assets/char/… 보장
+     ======================================== -->
 <!doctype html>
 <html lang="ko">
 <head>
@@ -5,65 +11,50 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chat • TRPG</title>
   <style>
-    :root { color-scheme: dark; }
+    :root { color-scheme: dark; } /* 다크 테마 힌트 */
     body { margin:0; background:#0b0f14; color:#e5e7eb; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
-
-    /* 상단바 */
     .topbar-wrap { display:flex; justify-content:center; border-bottom:1px solid #1b2430; background:#0e141c; position:sticky; top:0; z-index:20; }
     .topbar { width:100%; max-width:980px; display:flex; align-items:center; gap:10px; padding:10px 14px; }
     .back { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:1px solid #223042; background:#0f172a; color:#cbd5e1; cursor:pointer; }
     .title { font-weight:700; font-size:15px; color:#f1f5f9; }
-
-    /* 캐릭터 이미지 */
     .hero { position:relative; margin:18px auto; max-width:980px; }
     .hero img { width:100%; border-radius:14px; border:1px solid #1f2937; box-shadow:0 10px 28px rgba(0,0,0,.35); display:block; }
-
-    /* 소개 패널 */
     .panel { max-width:980px; margin:10px auto 18px; background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:12px 14px; }
     .chips { margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; }
     .chip { padding:3px 8px; font-size:11px; border-radius:999px; border:1px solid #334155; color:#a5b4fc; background:#0b1220; }
     .hint { font-size:12px; color:#9ca3af; margin-top:6px; }
-
-    /* 채팅 영역 */
     .chat { max-width:980px; margin:0 auto 90px; padding:0 4px; }
     .msg { display:flex; align-items:flex-start; gap:10px; margin:14px 0; animation:fadeInUp .35s ease; }
     .msg.me { flex-direction:row-reverse; }
     .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
     .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
     .me .bubble { background:rgba(63,131,248,0.25); border-color:#334155; }
-
-    /* 입력창 */
     .inputBar { position:fixed; left:0; right:0; bottom:0; border-top:1px solid #1b2430; background:#0e141c; padding:12px; }
     .inputIn { max-width:980px; margin:0 auto; display:flex; gap:8px; }
     textarea { flex:1; resize:none; background:#0b1220; border:1px solid #1f2937; border-radius:10px; color:#e5e7eb; padding:10px 12px; min-height:44px; }
     button { padding:0 14px; border-radius:10px; border:1px solid #334155; background:#111827; color:#c7d2fe; height:44px; }
     button[disabled]{ opacity:.6; cursor:not-allowed; }
-
-    /* 배경 */
     .bg { position:fixed; inset:0; background-position:center; background-size:cover; opacity:.4; filter:blur(1.5px) brightness(0.9); z-index:-1; transition:filter .5s ease, opacity .5s ease; }
-
-    /* 등장 효과 */
-    @keyframes fadeInUp {
-      from { opacity:0; transform:translateY(12px); }
-      to { opacity:1; transform:translateY(0); }
-    }
+    .debug { max-width:980px; margin:6px auto 0; font-size:12px; color:#93c5fd; opacity:.9; white-space:pre-wrap; }
+    @keyframes fadeInUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
   </style>
 </head>
 <body>
-  <div class="bg" id="bg"></div>
+  <div class="bg" id="bg"></div> <!-- 흐림 배경 -->
 
   <div class="topbar-wrap">
     <div class="topbar">
-      <button id="backBtn" class="back" title="뒤로 가기">←</button>
-      <div class="title" id="title">로딩 중…</div>
+      <button id="backBtn" class="back" title="뒤로 가기">←</button> <!-- 뒤로가기 -->
+      <div class="title" id="title">로딩 중…</div>                   <!-- 캐릭터 이름 -->
     </div>
   </div>
 
-  <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div>
+  <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
+  <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
 
   <div class="panel" id="about">
     <div style="font-weight:700; margin-bottom:6px;">소개</div>
-    <div id="bio" style="opacity:.9"></div>
+    <div id="bio" style="opacity:.9"></div> <!-- 장문 소개/배경 -->
     <div class="chips">
       <span class="chip">TRPG</span>
       <span class="chip" id="chip-name">캐릭터</span>
@@ -71,132 +62,158 @@
     <div class="hint">Tip: 메세지를 보내면 /v1/chat (TRPG 모드)로 요청합니다.</div>
   </div>
 
-  <div class="chat" id="chat"></div>
+  <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
 
   <div class="inputBar">
     <div class="inputIn">
-      <textarea id="ta" placeholder="메시지 입력…"></textarea>
-      <button id="send">보내기</button>
+      <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 -->
+      <button id="send">보내기</button>                         <!-- 전송 -->
     </div>
   </div>
 
   <script>
-    let CURRENT_CHAR = null;
 
-    // ===== utils =====
-    const FALLBACK_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675"><rect width="100%" height="100%" fill="#0e141c"/><text x="50%" y="50%" fill="#94a3b8" font-size="48" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">No Image</text></svg>`);
-    function qs(k){ return new URL(location.href).searchParams.get(k); }
-    function normalizeCharId(v){ if(!v) return null; if(/^char_\d{1,2}$/i.test(v)) return 'char_' + String(parseInt(v.split('_')[1],10)).padStart(2,'0'); if(/^\d+$/.test(v)) return parseInt(v,10); return v; }
-    function resolvePath(p){ if (!p) return '/assets/img/placeholder.jpg'; if (/^https?:\/\//i.test(p)) return p; return p.startsWith('/') ? p : '/assets/img/' + p; }
-    function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    function safeSetHero(imgUrl){ const hero=document.getElementById('hero'); hero.onerror=()=>{hero.src=FALLBACK_SVG;}; hero.src=imgUrl||'/assets/img/placeholder.jpg'; }
+  /*
+  console.info("[chat] inline script loaded");
 
-    // ===== data loaders =====
-    const LOCAL_CANDIDATES=['/json/characters.json','/characters.json','/static/characters.json'];
-    async function loadFromApi(){ const r=await fetch('/v1/characters?offset=0&limit=200',{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); return j.items||[]; }
-    async function loadFromLocal(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status); const j=await r.json(); return j.characters||j.items||j||[]; }
-    async function loadCharacters(){ try{return await loadFromApi();}catch(_){ for(const url of LOCAL_CANDIDATES){ try{const v=await loadFromLocal(url); if(v&&v.length)return v;}catch(__){} } return[];} }
+  window.addEventListener("error", (e) => {
+    console.error("[chat] JS error:", e.message, e.filename, e.lineno);
+  });
+  */
 
-    // ===== paint =====
+
+    // --- 전역/유틸 -------------------------------------------------------------
+    let CURRENT_CHAR = null;  // 현재 캐릭터
+    const FALLBACK_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675"><rect width="100%" height="100%" fill="#0e141c"/><text x="50%" y="50%" fill="#94a3b8" font-size="48" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">No Image</text></svg>`
+    );
+    const dbg = (m) => { 
+      const el=document.getElementById('dbg'); 
+      // el.textContent = (el.textContent?el.textContent+"\n":"") + m; 
+      // console.log(m); 
+    };
+
+    function qs(k){ return new URL(location.href).searchParams.get(k); } // 쿼리 파서
+
+    // 'char_06' → 6 / '6' → 6
+    function normalizeCharId(v){
+      if(!v) return null;
+      if(/^char_\d{1,6}$/i.test(v)) return parseInt(v.split('_')[1],10);
+      if(/^\d+$/.test(v)) return parseInt(v,10);
+      return v;
+    }
+
+    // 이미지 경로 보정 → 항상 /assets/char/... 또는 /assets/img/... 로
+    function resolvePath(p){
+      if (!p) return '/assets/img/placeholder.jpg';
+      if (/^https?:\/\//i.test(p)) return p;
+      p = String(p).replace(/\\/g, '/').trim();
+      if (p.startsWith('/')) return p;
+      if (p.startsWith('assets/')) return '/' + p;
+
+      if (p.includes('/char/') || p.startsWith('char/') || /^char_\d+/i.test(p) || p.startsWith('assets/char/')) {
+        if (p.startsWith('assets/')) return '/' + p;
+        if (p.startsWith('char_'))   return '/assets/char/' + p;
+        if (p.startsWith('char/'))   return '/assets/' + p;
+        // ▼ 여기와
+        return '/assets/char/' + p.replace(/^\/+/, '');
+      }
+      // ▼ 여기도
+      return '/assets/img/' + p.replace(/^\/+/, '');
+    }
+
+    // 안전한 hero 이미지 로더(404 시 SVG로 대체)
+    function safeSetHero(imgUrl){
+      const hero=document.getElementById('hero');
+      hero.onerror=()=>{ dbg('[hero 404] '+imgUrl); hero.src=FALLBACK_SVG; };
+      hero.onload =()=>{ dbg('[hero 200] '+imgUrl); };
+      hero.src=imgUrl||'/assets/img/placeholder.jpg';
+      dbg('[hero set] '+hero.src);
+    }
+
+    // 단일 캐릭터 API 호출 (상세)
+    async function fetchCharacter(id){
+      dbg('[fetch] /v1/characters/'+id);
+      const r = await fetch(`/v1/characters/${id}`, {cache:'no-store'});
+      dbg('[fetch status] '+r.status);
+      if(!r.ok) throw new Error('캐릭터 불러오기 실패: HTTP '+r.status);
+      const j = await r.json();
+      dbg('[fetch image] '+j.image);
+      return j;
+    }
+
+    // 상단/배경/칩 렌더
     function paintCharacter(ch){
       document.getElementById('title').textContent=ch.name||ch.id;
       document.getElementById('chip-name').textContent=ch.name||'캐릭터';
-      document.getElementById('bio').textContent=(ch.longBio||ch.shortBio||ch.greeting||ch.detail||ch.summary||'').toString();
+      document.getElementById('bio').textContent=(ch.longBio||ch.background||ch.shortBio||ch.detail||ch.summary||ch.greeting||'').toString();
+
       const img=resolvePath(ch.image||ch.cover);
-      safeSetHero(img);
-      document.getElementById('bg').style.backgroundImage=`url("${img}")`;
+      dbg('[resolved img] '+img);
+      safeSetHero(img);                                         // 히어로 이미지
+      document.getElementById('bg').style.backgroundImage=`url("${img}")`; // 흐림 배경
+
+      const wrap=document.querySelector('.chips');              // world/genre/style 칩
+      wrap.querySelectorAll('.chip.extra').forEach(n=>n.remove());
+      ['world','genre','style'].forEach(k=>{
+        const v=(ch[k]||'').toString().trim();
+        if(v){ const s=document.createElement('span'); s.className='chip extra'; s.textContent=v; wrap.appendChild(s); }
+      });
     }
 
-    // ===== chat helpers =====
-    function addUser(text){
-      const chat=document.getElementById('chat');
-      const row=document.createElement('div'); row.className='msg me';
-      row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>`;
-      chat.appendChild(row); chat.scrollTop=chat.scrollHeight;
+    // 채팅 메시지 DOM 유틸
+    function escapeHtml(s){ 
+      return String(s||'').replace(
+        /[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
+      );
     }
-    function addBot(text){
-      const chat=document.getElementById('chat');
-      const row=document.createElement('div'); row.className='msg';
-      const img=resolvePath(CURRENT_CHAR?.image);
-      row.innerHTML=`
-        <img class="avatar" src="${img}" alt="bot"/>
-        <div class="bubble">${escapeHtml(text)}</div>`;
-      chat.appendChild(row); chat.scrollTop=chat.scrollHeight;
-    }
+    function addUser(text){ const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg me'; row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
+    function addBot(text){  const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg'; const img=resolvePath(CURRENT_CHAR?.image); row.innerHTML=`<img class="avatar" src="${img}" alt="bot"/><div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
 
-    /**
-    * LLM에게 메시지를 보내고 응답을 받는 함수
-    * @param {string} message - 사용자가 입력한 메시지
-    * @param {string} mode - 대화 모드 ('trpg' 또는 'qa')
-    * @param {number} choices - 선택지 개수 (0=없음, 1~3=선택지 포함)
-    * @returns {Promise<string>} - 모델의 응답 텍스트
-    */
-    async function askLLM(message, mode = 'trpg', choices = 0) {
-      // 요청 본문 구성
+    // 백엔드 LLM 호출
+    async function askLLM(message, mode='trpg', choices=0){
       const payload = {
-        message,
-        mode, // 'trpg' | 'qa'
-        model: 'trpg-gen',
-        polish_model: 'trpg-polish',
-        choices, // 👈 새로 추가된 선택지 개수
+        message, mode,
+        model:'trpg-gen', polish_model:'trpg-polish', choices,
         character_id: CURRENT_CHAR?.id ?? null,
-        character: CURRENT_CHAR
-          ? {
-              id: CURRENT_CHAR.id,
-              name: CURRENT_CHAR.name,
-              archetype: CURRENT_CHAR.archetype,
-              summary: CURRENT_CHAR.summary,
-              shortBio: CURRENT_CHAR.shortBio,
-              longBio: CURRENT_CHAR.longBio,
-              greeting: CURRENT_CHAR.greeting,
-              tags: CURRENT_CHAR.tags,
-            }
-          : null,
+        character: CURRENT_CHAR ? {
+          id: CURRENT_CHAR.id, name: CURRENT_CHAR.name, archetype: CURRENT_CHAR.archetype,
+          summary: CURRENT_CHAR.summary, shortBio: CURRENT_CHAR.shortBio, longBio: CURRENT_CHAR.longBio,
+          background: CURRENT_CHAR.background, scenario: CURRENT_CHAR.scenario, system_prompt: CURRENT_CHAR.system_prompt,
+          greeting: CURRENT_CHAR.greeting, tags: CURRENT_CHAR.tags,
+        } : null,
       };
-
-      try {
-        const r = await fetch('/v1/chat/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const j = await r.json();
-        if (!j || typeof j.answer !== 'string')
-          throw new Error('잘못된 응답 형식');
-
-        return j.answer.trim();
-      } catch (err) {
-        console.error('[askLLM] 오류:', err);
-        return '(서버 통신 오류: ' + err.message + ')';
-      }
+      const r = await fetch('/v1/chat/', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const j = await r.json();
+      return (j?.answer||'').trim();
     }
 
-    // ===== init =====
-    (async function init(){
+    // 초기화
+    document.addEventListener('DOMContentLoaded', async ()=>{
+      // 뒤로가기
       document.getElementById('backBtn').onclick=()=>{ if(history.length>1) history.back(); else location.href='/'; };
 
-      const raw=qs('character')||qs('character_id')||sessionStorage.getItem('lastChar')||null;
-      const norm=normalizeCharId(raw);
-      const items=await loadCharacters();
-      const byNumId=Object.fromEntries(items.filter(x=>typeof x.id==='number').map(x=>[x.id,x]));
-      const byName=Object.fromEntries(items.map(x=>[String(x.name||'').trim(),x]));
-      function findByCharCode(code){ if(!code)return null; const m=String(code).match(/^char_(\d{2})$/i); if(!m)return null; const needle='/char_'+m[1]+'.'; return items.find(x=>typeof x.image==='string'&&x.image.includes(needle))||null; }
+      // URL → 캐릭터 id 정규화
+      const raw  = qs('character') || qs('character_id') || sessionStorage.getItem('lastChar') || null;
+      const norm = normalizeCharId(raw) || 1;
+      dbg('[param] raw='+raw+' norm='+norm);
+
+      // 상세 API 호출
       let ch=null;
-      if(typeof norm==='number') ch=byNumId[norm]||null;
-      if(!ch&&typeof norm==='string'&&/^char_\d{2}$/i.test(norm)) ch=findByCharCode(norm);
-      if(!ch&&typeof raw==='string') ch=byName[String(raw).trim()]||null;
-      if(!ch&&items.length) ch=items[0];
-      if(!ch) ch={id:'char_01',name:'동료',image:'/assets/img/placeholder.jpg',greeting:'안녕! 같이 시작해보자.'};
-      try{sessionStorage.setItem('lastChar',ch.id);}catch(_){}
-      CURRENT_CHAR=ch;
+      try { ch = await fetchCharacter(norm); }
+      catch(e){ dbg('[error] '+e.message); ch = {id:norm, name:'미확인 캐릭터', image:'/assets/img/placeholder.jpg', summary:'정보 없음'}; }
+      CURRENT_CHAR = ch;
+      try{ sessionStorage.setItem('lastChar', ch.id); }catch(_){}
       paintCharacter(ch);
 
-      if(ch.greeting) addBot(ch.greeting);
+      // 초기 문단(scenario/greeting) 출력
+      const intro=[ch.scenario||"", ch.greeting||""].filter(Boolean).join("\n\n").trim();
+      if(intro) addBot(intro);
 
-      const ta=document.getElementById('ta');
-      const btn=document.getElementById('send');
+      // 입력 동작
+      const ta=document.getElementById('ta'), btn=document.getElementById('send');
       async function send(){
         const v=ta.value.trim(); if(!v)return;
         addUser(v); ta.value=''; btn.disabled=true;
@@ -205,8 +222,8 @@
         finally{ btn.disabled=false; ta.focus(); }
       }
       btn.onclick=send;
-      ta.addEventListener('keydown',ev=>{ if(ev.key==='Enter'&&!ev.shiftKey){ ev.preventDefault(); send(); } });
-    })();
+      ta.addEventListener('keydown', ev=>{ if(ev.key==='Enter' && !ev.shiftKey){ ev.preventDefault(); send(); } });
+    });
   </script>
 </body>
 </html>

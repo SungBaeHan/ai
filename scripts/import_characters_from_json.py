@@ -25,7 +25,7 @@ def main():
         summary  = c.get("shortBio", "").strip() or "간단 소개가 없습니다."
         detail   = c.get("longBio", "").strip()
         tags     = c.get("tags", ["TRPG","캐릭터"])
-        image    = c.get("image") or f"/assets/img/{c.get('id','char_xx')}.jpg"
+        image    = c.get("image") or f"/assets/char/{c.get('id','char_xx')}.jpg"
         insert_character(name, summary, detail, tags, image)
     print(f"OK: inserted {len(items)} characters")
 

@@ -88,13 +88,22 @@
       if(/^char_\d{1,2}$/.test(v)) return 'char_' + String(parseInt(v.split('_')[1],10)).padStart(2,'0');
       return v;
     }
-        // 이미지 경로를 절대경로(/assets/...)로 정규화
+
+    // ✅ 목록 썸네일도 동일 로직
     function resolvePath(p){
       if (!p) return '/assets/img/placeholder.jpg';
       if (/^https?:\/\//i.test(p)) return p;
-      return p.startsWith('/') ? p : '/assets/img/' + p;
+      p = String(p).replace(/\\/g, '/').trim();
+      if (p.startsWith('/')) return p;
+      if (p.startsWith('assets/')) return '/' + p;
+      if (p.includes('/char/') || p.startsWith('char/') || /^char_\d+/i.test(p) || p.startsWith('assets/char/')) {
+        p = p.replace(/^assets\/?/, '');
+        p = p.replace(/^char\//, 'char/');
+        return '/assets/' + p;
+      }
+      return '/assets/img/' + p;
     }
-
+    
         // 카드 DOM을 생성하여 그리드에 추가
     function card(item) {
       const id = normalizeCharId(item.id || item.pk || item.slug || item.name || 'char_01');
@@ -114,6 +123,13 @@
       meta.textContent = (item.shortBio || item.oneLiner || item.greeting || '').toString();
 
       body.appendChild(name); body.appendChild(meta);
+      // <!-- .meta 밑에 한 줄 추가 -->
+      const chips = document.createElement('div');
+      chips.style.marginTop='6px';
+      chips.style.display='flex';
+      chips.style.gap='6px';
+      chips.innerHTML = [item.genre, item.style, item.world].filter(Boolean).map(v=>`<span style="font-size:11px;padding:2px 8px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#a5b4fc">${v}</span>`).join('');
+      body.appendChild(chips);      
       a.appendChild(img); a.appendChild(body);
       return a;
     }
