@@ -214,6 +214,8 @@
   </div>
 
   <script>
+    const API_BASE = "https://api.arcanaverse.ai";
+    
          // 토큰 관리
      const TOKEN_KEY = 'access_token';
      const USER_INFO_KEY = 'user_info';
@@ -282,7 +284,7 @@
         try {
           const token = response.credential; // Google Identity Services에서 받은 JWT 토큰
           // 백엔드에 토큰 전송하여 검증 및 사용자 정보 받기
-          const fetchResponse = await fetch('/v1/auth/google', {
+          const fetchResponse = await fetch(`${API_BASE}/v1/auth/google`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token })

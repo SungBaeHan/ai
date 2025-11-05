@@ -13,11 +13,18 @@ ASSETS_DIR = ROOT / "assets"
 # === FastAPI 인스턴스 ===
 app = FastAPI(title="TRPG API", version="1.0.0")
 
-# === CORS (초기엔 와일드카드, 운영에선 화이트리스트로 축소) ===
+# === CORS 설정 ===
+origins = [
+    "https://arcanaverse.pages.dev",
+    "https://app.arcanaverse.ai"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("CORS_ALLOW_ORIGINS","*").split(","),
-    allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # === 정적 파일 마운트 ===
