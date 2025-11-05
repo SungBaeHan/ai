@@ -10,7 +10,7 @@
 from typing import List, Optional                      # 타입 힌트
 from fastapi import APIRouter, Query, HTTPException    # 라우터/쿼리/에러
 from pydantic import BaseModel, Field                  # 바디 검증 모델
-from packages.db import (                              # DB 유틸
+from adapters.persistence.sqlite import (                              # DB 유틸
     init_db, insert_character, list_characters, count_characters, get_character_by_id
 )
 

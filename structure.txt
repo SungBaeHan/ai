@@ -1,0 +1,50 @@
+.
+├── _volumes
+│   └── qdrant
+├── apps
+│   ├── api
+│   │   ├── main.py
+│   │   └── routes
+│   │       ├── app_api.py
+│   │       ├── app_chat.py
+│   │       ├── ask.py
+│   │       ├── ask_chat.py
+│   │       └── characters.py
+│   └── web-html
+│       ├── assets
+│       │   ├── img
+│       │   └── temp_back
+│       ├── chat.html
+│       └── home.html
+├── data
+│   ├── app.sqlite3
+│   ├── hello.txt
+│   └── json
+│       ├── characters.json
+│       └── home.json
+├── docker_img
+│   └── DockerDesktopWSL
+│       ├── disk
+│       │   └── docker_data.vhdx
+│       └── main
+│           └── ext4.vhdx
+├── infra
+│   └── docker-compose.yml
+├── packages
+│   ├── db
+│   │   └── __init__.py
+│   └── rag
+│       ├── embedder.py
+│       └── ingest.py
+├── requirements.txt
+├── scripts
+│   ├── crawl_pinterest_download.py
+│   ├── import_characters_from_json.py
+│   └── process_temp_images.py
+├── str
+├── structure.txt
+├── tmp
+├── trpg-gen.Modelfile
+└── trpg-polish.Modelfile
+
+22 directories, 26 files

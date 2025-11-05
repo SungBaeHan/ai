@@ -5,7 +5,7 @@ from typing import List, Dict, Any
 
 from qdrant_client import QdrantClient
 from langchain_ollama import ChatOllama
-from packages.rag.embedder import embed  # ✅ 경로 보정
+from adapters.external.embedding.sentence_transformer import embed  # ✅ 경로 보정
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION = os.getenv("COLLECTION", "my_docs")

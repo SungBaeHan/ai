@@ -1,7 +1,7 @@
 # scripts/import_characters_from_json.py
 import json, os
 from pathlib import Path
-from packages.db import init_db, insert_character
+from adapters.persistence.sqlite import init_db, insert_character
 
 ROOT = Path(__file__).resolve().parents[1]
 # /json은 web 쪽이 우선 mount 되므로 여길 1순위로

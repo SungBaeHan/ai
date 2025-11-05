@@ -1,8 +1,33 @@
-﻿__pycache__/
+﻿# VCS
+.git
+.gitignore
+
+# Python
+__pycache__/
 *.pyc
-.venv/
-.env*
+*.pyo
+*.pyd
+*.egg-info/
+
+# Node/Front
+node_modules/
+
+# Big assets / temp
+assets/char/
+assets/temp/
+assets/**/*.png
+assets/**/*.jpg
+assets/**/*.jpeg
+assets/**/*.webp
+assets/**/*.gif
+tmp/
+tmp/**
+
+# Data caches / volumes
 _volumes/
-docker_img/
+data/db/*.wal
+data/db/*.shm
+
+# OS/editor
 .DS_Store
-.vscode/
+Thumbs.db

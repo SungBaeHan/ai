@@ -1,0 +1,14 @@
+{
+    "javascript.updateImportsOnFileMove.enabled": "never",
+    "terminal.integrated.defaultProfile.windows": "Command Prompt",
+    "typescript.updateImportsOnFileMove.enabled": "never",
+    "explorer.compactFolders": false,
+    "security.workspace.trust.untrustedFiles": "open",
+    "notebook.stickyScroll.enabled": true,
+    "html.format.contentUnformatted": "",
+    "editor.stickyScroll.enabled": false,
+    "html.format.extraLiners": "",
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4,
+    "editor.detectIndentation": false    
+}

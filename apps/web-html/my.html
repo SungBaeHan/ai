@@ -1,0 +1,362 @@
+<!-- =============================================
+ my.html - My 메뉴 페이지
+ - 구글 로그인 기능
+ - 계정 정보 표시
+ - AI Dungeon/PolyBuzz 스타일 참고
+ ============================================= -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>My 메뉴</title>
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root { color-scheme: dark; }
+    body { 
+      margin:0; 
+      font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; 
+      background:#0b0f14; 
+      color:#e5e7eb;
+    }
+
+    /* Top Navigation (home.html과 동일) */
+    .nav { position:sticky; top:0; z-index:30; background:#0b1118; border-bottom:1px solid #18212c; }
+    .navin { max-width:1200px; margin:0 auto; padding:8px 12px; display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; }
+    .tab { text-align:center; padding:10px 8px; border-radius:10px; background:#0f172a; color:#a5b4fc; border:1px solid #1e293b; font-size:12px; cursor:pointer; user-select:none; text-decoration:none; }
+    .tab.active { background:#1e3a8a; border-color:#3b82f6; color:#e0e7ff; }
+    .tab:active { transform:translateY(1px); }
+
+    /* Main Content */
+    .wrap { max-width:1200px; margin:24px auto 40px; padding:0 16px; }
+    
+    /* Page Title */
+    h1 { font-size:24px; font-weight:700; margin:8px 0 24px; color:#f3f4f6; }
+
+    /* Profile Section */
+    .profile-section {
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:14px;
+      padding:24px;
+      margin-bottom:20px;
+      box-shadow:0 6px 18px rgba(0,0,0,.25);
+    }
+    .profile-header {
+      display:flex;
+      align-items:center;
+      gap:16px;
+      margin-bottom:20px;
+    }
+    .profile-avatar {
+      width:64px;
+      height:64px;
+      border-radius:50%;
+      background:#1f2937;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:24px;
+      color:#94a3b8;
+      border:2px solid #334155;
+    }
+    .profile-info h2 {
+      margin:0 0 4px 0;
+      font-size:18px;
+      font-weight:700;
+      color:#f3f4f6;
+    }
+    .profile-info p {
+      margin:0;
+      font-size:14px;
+      color:#94a3b8;
+    }
+
+    /* Settings List (AI Dungeon 스타일) */
+    .settings-list {
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:14px;
+      overflow:hidden;
+      box-shadow:0 6px 18px rgba(0,0,0,.25);
+    }
+    .settings-item {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:16px 20px;
+      border-bottom:1px solid #1f2937;
+      cursor:pointer;
+      transition:background .15s ease;
+      color:#e5e7eb;
+      text-decoration:none;
+    }
+    .settings-item:last-child {
+      border-bottom:none;
+    }
+    .settings-item:hover {
+      background:#1f2937;
+    }
+    .settings-item-label {
+      font-size:14px;
+      font-weight:500;
+    }
+    .settings-item-value {
+      font-size:14px;
+      color:#94a3b8;
+      margin-right:8px;
+    }
+    .settings-item-arrow {
+      color:#64748b;
+      font-size:12px;
+    }
+
+    /* Google Login Button */
+    .google-login-container {
+      text-align:center;
+      padding:24px;
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:14px;
+      margin-bottom:20px;
+    }
+    .google-login-container p {
+      margin:0 0 16px 0;
+      color:#94a3b8;
+      font-size:14px;
+    }
+    #google-login-button {
+      display:inline-block;
+    }
+
+    /* Logout Button */
+    .logout-btn {
+      display:block;
+      width:100%;
+      padding:12px;
+      background:#7f1d1d;
+      border:1px solid #991b1b;
+      border-radius:10px;
+      color:#fee2e2;
+      font-size:14px;
+      font-weight:600;
+      cursor:pointer;
+      transition:background .15s ease;
+      margin-top:16px;
+    }
+    .logout-btn:hover {
+      background:#991b1b;
+    }
+
+    /* Hidden class */
+    .hidden { display:none; }
+
+    /* Toast Layer */
+    .toast { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .18s ease; z-index:50; }
+    .toast.show { opacity:1; pointer-events:auto; }
+    .toast .box { pointer-events:auto; min-width:200px; max-width:80vw; background:#0f172a; border:1px solid #1f2937; color:#e5e7eb; padding:14px 18px; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.45); text-align:center; }
+  </style>
+</head>
+<body>
+  <!-- Top Navigation -->
+  <div class="nav">
+    <div class="navin">
+      <a href="/home.html" class="tab" data-nav="logo">Logo</a>
+      <a href="/home.html" class="tab" data-nav="search">Search</a>
+      <a href="/home.html" class="tab" data-nav="create">Create</a>
+      <a href="/home.html" class="tab" data-nav="list">My List</a>
+      <a href="/my.html" class="tab active" data-nav="my">My</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h1>My 메뉴</h1>
+
+    <!-- Profile Section (로그인 시 표시) -->
+    <div id="profile-section" class="profile-section hidden">
+      <div class="profile-header">
+        <div class="profile-avatar" id="profile-avatar">?</div>
+        <div class="profile-info">
+          <h2 id="profile-name">사용자</h2>
+          <p id="profile-email">이메일</p>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="handleLogout()">로그아웃</button>
+    </div>
+
+    <!-- Google Login Section (비로그인 시 표시) -->
+    <div id="login-section" class="google-login-container">
+      <p>로그인이 필요한 서비스입니다</p>
+      <div id="google-login-button"></div>
+    </div>
+
+    <!-- Settings List (로그인 시 표시) -->
+    <div id="settings-section" class="settings-list hidden">
+      <a href="#" class="settings-item" onclick="showToast('준비중입니다'); return false;">
+        <span class="settings-item-label">계정 설정</span>
+        <span class="settings-item-arrow">→</span>
+      </a>
+      <a href="#" class="settings-item" onclick="showToast('준비중입니다'); return false;">
+        <span class="settings-item-label">알림 설정</span>
+        <span class="settings-item-arrow">→</span>
+      </a>
+      <a href="#" class="settings-item" onclick="showToast('준비중입니다'); return false;">
+        <span class="settings-item-label">개인정보 처리방침</span>
+        <span class="settings-item-arrow">→</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Toast Layer -->
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true">
+    <div class="box">준비중입니다</div>
+  </div>
+
+  <script>
+         // 토큰 관리
+     const TOKEN_KEY = 'access_token';
+     const USER_INFO_KEY = 'user_info';
+
+    // Toast 표시
+    function showToast(msg, ms=1200) {
+      const el = document.getElementById('toast');
+      el.querySelector('.box').textContent = msg;
+      el.classList.add('show');
+      clearTimeout(showToast.tid);
+      showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+    // 토큰 가져오기
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+
+    // 사용자 정보 가져오기
+    function getUserInfo() {
+      const info = localStorage.getItem(USER_INFO_KEY);
+      return info ? JSON.parse(info) : null;
+    }
+
+    // 토큰 설정
+    function setToken(token, userInfo) {
+      localStorage.setItem(TOKEN_KEY, token);
+      if (userInfo) {
+        localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo));
+      }
+    }
+
+    // 토큰 삭제
+    function clearAuth() {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(USER_INFO_KEY);
+    }
+
+    // UI 업데이트
+    function updateUI() {
+      const token = getToken();
+      const userInfo = getUserInfo();
+      const isLoggedIn = !!token;
+
+      document.getElementById('login-section').classList.toggle('hidden', isLoggedIn);
+      document.getElementById('profile-section').classList.toggle('hidden', !isLoggedIn);
+      document.getElementById('settings-section').classList.toggle('hidden', !isLoggedIn);
+
+      if (isLoggedIn && userInfo) {
+        document.getElementById('profile-name').textContent = userInfo.name || '사용자';
+        document.getElementById('profile-email').textContent = userInfo.email || '';
+        const avatar = document.getElementById('profile-avatar');
+        if (userInfo.picture) {
+          avatar.style.backgroundImage = `url(${userInfo.picture})`;
+          avatar.style.backgroundSize = 'cover';
+          avatar.style.backgroundPosition = 'center';
+          avatar.textContent = '';
+        } else {
+          avatar.textContent = (userInfo.name || '?').charAt(0).toUpperCase();
+        }
+      }
+    }
+
+                   // 구글 로그인 성공 처리
+      async function handleGoogleLogin(response) {
+        try {
+          const token = response.credential; // Google Identity Services에서 받은 JWT 토큰
+          // 백엔드에 토큰 전송하여 검증 및 사용자 정보 받기
+          const fetchResponse = await fetch('/v1/auth/google', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+          });
+
+                   if (!fetchResponse.ok) {
+            const errorText = await fetchResponse.text();
+            console.error('Login failed:', fetchResponse.status, errorText);
+            throw new Error(`로그인 실패 (${fetchResponse.status}): ${errorText}`);
+          }
+
+                   const data = await fetchResponse.json();
+          localStorage.setItem(TOKEN_KEY, data.access_token);
+          if (data.email || data.name) {
+            localStorage.setItem(USER_INFO_KEY, JSON.stringify({
+              email: data.email,
+              name: data.name
+            }));
+          }
+          updateUI();
+          showToast('로그인 성공!', 1500);
+       } catch (error) {
+         console.error('Login error:', error);
+         showToast('로그인에 실패했습니다: ' + error.message, 3000);
+       }
+    }
+
+    // 로그아웃 처리
+    function handleLogout() {
+      clearAuth();
+      updateUI();
+      showToast('로그아웃되었습니다.', 1500);
+    }
+
+    // 구글 로그인 초기화
+    function initGoogleLogin() {
+      if (typeof google !== 'undefined' && google.accounts) {
+                 google.accounts.id.initialize({
+           client_id: '908475294325-t8mmgo6jb84g50t22ndcm8h7kahilmo2.apps.googleusercontent.com',
+           callback: handleGoogleLogin,
+          auto_select: false,
+          cancel_on_tap_outside: true
+        });
+
+        google.accounts.id.renderButton(
+          document.getElementById('google-login-button'),
+          {
+            theme: 'outline',
+            size: 'large',
+            text: 'signin_with',
+            width: 240
+          }
+        );
+      } else {
+        // Google Identity Services 로드 실패 시 대체 버튼
+        document.getElementById('google-login-button').innerHTML = 
+          '<button style="padding:12px 24px;background:#4285f4;color:white;border:none;border-radius:8px;font-size:14px;cursor:pointer;">Google로 로그인</button>';
+      }
+    }
+
+    // 페이지 로드 시 초기화
+    document.addEventListener('DOMContentLoaded', () => {
+      updateUI();
+      
+      // Google Identity Services 로드 대기
+      if (typeof google !== 'undefined') {
+        initGoogleLogin();
+      } else {
+        window.addEventListener('load', () => {
+          setTimeout(initGoogleLogin, 500);
+        });
+      }
+    });
+  </script>
+</body>
+</html>
+

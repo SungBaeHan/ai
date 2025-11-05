@@ -14,7 +14,8 @@
 
     /* top nav (moved from bottom) */
     .nav { position:sticky; top:0; z-index:30; background:#0b1118; border-bottom:1px solid #18212c; }
-    .navin { max-width:1200px; margin:0 auto; padding:8px 12px; display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; }
+    .navin { max-width:1200px; margin:0 auto; padding:8px 12px; display:flex; align-items:center; gap:12px; }
+    .navin .tabs { display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; flex: 1; }
     .tab { text-align:center; padding:10px 8px; border-radius:10px; background:#0f172a; color:#a5b4fc; border:1px solid #1e293b; font-size:12px; cursor:pointer; user-select:none; }
     .tab:active { transform:translateY(1px); }
 
@@ -37,11 +38,13 @@
 <body>
   <!-- Top Navigation -->
   <div class="nav"><div class="navin">
-    <div class="tab" data-nav="logo">Logo</div>
-    <div class="tab" data-nav="search">Search</div>
-    <div class="tab" data-nav="create">Create</div>
-    <div class="tab" data-nav="list">My List</div>
-    <div class="tab" data-nav="my">My</div>
+    <div class="tabs">
+      <div class="tab" data-nav="logo">Logo</div>
+      <div class="tab" data-nav="search">Search</div>
+      <div class="tab" data-nav="create">Create</div>
+      <div class="tab" data-nav="list">My List</div>
+      <div class="tab" data-nav="my">My</div>
+    </div>
   </div></div>
 
   <div class="wrap">
@@ -134,9 +137,21 @@
       return a;
     }
 
-        // 상단 탭 클릭 시 '준비중' 토스트 표시
-    function showToast(ms=1200){
+    // 토큰 관리
+    const TOKEN_KEY = 'access_token';
+    
+    function getToken() {
+      return localStorage.getItem(TOKEN_KEY);
+    }
+    
+    function isLoggedIn() {
+      return !!getToken();
+    }
+
+        // 상단 탭 클릭 시 처리 (토스트 또는 로그인 체크)
+    function showToast(msg='준비중입니다', ms=1200){
       const el = document.getElementById('toast');
+      el.querySelector('.box').textContent = msg;
       el.classList.add('show');
       clearTimeout(showToast.tid);
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
@@ -144,12 +159,29 @@
 
         // 초기화: 네비게이션 바 핸들러+캐릭터 목록 렌더링
     (async function init(){
-      // nav buttons -> “준비중입니다”
-            // 상단 네비게이션 탭 클릭 시 토스트 표시
+      // nav buttons -> 처리
+            // 상단 네비게이션 탭 클릭 시 처리
       document.querySelectorAll('.tab').forEach(btn => {
         btn.addEventListener('click', (e) => {
+          const navType = btn.getAttribute('data-nav');
+          
+          if (navType === 'my') {
+            // My 메뉴는 바로 이동
+            e.preventDefault();
+            window.location.href = '/my.html';
+            return;
+          }
+          
+          // 다른 메뉴는 로그인 체크
+          if (!isLoggedIn()) {
+            e.preventDefault();
+            showToast('로그인이 필요합니다.', 2000);
+            return;
+          }
+          
+          // 로그인되어 있으면 준비중 표시
           e.preventDefault();
-          showToast();
+          showToast('준비중입니다.', 1500);
         });
       });
 
@@ -159,8 +191,8 @@
             // 데이터 없을 때 안내 문구 표시
       grid.innerHTML = items.length ? '' : '<div style="opacity:.7">표시할 캐릭터가 없습니다.</div>';
             // 각 아이템을 카드로 변환해 그리드에 추가
-      items.forEach(it => grid.appendChild(card(it)));
-    })();
-  </script>
-</body>
-</html>
+             items.forEach(it => grid.appendChild(card(it)));
+     })();
+   </script>
+ </body>
+ </html>

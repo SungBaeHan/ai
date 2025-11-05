@@ -36,6 +36,10 @@
     button[disabled]{ opacity:.6; cursor:not-allowed; }
     .bg { position:fixed; inset:0; background-position:center; background-size:cover; opacity:.4; filter:blur(1.5px) brightness(0.9); z-index:-1; transition:filter .5s ease, opacity .5s ease; }
     .debug { max-width:980px; margin:6px auto 0; font-size:12px; color:#93c5fd; opacity:.9; white-space:pre-wrap; }
+    /* toast layer */
+    .toast { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .18s ease; z-index:50; }
+    .toast.show { opacity:1; }
+    .toast .box { pointer-events:auto; min-width:200px; max-width:80vw; background:#0f172a; border:1px solid #1f2937; color:#e5e7eb; padding:14px 18px; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.45); text-align:center; }
     @keyframes fadeInUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
   </style>
 </head>
@@ -69,6 +73,11 @@
       <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 -->
       <button id="send">보내기</button>                         <!-- 전송 -->
     </div>
+  </div>
+
+  <!-- Toast Layer -->
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true">
+    <div class="box">준비중입니다</div>
   </div>
 
   <script>
@@ -171,8 +180,30 @@
     function addUser(text){ const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg me'; row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
     function addBot(text){  const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg'; const img=resolvePath(CURRENT_CHAR?.image); row.innerHTML=`<img class="avatar" src="${img}" alt="bot"/><div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
 
+    // 토큰 관리
+    const TOKEN_KEY = 'access_token';
+    function getToken() { return localStorage.getItem(TOKEN_KEY); }
+    function isLoggedIn() { return !!getToken(); }
+
+    // 토스트 메시지 표시
+    function showToast(msg='준비중입니다', ms=2000){
+      const el = document.getElementById('toast');
+      el.querySelector('.box').textContent = msg;
+      el.classList.add('show');
+      clearTimeout(showToast.tid);
+      showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
     // 백엔드 LLM 호출
     async function askLLM(message, mode='trpg', choices=0){
+      const token = getToken();
+      const headers = { 'Content-Type': 'application/json' };
+      
+      // 로그인 토큰이 있으면 헤더에 추가
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       const payload = {
         message, mode,
         model:'trpg-gen', polish_model:'trpg-polish', choices,
@@ -184,7 +215,7 @@
           greeting: CURRENT_CHAR.greeting, tags: CURRENT_CHAR.tags,
         } : null,
       };
-      const r = await fetch('/v1/chat/', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const r = await fetch('/v1/chat/', { method:'POST', headers, body: JSON.stringify(payload) });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const j = await r.json();
       return (j?.answer||'').trim();
@@ -214,15 +245,53 @@
 
       // 입력 동작
       const ta=document.getElementById('ta'), btn=document.getElementById('send');
+      
+      // 비로그인 상태에서 입력/전송 시도 시 로그인 필요 메시지 표시
+      function checkLoginAndSend(){
+        if (!isLoggedIn()) {
+          showToast('로그인이 필요합니다.', 2000);
+          ta.blur(); // 입력 필드 포커스 제거
+          return false;
+        }
+        return true;
+      }
+
       async function send(){
+        // 로그인 체크
+        if (!checkLoginAndSend()) return;
+        
         const v=ta.value.trim(); if(!v)return;
         addUser(v); ta.value=''; btn.disabled=true;
         try{ const ans=await askLLM(v,'trpg'); addBot(ans||'(응답이 비어있습니다)'); }
         catch(e){ addBot('서버 오류: '+e.message); }
         finally{ btn.disabled=false; ta.focus(); }
       }
+      
+      // 입력 필드 포커스 시 로그인 체크
+      ta.addEventListener('focus', (ev) => {
+        if (!isLoggedIn()) {
+          ev.preventDefault();
+          ta.blur();
+          showToast('로그인이 필요합니다.', 2000);
+        }
+      });
+
+      // 클릭 시 로그인 체크
+      ta.addEventListener('click', (ev) => {
+        if (!isLoggedIn()) {
+          ev.preventDefault();
+          ta.blur();
+          showToast('로그인이 필요합니다.', 2000);
+        }
+      });
+
       btn.onclick=send;
-      ta.addEventListener('keydown', ev=>{ if(ev.key==='Enter' && !ev.shiftKey){ ev.preventDefault(); send(); } });
+      ta.addEventListener('keydown', ev=>{ 
+        if (ev.key==='Enter' && !ev.shiftKey){ 
+          ev.preventDefault(); 
+          send(); 
+        }
+      });
     });
   </script>
 </body>

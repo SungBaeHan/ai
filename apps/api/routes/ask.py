@@ -1,43 +1,84 @@
 # ========================================
 # apps/api/routes/ask.py — 주석 추가 상세 버전
-# RAG 검색(Qdrant) + Ollama LLM으로 간단 질의응답을 수행하는 모듈.
-# app_api.py에서 import하여 /v1/ask 엔드포인트에 사용된다.
+# /v1/ask 엔드포인트: 간단 질의응답 API. 내부적으로 ask.answer() 호출.
 # ========================================
 
-import os                                       # 환경변수에서 Qdrant URL, 콜렉션 이름을 읽기 위함
-from qdrant_client import QdrantClient          # Qdrant 서버 클라이언트
-from qdrant_client.http import models as qm      # (필요 시) Qdrant HTTP 모델
-from langchain_ollama import OllamaLLM          # Ollama LLM(프롬프트 문자열 입력형)
-from packages.rag.embedder import embed         # 텍스트 임베딩 함수 (벡터 생성)
+import os
+from fastapi import APIRouter, Query           # 라우터 및 쿼리 파라미터 유효성 검사용
+from qdrant_client import QdrantClient
+from langchain_ollama import ChatOllama
+from adapters.external.embedding.sentence_transformer import embed
 
-# Qdrant 접속 정보: 환경변수 없으면 기본 로컬 사용
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION = os.getenv("COLLECTION", "my_docs")
+OLLAMA_BASE = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "trpg-gen")
 
-def search(query: str, k=5):
-    """질문(query)을 임베딩하여 Qdrant에서 상위 k개 유사 문서를 가져온다."""
-    qvec = embed([query])[0]                    # 질문을 벡터로 변환(첫번째 결과 사용)
-    client = QdrantClient(url=QDRANT_URL)       # Qdrant 클라이언트 생성
-    res = client.query_points(                  # 벡터 질의 실행
-        collection_name=COLLECTION,             # 검색할 콜렉션 이름
-        query=qvec,                             # 질의 벡터
-        limit=k,                                # 상위 k개
-        with_payload=True                       # payload(원문 텍스트 등) 포함
-    )
-    # 결과에서 payload의 "text"만 추출하여 리스트로 반환
-    return [p.payload.get("text", "") for p in res.points]
-
-def answer(query: str):
-    """검색 결과를 컨텍스트로 사용하여 LLM으로 최종 답변을 생성한다."""
-    ctx = "\n\n".join(search(query))            # 상위 문서들을 하나의 컨텍스트 문자열로 합침
-    prompt = f"""아래 자료만 근거로 간결히 한국어로 답해줘.
-
-[자료]
-{ctx}
-
-[질문]
-{query}
+SYS_QA = """너는 유능한 도우미다. 답변은 간결하고 정확하게 한국어로 작성한다.
+가능하면 근거(컨텍스트)를 자연스럽게 녹여 설명한다.
+모르겠으면 모른다고 말하고, 추측하지 않는다.
 """
-    # Ollama LLM 인스턴스(단순 문자열 prompt 입력)
-    llm = OllamaLLM(model="llama3.1")
-    return llm.invoke(prompt)                   # 모델 호출 결과 문자열 반환
+
+def retrieve_context(query: str, k: int = 5) -> str:
+    """RAG를 위한 컨텍스트 검색"""
+    try:
+        qvec = embed([query])[0]
+        cli = QdrantClient(url=QDRANT_URL)
+        res = cli.query_points(collection_name=COLLECTION, query=qvec, limit=k, with_payload=True)
+        chunks = []
+        for p in getattr(res, "points", []):
+            payload = getattr(p, "payload", {}) or {}
+            txt = payload.get("text", "")
+            if txt:
+                chunks.append(txt)
+        return "\n\n".join(chunks)
+    except Exception as e:
+        print(f"[WARN] retrieve_context error: {e}")
+        return ""
+
+def answer(q: str) -> str:
+    """질문에 대한 답변 생성 (RAG + LLM)"""
+    if not q or not q.strip():
+        return ""
+    
+    context = retrieve_context(q)
+    sys_prompt = SYS_QA
+    if context:
+        sys_prompt += f"\n[검색 컨텍스트]\n{context}\n"
+    
+    llm = ChatOllama(
+        base_url=OLLAMA_BASE,
+        model=DEFAULT_MODEL,
+        timeout=120,
+        temperature=0.7,
+        top_p=0.9,
+    )
+    
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": q}
+    ]
+    
+    try:
+        raw = llm.invoke(messages)
+        text = getattr(raw, "content", str(raw))
+        return text.strip() if text else ""
+    except Exception as e:
+        print(f"[WARN] answer error: {e}")
+        return f"(오류 발생) {e}"
+
+# 라우터 인스턴스 생성
+router = APIRouter()
+
+@router.get("/health")
+def health():
+    """간단 상태 확인용 엔드포인트: /v1/ask/health"""
+    return {"status": "ok"}                    # 정상 작동 신호
+
+@router.get("")
+def ask_get(q: str = Query(..., description="질문")):
+    """GET /v1/ask?q=... 형태로 질문을 받아 answer()에 위임한다."""
+    q = (q or "").strip()                      # 공백/None 방지
+    if not q:                                  # 빈 질문이면
+        return {"answer": ""}                  # 빈 답변 반환
+    return {"answer": answer(q)}               # 핵심 로직 위임
