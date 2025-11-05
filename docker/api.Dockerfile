@@ -28,7 +28,6 @@ COPY packages /app/packages
 COPY adapters /app/adapters
 COPY src /app/src
 COPY data/json /app/data/json
-COPY assets /app/assets
 
 # SQLite 경로
 RUN mkdir -p /data/db
