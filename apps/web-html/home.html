@@ -8,6 +8,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>캐릭터 선택</title>
+  <script src="/js/config.js"></script>
   <style>
     :root { color-scheme: dark; }
     body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:#0b0f14; color:#e5e7eb;}
@@ -200,19 +201,33 @@
 <script>
 (async () => {
   try {
-    const res = await fetch('/assets/images?prefix=char/&limit=60&signed=true');
+    const API = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : '';
+    const url = `${API}/assets/images?prefix=char/&limit=60&signed=true`;
+
+    const res = await fetch(url, { credentials: 'omit' });
     const data = await res.json();
-    const $g = document.getElementById('gallery');
+
+    const $g = document.getElementById('gallery') || (() => {
+      const div = document.createElement('div');
+      div.id = 'gallery';
+      div.style.display = 'grid';
+      div.style.gridTemplateColumns = 'repeat(auto-fill,minmax(140px,1fr))';
+      div.style.gap = '12px';
+      document.body.appendChild(div);
+      return div;
+    })();
+
     $g.innerHTML = '';
-    data.items.forEach(item => {
+    (data.items || []).forEach(item => {
       const img = document.createElement('img');
       img.src = item.url;
-      img.alt = item.key;
+      img.alt = item.key || '';
       img.loading = 'lazy';
       img.style.width = '100%';
       img.style.height = '200px';
       img.style.objectFit = 'cover';
       img.referrerPolicy = 'no-referrer';
+      img.crossOrigin = 'anonymous';
       $g.appendChild(img);
     });
   } catch (e) {
