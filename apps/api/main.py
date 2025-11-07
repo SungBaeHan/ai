@@ -80,6 +80,10 @@ app.include_router(assets.router)
 app.include_router(debug_db.router)
 app.include_router(migrate.router)
 
+# === Repository factory ===
+from adapters.persistence.mongo.factory import create_character_repository
+repo = create_character_repository()
+
 # === Startup Hook ===
 @app.on_event("startup")
 async def _on_startup():
