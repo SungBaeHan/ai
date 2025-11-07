@@ -21,3 +21,6 @@ requests>=2.31.0
 
 # --- Cloudflare R2 ---
 boto3>=1.35.0
+
+# --- MongoDB ---
+pymongo>=4.6.0

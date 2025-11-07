@@ -56,6 +56,7 @@ from apps.api.routes import auth as auth_router    # /v1/auth
 from apps.api.routes import auth_google            # /v1/auth/google
 from apps.api.routes import assets
 from apps.api.routes import debug_db
+from apps.api.routes import migrate
 
 app.include_router(characters.router, prefix="/v1/characters", tags=["characters"])
 app.include_router(chat_router.router,   prefix="/v1/chat",        tags=["chat"])
@@ -64,6 +65,7 @@ app.include_router(auth_router.router,   prefix="/v1/auth",        tags=["auth"]
 app.include_router(auth_google.router,   prefix="/v1/auth",        tags=["auth"])
 app.include_router(assets.router)
 app.include_router(debug_db.router)
+app.include_router(migrate.router)
 
 # === 루트 경로 ===
 @app.get("/")
