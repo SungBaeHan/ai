@@ -29,6 +29,12 @@ COPY adapters /app/adapters
 COPY src /app/src
 COPY data/json /app/data/json
 
+# Copy infra scripts (entrypoint, etc.)
+COPY infra /app/infra
+RUN chmod +x /app/infra/docker-entrypoint.sh
+# Prevent CRLF issues if committed from Windows
+RUN sed -i 's/\r$//' /app/infra/docker-entrypoint.sh
+
 # SQLite 경로
 RUN mkdir -p /data/db
 
