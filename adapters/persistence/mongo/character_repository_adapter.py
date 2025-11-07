@@ -53,4 +53,18 @@ class MongoCharacterRepository(CharacterRepository):
             upsert=True
         )
         return character
+    
+    def list_paginated(self, skip: int = 0, limit: int = 20, q: str = None):
+        query = {}
+        if q:
+            # 텍스트 인덱스가 없다면 간단한 부분일치로 대체
+            query = {"$or": [
+                {"name": {"$regex": q, "$options": "i"}},
+                {"tags": {"$regex": q, "$options": "i"}},
+                {"summary": {"$regex": q, "$options": "i"}},
+            ]}
+        cur = self.collection.find(query, {"_id": 0}).skip(max(0,skip)).limit(max(1,min(limit,100)))
+        items = list(cur)
+        total = self.collection.count_documents(query)
+        return {"total": int(total), "items": items}
 

@@ -10,12 +10,14 @@
 from typing import List, Optional                      # 타입 힌트
 from fastapi import APIRouter, Query, HTTPException    # 라우터/쿼리/에러
 from pydantic import BaseModel, Field                  # 바디 검증 모델
+from adapters.persistence.factory import get_character_repo
 from adapters.persistence.sqlite import (                              # DB 유틸
     init_db, insert_character, list_characters, count_characters, get_character_by_id
 )
 
 init_db()                                              # 앱 기동 시 테이블 보장
 router = APIRouter()                                   # 서브 라우터
+repo = get_character_repo()
 
 class CharacterIn(BaseModel):
     """캐릭터 생성 입력 모델"""
@@ -48,14 +50,23 @@ def normalize_image(p: Optional[str]) -> str:
     return "/assets/img/" + s.lstrip("/")
 
 @router.get("", summary="캐릭터 목록")
-def get_list(offset: Optional[int] = Query(None), limit: Optional[int] = Query(None)):
+def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=100), q: str = Query(None)):
     """캐릭터 목록 반환(서버가 image를 절대경로로 보정)"""
-    o = 0 if offset is None else max(0, offset)
-    l = 30 if limit  is None else max(1, min(120, limit))
-    items = list_characters(o, l)                     # DB에서 목록
+    # mongo 어댑터에만 list_paginated가 있을 수 있으므로 getattr로 안전 호출
+    fn = getattr(repo, "list_paginated", None)
+    if callable(fn):
+        result = fn(skip=skip, limit=limit, q=q)
+        items = result.get("items", [])
+        for it in items:                                  # 이미지 경로 보정
+            it["image"] = normalize_image(it.get("image"))
+        return {"items": items, "total": result.get("total", len(items)), "skip": skip, "limit": limit}
+    # sqlite 등 레거시 경로 fallback
+    offset = skip
+    l = max(1, min(120, limit))
+    items = list_characters(offset, l)
     for it in items:                                  # 이미지 경로 보정
         it["image"] = normalize_image(it.get("image"))
-    return {"items": items, "offset": o, "limit": l}
+    return {"items": items, "total": len(items), "skip": skip, "limit": l}
 
 @router.get("/{character_id}", summary="캐릭터 단일 조회")
 def get_one(character_id: str):

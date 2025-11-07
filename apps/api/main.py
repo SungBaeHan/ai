@@ -3,6 +3,8 @@ import os, sqlite3, pathlib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from apps.api.startup import init_mongo_indexes
+from apps.api.routes import health
 
 # === 환경값 ===
 ROOT = pathlib.Path(__file__).resolve().parents[2]        # 프로젝트 루트 추정
@@ -12,6 +14,8 @@ ASSETS_DIR = ROOT / "assets"
 
 # === FastAPI 인스턴스 ===
 app = FastAPI(title="TRPG API", version="1.0.0")
+
+app.include_router(health.router)
 
 # === CORS 설정 ===
 origins = [
@@ -66,6 +70,15 @@ app.include_router(auth_google.router,   prefix="/v1/auth",        tags=["auth"]
 app.include_router(assets.router)
 app.include_router(debug_db.router)
 app.include_router(migrate.router)
+
+# === Startup Hook ===
+@app.on_event("startup")
+async def _on_startup():
+    try:
+        init_mongo_indexes()
+    except Exception:
+        # don't crash app on index errors
+        pass
 
 # === 루트 경로 ===
 @app.get("/")
