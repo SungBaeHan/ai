@@ -16,6 +16,14 @@ ASSETS_DIR = ROOT / "assets"
 # === FastAPI 인스턴스 ===
 app = FastAPI(title="TRPG API", version="1.0.0")
 
+# === Static files mount ===
+assets_path = os.path.join(os.path.dirname(__file__), "../../apps/web-html/assets")
+if os.path.exists(assets_path):
+    app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+    print(f"[INFO] Mounted /assets from {assets_path}")
+else:
+    print(f"[WARN] Static assets path not found: {assets_path}")
+
 app.include_router(health.router)
 
 # === CORS 설정 ===
