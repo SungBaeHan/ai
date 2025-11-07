@@ -11,6 +11,12 @@ WORKDIR /app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
+# Lighten runtime
+ENV TOKENIZERS_PARALLELISM=false
+ENV TRANSFORMERS_NO_ADVISORY_WARNINGS=1
+ENV CUDA_VISIBLE_DEVICES=
+ENV PLAYWRIGHT_BROWSERS_PATH=0
+
 EXPOSE 10000
 
 # 1) requirements*.txt 중 존재하는 것만 복사 (최소 requirements.txt는 존재)
@@ -37,6 +43,6 @@ COPY data/json /app/data/json
 # SQLite 경로
 RUN mkdir -p /data/db
 
-# 기존 CMD/ENTRYPOINT 는 아래로 교체
-CMD ["sh", "-c", "uvicorn apps.api.main:app --host 0.0.0.0 --port ${PORT:-10000} --log-level info"]
+# force uvicorn start (replace any existing CMD/ENTRYPOINT)
+CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "${PORT:-10000}", "--log-level", "info"]
 

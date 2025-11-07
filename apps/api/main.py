@@ -1,4 +1,5 @@
 # apps/api/main.py
+from apps.api import bootstrap  # noqa: F401  (sets env early)
 import os, sqlite3, pathlib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
