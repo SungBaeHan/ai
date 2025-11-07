@@ -31,3 +31,8 @@ data/db/*.shm
 # OS/editor
 .DS_Store
 Thumbs.db
+
+# 🔒 Secrets / Environment
+.env
+*.env
+.env.*
