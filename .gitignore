@@ -1,4 +1,4 @@
-﻿# VCS
+# VCS
 .git
 .gitignore
 
@@ -37,3 +37,7 @@ Thumbs.db
 *.env
 .env.*
 GoogleClientSecret.json
+data/app.sqlite3
+data/db/app.sqlite3
+docker_img/DockerDesktopWSL/disk/docker_data.vhdx
+docker_img/DockerDesktopWSL/main/ext4.vhdx

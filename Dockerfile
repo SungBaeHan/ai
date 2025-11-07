@@ -43,6 +43,11 @@ COPY data/json /app/data/json
 # SQLite 경로
 RUN mkdir -p /data/db
 
-# force uvicorn start (replace any existing CMD/ENTRYPOINT)
-CMD ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "${PORT:-10000}", "--log-level", "info"]
+# entrypoint
+COPY infra/docker-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Use entrypoint (overrides any previous CMD/ENTRYPOINT)
+ENTRYPOINT ["/entrypoint.sh"]
+# (No separate CMD needed; entrypoint uses APP_MODULE & PORT)
 
