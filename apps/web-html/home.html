@@ -196,5 +196,29 @@
              items.forEach(it => grid.appendChild(card(it)));
      })();
    </script>
+  <div id="gallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;"></div>
+<script>
+(async () => {
+  try {
+    const res = await fetch('/assets/images?prefix=char/&limit=60&signed=true');
+    const data = await res.json();
+    const $g = document.getElementById('gallery');
+    $g.innerHTML = '';
+    data.items.forEach(item => {
+      const img = document.createElement('img');
+      img.src = item.url;
+      img.alt = item.key;
+      img.loading = 'lazy';
+      img.style.width = '100%';
+      img.style.height = '200px';
+      img.style.objectFit = 'cover';
+      img.referrerPolicy = 'no-referrer';
+      $g.appendChild(img);
+    });
+  } catch (e) {
+    console.error('Failed to load images', e);
+  }
+})();
+</script>
  </body>
  </html>
