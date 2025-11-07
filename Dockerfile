@@ -43,11 +43,9 @@ COPY data/json /app/data/json
 # SQLite 경로
 RUN mkdir -p /data/db
 
-# entrypoint
 COPY infra/docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Use entrypoint (overrides any previous CMD/ENTRYPOINT)
 ENTRYPOINT ["/entrypoint.sh"]
-# (No separate CMD needed; entrypoint uses APP_MODULE & PORT)
+# CMD는 필요 없음 (ENTRYPOINT 스크립트가 uvicorn 실행)
 

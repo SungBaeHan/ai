@@ -12,19 +12,19 @@ echo "==== STARTUP CHECK ===="
 echo "PWD=$(pwd)"
 echo "PYTHONPATH=$PYTHONPATH"
 echo "APP_MODULE=$APP_MODULE"
+echo "PORT=$PORT"
 echo "LIST /app:"
 ls -la /app || true
 
 echo "---- Python import probe ----"
 python - <<'PY'
 import importlib, os, sys, traceback
-mod = os.environ.get("APP_MODULE","apps.api.main:app")
-mod_name = mod.split(":")[0]
+mod = os.environ.get("APP_MODULE","apps.api.main:app").split(":")[0]
 try:
-    importlib.import_module(mod_name)
-    print(f"[PROBE] OK import {mod_name}")
-except Exception as e:
-    print("[PROBE] IMPORT FAILED", mod_name)
+    importlib.import_module(mod)
+    print(f"[PROBE] OK import {mod}")
+except Exception:
+    print("[PROBE] IMPORT FAILED", mod)
     traceback.print_exc()
     sys.exit(42)
 PY
