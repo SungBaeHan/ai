@@ -10,6 +10,8 @@
 from typing import List, Optional                      # 타입 힌트
 from fastapi import APIRouter, Query, HTTPException    # 라우터/쿼리/에러
 from pydantic import BaseModel, Field                  # 바디 검증 모델
+import os
+from urllib.parse import urljoin
 from adapters.persistence.factory import get_character_repo
 from adapters.persistence.sqlite import (                              # DB 유틸
     init_db, insert_character, list_characters, count_characters, get_character_by_id
@@ -19,6 +21,17 @@ init_db()                                              # 앱 기동 시 테이�
 router = APIRouter()                                   # 서브 라우터
 repo = get_character_repo()
 
+# === 이미지 경로 정규화 ===
+ASSETS_BASE = os.getenv("ASSETS_BASE_URL", "https://api.arcanaverse.ai")
+
+def normalize_image(path: str | None) -> str | None:
+    """상대경로('/assets/...')를 절대경로로 변환"""
+    if not path:
+        return None
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+    return urljoin(ASSETS_BASE if ASSETS_BASE.endswith("/") else ASSETS_BASE + "/", path.lstrip("/"))
+
 class CharacterIn(BaseModel):
     """캐릭터 생성 입력 모델"""
     name: str = Field(..., description="캐릭터 이름")
@@ -26,28 +39,6 @@ class CharacterIn(BaseModel):
     detail: str = Field("", description="상세 설명")
     tags: List[str] = Field(default_factory=lambda: ["TRPG", "캐릭터"])
     image: str = Field(..., description="이미지 경로 (/assets/char/xxx.png 등)")
-
-def normalize_image(p: Optional[str]) -> str:
-    """
-    서버 측 이미지 경로 정규화.
-    - http/https로 시작하면 그대로
-    - /로 시작하면 그대로(이미 절대경로)
-    - assets/... 이면 / 붙여 절대경로
-    - char_*.png 또는 char/.. 패턴은 /assets/char/.. 로
-    - 나머지는 /assets/img/.. 로
-    """
-    if not p:
-        return "/assets/img/placeholder.jpg"
-    s = str(p).replace("\\", "/").strip()
-    if s.startswith(("http://", "https://")): return s
-    if s.startswith("/"):                    return s
-    if s.startswith("assets/"):              return "/" + s
-    if ("/char/" in s) or s.startswith(("char/", "assets/char/", "char_")):
-        if s.startswith("assets/char/"): return "/" + s
-        if s.startswith("char/"):        return "/assets/" + s     # char/xxx.jpg → /assets/char/xxx.jpg
-        if s.startswith("char_"):        return "/assets/char/" + s
-        return "/assets/char/" + s.lstrip("/")
-    return "/assets/img/" + s.lstrip("/")
 
 @router.get("", summary="캐릭터 목록")
 def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = Query(None)):
