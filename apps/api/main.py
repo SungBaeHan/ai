@@ -2,10 +2,12 @@
 from apps.api import bootstrap  # noqa: F401  (sets env early)
 import os, sqlite3, pathlib
 from fastapi import FastAPI
+print(f"[BOOT] MONGO_URI = {os.getenv('MONGO_URI','<unset>')}")
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from apps.api.startup import init_mongo_indexes
 from apps.api.routes import health
+from apps.api.routes import debug
 
 # === 환경값 ===
 ROOT = pathlib.Path(__file__).resolve().parents[2]        # 프로젝트 루트 추정
@@ -25,6 +27,7 @@ else:
     print(f"[WARN] Static assets path not found: {assets_path}")
 
 app.include_router(health.router)
+app.include_router(debug.router, prefix="/v1")
 
 # === CORS 설정 ===
 origins = [
