@@ -55,11 +55,19 @@ def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = 
     # mongo 어댑터에만 list_paginated가 있을 수 있으므로 getattr로 안전 호출
     fn = getattr(repo, "list_paginated", None)
     if callable(fn):
-        result = fn(skip=skip, limit=limit, q=q)
-        items = result.get("items", [])
-        for it in items:                                  # 이미지 경로 보정
-            it["image"] = normalize_image(it.get("image"))
-        return {"items": items, "total": result.get("total", len(items)), "skip": skip, "limit": limit}
+        try:
+            result = fn(skip=skip, limit=limit, q=q)
+            items = result.get("items", [])
+            for it in items:
+                it["image"] = normalize_image(it.get("image"))
+            return {
+                "items": items,
+                "total": result.get("total", len(items)),
+                "skip": skip,
+                "limit": limit
+            }
+        except Exception as e:
+            print(f"[WARN] mongo list_paginated failed: {e}. Falling back to SQLite.")
     # sqlite 등 레거시 경로 fallback
     offset = skip
     l = max(1, min(120, limit))

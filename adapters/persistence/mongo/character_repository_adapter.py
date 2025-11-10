@@ -21,10 +21,20 @@ class MongoCharacterRepository(CharacterRepository):
     
     def _ensure(self):
         from pymongo import MongoClient
+        import certifi
         if not self._client:
             if not self._uri:
                 raise RuntimeError("MONGO_URI is not set.")
-            self._client = MongoClient(self._uri, appname="arcanaverse-api")
+            # Atlas 연결: TLS 강제 + 공인 루트 CA 지정
+            self._client = MongoClient(
+                self._uri,
+                appname="arcanaverse-api",
+                tls=True,
+                tlsCAFile=certifi.where(),
+                serverSelectionTimeoutMS=30000,
+                connectTimeoutMS=20000,
+                socketTimeoutMS=20000,
+            )
             self._db = self._client[self._db_name]
             self.collection = self._db["characters"]
     
