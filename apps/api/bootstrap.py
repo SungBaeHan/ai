@@ -1,4 +1,8 @@
 import os
+from dotenv import load_dotenv
+
+# Load .env file if present (local development). Render environment variables take precedence.
+load_dotenv()
 
 # Disable GPU/CUDA for safety on Render free tier
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
