@@ -50,7 +50,7 @@ def normalize_image(p: Optional[str]) -> str:
     return "/assets/img/" + s.lstrip("/")
 
 @router.get("", summary="캐릭터 목록")
-def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=100), q: str = Query(None)):
+def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = Query(None)):
     """캐릭터 목록 반환(서버가 image를 절대경로로 보정)"""
     # mongo 어댑터에만 list_paginated가 있을 수 있으므로 getattr로 안전 호출
     fn = getattr(repo, "list_paginated", None)
