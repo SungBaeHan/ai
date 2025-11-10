@@ -21,11 +21,15 @@ class MongoCharacterRepository(CharacterRepository):
     
     def _ensure(self):
         from pymongo import MongoClient
-        import certifi
+        import certifi, re
         if not self._client:
             if not self._uri:
                 raise RuntimeError("MONGO_URI is not set.")
-            # Atlas 연결: TLS 강제 + 공인 루트 CA 지정
+            # require SRV uri to avoid host/replicaset/cipher mismatches
+            if not self._uri.startswith("mongodb+srv://"):
+                raise RuntimeError(
+                    f"MONGO_URI must use 'mongodb+srv://'. Got: {self._uri.split('@')[0]}@[redacted]"
+                )
             self._client = MongoClient(
                 self._uri,
                 appname="arcanaverse-api",

@@ -67,7 +67,7 @@ def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = 
                 "limit": limit
             }
         except Exception as e:
-            print(f"[WARN] mongo list_paginated failed: {e}. Falling back to SQLite.")
+            print(f"[WARN] Mongo list_paginated failed: {e}. Falling back to SQLite.")
     # sqlite 등 레거시 경로 fallback
     offset = skip
     l = max(1, min(120, limit))
