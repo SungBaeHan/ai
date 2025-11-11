@@ -1,82 +1,86 @@
-# docker-compose.yml  (infra/ 하위에 존재)
-# version: 키는 deprecated 되어 제거함
-
+# ~/ai/infra/docker-compose.yml
 services:
   qdrant:
     image: qdrant/qdrant:latest
     container_name: qdrant
     restart: unless-stopped
     ports:
-    - 127.0.0.1:6333:6333
-    - 127.0.0.1:6334:6334
+      - 127.0.0.1:6333:6333
+      - 127.0.0.1:6334:6334
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
     volumes:
-      # infra/../_volumes/qdrant_storage 식으로 실제 경로 보존
-    - ../_volumes/qdrant_storage:/qdrant/storage
+      - ../_volumes/qdrant_storage:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
     restart: unless-stopped
     ports:
-    - "11434:11434"
+      - "11434:11434"
     volumes:
-    - ../_volumes/ollama_models:/root/.ollama
+      - ../_volumes/ollama_models:/root/.ollama
     entrypoint: ["/bin/sh", "-lc", "ollama serve"]
-    environment: {}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:11434/api/tags || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   api:
     build:
-      context: ..                                # 루트( /mnt/f/git/ai )
+      context: ..                   # repo 루트(~/ai)
       dockerfile: docker/api.Dockerfile
     container_name: trpg-api
     restart: unless-stopped
-    environment:
-      OLLAMA_MODEL: "trpg-gen:latest"  # 로컬 Ollama 모델 이름 (태그 포함)
-      OLLAMA_POLISH_MODEL: "trpg-polish:latest"  # 로컬 Ollama 모델 이름 (태그 포함)
-      QDRANT_URL: "http://qdrant:6333"
-      COLLECTION: "my_docs"
-      PYTHONUNBUFFERED: "1"
-      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-908475294325-t8mmgo6jb84g50t22ndcm8h7kahilmo2.apps.googleusercontent.com}"
-      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-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}"
-      JWT_SECRET: "${JWT_SECRET:-Arcanaverse}"
-      CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS:-http://localhost:8080,https://arcanaverse.ai}"
     depends_on:
-    - qdrant
-      # - ollama  # 로컬 Ollama 사용 시 주석 처리
-    ports:
-    - "8000:8000"
-    volumes:
-      # 코드/데이터를 상위 디렉터리에서 마운트
-    - ../apps:/app/apps:ro
-    - ../packages:/app/packages:ro
-    - ../adapters:/app/adapters:ro
-    - ../src:/app/src:ro
-    - ../assets:/app/assets:ro
-    - ../data/json:/app/data/json:ro
+      qdrant:
+        condition: service_healthy
+      # 로컬 Ollama 모델을 실제로 쓸 경우 주석 해제
+      # ollama:
+      #   condition: service_healthy
     env_file:
-    - ../.env                                    # 루트의 .env 사용
+      - ../.env                     # 루트 .env만 사용
+    environment:
+      # .env에서 PORT, JWT, CORS 등 읽어옴. 여긴 필요한 override만.
+      QDRANT_URL: "http://qdrant:6333"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../apps:/app/apps:ro
+      - ../packages:/app/packages:ro
+      - ../adapters:/app/adapters:ro
+      - ../src:/app/src:ro
+      - ../assets:/app/assets:ro
+      - ../data/json:/app/data/json:ro
+    entrypoint: ["/app/infra/docker-entrypoint.sh"]
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
 
-    - .env
-    entrypoint:
-    - /app/docker-entrypoint.sh
   web:
     build:
-      context: ..                                # 루트
+      context: ..                   # repo 루트(~/ai)
       dockerfile: docker/nginx.Dockerfile
     container_name: trpg-web
     restart: unless-stopped
     depends_on:
-    - api
+      api:
+        condition: service_healthy
     ports:
-    - "8080:80"
+      - "8080:80"
     volumes:
-    - ../apps/web-html:/usr/share/nginx/html
-    - ../assets:/usr/share/nginx/html/assets:ro
+      - ../apps/web-html:/usr/share/nginx/html
+      - ../assets:/usr/share/nginx/html/assets:ro
 
 volumes:
-  # 볼륨은 infra/../_volumes 로 저장
   qdrant_storage:
     driver: local
   ollama_models:
