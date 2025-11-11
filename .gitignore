@@ -1,4 +1,4 @@
-# VCS
+﻿# VCS
 .git
 .gitignore
 
@@ -41,3 +41,6 @@ data/app.sqlite3
 data/db/app.sqlite3
 docker_img/DockerDesktopWSL/disk/docker_data.vhdx
 docker_img/DockerDesktopWSL/main/ext4.vhdx
+
+pem/
+infra/docker-compose.yml.bak*

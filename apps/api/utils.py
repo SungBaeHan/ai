@@ -24,3 +24,4 @@ def mask_mongo_uri(uri: Optional[str]) -> str:
     # mongodb+srv://user:password@host 패턴을 mongodb+srv://user:*****@host로 변경
     return re.sub(r'(mongodb\+srv://[^:]+):[^@]+@', r'\1:*****@', uri)
 
+

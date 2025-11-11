@@ -7,23 +7,24 @@ services:
     container_name: qdrant
     restart: unless-stopped
     ports:
-      - "6333:6333"
-      - "6334:6334"
+    - 127.0.0.1:6333:6333
+    - 127.0.0.1:6334:6334
     environment:
       QDRANT__SERVICE__GRPC_PORT: 6334
     volumes:
       # infra/../_volumes/qdrant_storage 식으로 실제 경로 보존
-      - ../_volumes/qdrant_storage:/qdrant/storage
+    - ../_volumes/qdrant_storage:/qdrant/storage
 
   ollama:
     image: ollama/ollama:latest
     container_name: ollama
     restart: unless-stopped
     ports:
-      - "11434:11434"
+    - "11434:11434"
     volumes:
-      - ../_volumes/ollama_models:/root/.ollama
+    - ../_volumes/ollama_models:/root/.ollama
     entrypoint: ["/bin/sh", "-lc", "ollama serve"]
+    environment: {}
 
   api:
     build:
@@ -32,35 +33,34 @@ services:
     container_name: trpg-api
     restart: unless-stopped
     environment:
-      OLLAMA_HOST: "http://host.docker.internal:11434"  # Windows Docker: 로컬 Ollama 사용
       OLLAMA_MODEL: "trpg-gen:latest"  # 로컬 Ollama 모델 이름 (태그 포함)
       OLLAMA_POLISH_MODEL: "trpg-polish:latest"  # 로컬 Ollama 모델 이름 (태그 포함)
       QDRANT_URL: "http://qdrant:6333"
       COLLECTION: "my_docs"
-      DB_PATH: "/data/db/app.sqlite3"
       PYTHONUNBUFFERED: "1"
       GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID:-908475294325-t8mmgo6jb84g50t22ndcm8h7kahilmo2.apps.googleusercontent.com}"
       GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET:-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}"
       JWT_SECRET: "${JWT_SECRET:-Arcanaverse}"
       CORS_ALLOW_ORIGINS: "${CORS_ALLOW_ORIGINS:-http://localhost:8080,https://arcanaverse.ai}"
     depends_on:
-      - qdrant
+    - qdrant
       # - ollama  # 로컬 Ollama 사용 시 주석 처리
     ports:
-      - "8000:8000"
+    - "8000:8000"
     volumes:
       # 코드/데이터를 상위 디렉터리에서 마운트
-      - ../apps:/app/apps:ro
-      - ../packages:/app/packages:ro
-      - ../adapters:/app/adapters:ro
-      - ../src:/app/src:ro
-      - ../assets:/app/assets:ro
-      - ../data/json:/app/data/json:ro
-      - ../data/db:/data/db
-    command: ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    - ../apps:/app/apps:ro
+    - ../packages:/app/packages:ro
+    - ../adapters:/app/adapters:ro
+    - ../src:/app/src:ro
+    - ../assets:/app/assets:ro
+    - ../data/json:/app/data/json:ro
     env_file:
-      - ../.env                                  # 루트의 .env 사용
+    - ../.env                                    # 루트의 .env 사용
 
+    - .env
+    entrypoint:
+    - /app/docker-entrypoint.sh
   web:
     build:
       context: ..                                # 루트
@@ -68,12 +68,12 @@ services:
     container_name: trpg-web
     restart: unless-stopped
     depends_on:
-      - api
+    - api
     ports:
-      - "8080:80"
+    - "8080:80"
     volumes:
-      - ../apps/web-html:/usr/share/nginx/html
-      - ../assets:/usr/share/nginx/html/assets:ro
+    - ../apps/web-html:/usr/share/nginx/html
+    - ../assets:/usr/share/nginx/html/assets:ro
 
 volumes:
   # 볼륨은 infra/../_volumes 로 저장
