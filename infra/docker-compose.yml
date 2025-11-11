@@ -11,11 +11,7 @@ services:
       QDRANT__SERVICE__GRPC_PORT: 6334
     volumes:
       - ../_volumes/qdrant_storage:/qdrant/storage
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:6333/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
+
 
   ollama:
     image: ollama/ollama:latest
