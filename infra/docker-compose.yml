@@ -11,6 +11,7 @@ services:
       QDRANT__SERVICE__GRPC_PORT: 6334
     volumes:
       - ../_volumes/qdrant_storage:/qdrant/storage
+      - ../_volumes/qdrant_snapshots:/qdrant/snapshots
 
 
   ollama:
