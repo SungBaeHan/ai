@@ -14,6 +14,7 @@ services:
     volumes:
       # infra/../_volumes/qdrant_storage 식으로 실제 경로 보존
       - ../_volumes/qdrant_storage:/qdrant/storage
+      - ../_volumes/qdrant_snapshots:/qdrant/snapshots
 
   ollama:
     image: ollama/ollama:latest
