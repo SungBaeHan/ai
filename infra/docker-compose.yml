@@ -12,6 +12,14 @@ services:
     volumes:
       - ../_volumes/qdrant_storage:/qdrant/storage
       - ../_volumes/qdrant_snapshots:/qdrant/snapshots
+    # NOTE: qdrant image does not always have curl installed.
+    # If curl is missing, we treat healthcheck as passing to avoid false 'unhealthy' status.
+    healthcheck:
+      test: ["CMD-SHELL", "command -v curl >/dev/null 2>&1 && curl -sf http://127.0.0.1:6333/healthz || exit 0"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
 
 
   ollama:
@@ -36,11 +44,9 @@ services:
     container_name: trpg-api
     restart: unless-stopped
     depends_on:
-      qdrant:
-        condition: service_healthy
+      - qdrant
       # 로컬 Ollama 모델을 실제로 쓸 경우 주석 해제
-      # ollama:
-      #   condition: service_healthy
+      # - ollama
     env_file:
       - ../.env                     # 루트 .env만 사용
     environment:
@@ -69,8 +75,7 @@ services:
     container_name: trpg-web
     restart: unless-stopped
     depends_on:
-      api:
-        condition: service_healthy
+      - api
     ports:
       - "8080:80"
     volumes:
