@@ -12,14 +12,8 @@ services:
     volumes:
       - ../_volumes/qdrant_storage:/qdrant/storage
       - ../_volumes/qdrant_snapshots:/qdrant/snapshots
-    # NOTE: qdrant image does not always have curl installed.
-    # If curl is missing, we treat healthcheck as passing to avoid false 'unhealthy' status.
     healthcheck:
-      test: ["CMD-SHELL", "command -v curl >/dev/null 2>&1 && curl -sf http://127.0.0.1:6333/healthz || exit 0"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
+      test: ["NONE"]     # 이미지 기본 curl healthcheck 비활성화
 
 
   ollama:
@@ -32,10 +26,7 @@ services:
       - ../_volumes/ollama_models:/root/.ollama
     entrypoint: ["/bin/sh", "-lc", "ollama serve"]
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:11434/api/tags || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 10
+      test: ["NONE"]     # curl 기반 기본 healthcheck 비활성화
 
   api:
     build:
