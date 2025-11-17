@@ -57,7 +57,7 @@ services:
       - ../data/json:/app/data/json:ro
     entrypoint: ["/app/infra/docker-entrypoint.sh"]
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
       timeout: 3s
       retries: 20
