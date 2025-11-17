@@ -57,10 +57,11 @@ services:
       - ../data/json:/app/data/json:ro
     entrypoint: ["/app/infra/docker-entrypoint.sh"]
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 20
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
 
   web:
     build:
