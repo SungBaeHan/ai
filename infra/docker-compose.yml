@@ -41,7 +41,8 @@ services:
       # 로컬 Ollama 모델을 실제로 쓸 경우 주석 해제
       # - ollama
     env_file:
-      - ../.env                     # 루트 .env만 사용
+      - ../.env
+      - ./.env
     environment:
       # .env에서 PORT, JWT, CORS 등 읽어옴. 여긴 필요한 override만.
       QDRANT_URL: "http://qdrant:6333"
