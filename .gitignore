@@ -45,3 +45,4 @@ docker_img/DockerDesktopWSL/main/ext4.vhdx
 pem/
 infra/docker-compose.yml.bak*
 scripts/sync_env_files.sh
+infra/.env .bak.20251117
