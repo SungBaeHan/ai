@@ -12,8 +12,9 @@ services:
     volumes:
       - ../_volumes/qdrant_storage:/qdrant/storage
       - ../_volumes/qdrant_snapshots:/qdrant/snapshots
+    # NOTE: disable default image HEALTHCHECK (curl not installed in container)
     healthcheck:
-      test: ["NONE"]     # 이미지 기본 curl healthcheck 비활성화
+      disable: true  # 이미지에 내장된 curl 기반 HEALTHCHECK 완전 비활성화
 
 
   ollama:
@@ -25,8 +26,9 @@ services:
     volumes:
       - ../_volumes/ollama_models:/root/.ollama
     entrypoint: ["/bin/sh", "-lc", "ollama serve"]
+    # NOTE: disable default image HEALTHCHECK (curl not installed in container)
     healthcheck:
-      test: ["NONE"]     # curl 기반 기본 healthcheck 비활성화
+      disable: true  # ollama도 도커 HEALTHCHECK는 사용하지 않음
 
   api:
     build:
