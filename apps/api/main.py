@@ -1,16 +1,16 @@
 # apps/api/main.py
 from apps.api import bootstrap  # noqa: F401  (sets env early)
-import os, sqlite3, pathlib
+import os, pathlib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from apps.api.startup import init_mongo_indexes
 from apps.api.routes import health
 from apps.api.routes import debug
+from apps.api.config import settings
 
 # === 환경값 ===
 ROOT = pathlib.Path(__file__).resolve().parents[2]        # 프로젝트 루트 추정
-DB_PATH = os.getenv("DB_PATH", str(ROOT / "data" / "db" / "app.sqlite3"))
 JSON_DIR = ROOT / "data" / "json"
 ASSETS_DIR = ROOT / "assets"
 
@@ -49,19 +49,15 @@ if ASSETS_DIR.is_dir():
 if JSON_DIR.is_dir():
     app.mount("/json", StaticFiles(directory=str(JSON_DIR)), name="json")  # 홈/챗 폴백 JSON용
 
-# === SQLite 초기 설정 (WAL + busy_timeout) : 다중 접근 대비 ===
-def _tune_sqlite():
+# === SQLite 초기화 (조건부) ===
+# SQLite를 사용하는 경우에만 초기화
+if settings.is_sqlite:
     try:
-        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-        conn = sqlite3.connect(DB_PATH)
-        conn.execute("PRAGMA journal_mode=WAL")          # 동시성 ↑
-        conn.execute("PRAGMA synchronous=NORMAL")        # 안정/성능 균형
-        conn.execute("PRAGMA busy_timeout=8000")         # 잠금 대기 여유
-        conn.close()
+        from adapters.persistence.sqlite import init_db as init_sqlite
+        init_sqlite()
+        print("[INFO] SQLite database initialized")
     except Exception as e:
-        print(f"[WARN] sqlite tune failed: {e}")
-
-_tune_sqlite()
+        print(f"[WARN] SQLite initialization failed: {e}")
 
 # === 라우터 등록 ===
 from apps.api.routes import characters                 # 캐릭터 API

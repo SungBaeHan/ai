@@ -11,14 +11,16 @@ def root():
 
 @router.get("/env")
 def env_present():
-    keys = ["DATA_BACKEND","MONGO_URI","MONGO_DB","R2_ENDPOINT","R2_BUCKET"]
+    keys = ["DB_BACKEND","DATA_BACKEND","MONGODB_URI","MONGO_URI","MONGO_DB_NAME","MONGO_DB","R2_ENDPOINT","R2_BUCKET"]
     present = {k: bool(os.getenv(k)) for k in keys}
     return {"ok": True, "present": present}
 
 
 @router.get("/db")
 def db_check():
-    backend = (os.getenv("DATA_BACKEND","mongo") or "mongo").lower()
+    # DB_BACKEND 우선, 없으면 DATA_BACKEND (하위 호환성), 기본값은 mongo
+    backend = os.getenv("DB_BACKEND") or os.getenv("DATA_BACKEND", "mongo")
+    backend = backend.lower()
     if backend == "mongo":
         try:
             from adapters.persistence.mongo.character_repository_adapter import MongoCharacterRepository

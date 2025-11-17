@@ -13,13 +13,10 @@ from pydantic import BaseModel, Field                  # 바디 검증 모델
 import os
 from urllib.parse import urljoin
 from adapters.persistence.factory import get_character_repo
-from adapters.persistence.sqlite import (                              # DB 유틸
-    init_db, insert_character, list_characters, count_characters, get_character_by_id
-)
+from src.domain.character import Character
 
-init_db()                                              # 앱 기동 시 테이블 보장
 router = APIRouter()                                   # 서브 라우터
-repo = get_character_repo()
+repo = get_character_repo()                            # Repository 인터페이스를 통한 접근
 
 # === 이미지 경로 정규화 ===
 ASSETS_BASE = os.getenv("ASSETS_BASE_URL", "https://api.arcanaverse.ai")
@@ -43,7 +40,7 @@ class CharacterIn(BaseModel):
 @router.get("", summary="캐릭터 목록")
 def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = Query(None)):
     """캐릭터 목록 반환(서버가 image를 절대경로로 보정)"""
-    # mongo 어댑터에만 list_paginated가 있을 수 있으므로 getattr로 안전 호출
+    # MongoDB 어댑터에만 list_paginated가 있을 수 있으므로 getattr로 안전 호출
     fn = getattr(repo, "list_paginated", None)
     if callable(fn):
         try:
@@ -58,13 +55,23 @@ def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = 
                 "limit": limit
             }
         except Exception as e:
-            print(f"[WARN] Mongo list_paginated failed: {e}. Falling back to SQLite.")
-    # sqlite 등 레거시 경로 fallback
+            print(f"[WARN] Repository list_paginated failed: {e}. Falling back to list_all.")
+    
+    # Repository 인터페이스의 list_all 사용 (fallback)
     offset = skip
     l = max(1, min(120, limit))
-    items = list_characters(offset, l)
-    for it in items:                                  # 이미지 경로 보정
-        it["image"] = normalize_image(it.get("image"))
+    characters = repo.list_all(offset=offset, limit=l)
+    items = []
+    for char in characters:
+        char_dict = char.to_dict()
+        char_dict["image"] = normalize_image(char_dict.get("image"))
+        # 프론트엔드 호환성을 위해 summary를 shortBio로도 매핑
+        if "summary" in char_dict and "shortBio" not in char_dict:
+            char_dict["shortBio"] = char_dict["summary"]
+        # detail을 longBio로도 매핑
+        if "detail" in char_dict and "longBio" not in char_dict:
+            char_dict["longBio"] = char_dict["detail"]
+        items.append(char_dict)
     return {"items": items, "total": len(items), "skip": skip, "limit": l}
 
 @router.get("/{character_id}", summary="캐릭터 단일 조회")
@@ -85,25 +92,40 @@ def get_one(character_id: str):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid character id")
 
-    char = get_character_by_id(cid)                   # DB 조회
+    # Repository 인터페이스를 통한 조회
+    char = repo.get_by_id(cid)
     if not char:
         raise HTTPException(status_code=404, detail="Character not found")
-    char["image"] = normalize_image(char.get("image"))# 이미지 경로 보정
-    return char
+    
+    char_dict = char.to_dict()
+    char_dict["image"] = normalize_image(char_dict.get("image"))
+    # 프론트엔드 호환성을 위해 summary를 shortBio로도 매핑
+    if "summary" in char_dict and "shortBio" not in char_dict:
+        char_dict["shortBio"] = char_dict["summary"]
+    # detail을 longBio로도 매핑
+    if "detail" in char_dict and "longBio" not in char_dict:
+        char_dict["longBio"] = char_dict["detail"]
+    return char_dict
 
 @router.get("/count", summary="캐릭터 총 개수")
 def get_count():
     """등록된 캐릭터 총 수 반환"""
-    return {"count": count_characters()}
+    # Repository 인터페이스를 통한 조회
+    return {"count": repo.count()}
 
 @router.post("", summary="캐릭터 생성")
 def create_one(body: CharacterIn):
     """간단 생성 API(검증은 최소화)"""
-    insert_character(
-        body.name.strip(),
-        body.summary.strip(),
-        body.detail.strip(),
-        body.tags,
-        body.image.strip(),
+    # Repository 인터페이스를 통한 생성
+    import time
+    character = Character(
+        id=None,
+        name=body.name.strip(),
+        summary=body.summary.strip(),
+        detail=body.detail.strip(),
+        tags=body.tags,
+        image=body.image.strip(),
+        created_at=int(time.time())
     )
+    repo.create(character)
     return {"ok": True}

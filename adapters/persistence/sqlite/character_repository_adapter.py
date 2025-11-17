@@ -2,6 +2,9 @@
 """
 SQLite CharacterRepository 어댑터
 기존 adapters.persistence.sqlite 함수들을 래핑하여 포트 인터페이스 구현
+
+[몽고 전환 후 legacy]
+SQLite는 이제 선택적 백엔드입니다. DB_BACKEND=sqlite일 때만 사용됩니다.
 """
 
 from typing import List, Optional
@@ -13,11 +16,21 @@ from adapters.persistence.sqlite import (
     count_characters as count_raw,
     insert_character as create_raw,
     upsert_character_by_image as upsert_by_image_raw,
+    init_db,
 )
 
 
 class SQLiteCharacterRepository(CharacterRepository):
-    """SQLite 구현체"""
+    """SQLite 구현체 (레거시 지원용)"""
+    
+    def __init__(self):
+        """SQLite Repository 초기화 - 필요시 DB 초기화"""
+        # SQLite 사용 시에만 초기화 (한 번만 실행)
+        try:
+            init_db()
+        except Exception as e:
+            # 초기화 실패해도 계속 진행 (이미 테이블이 있을 수 있음)
+            print(f"[WARN] SQLite init_db failed (may already exist): {e}")
     
     def get_by_id(self, char_id: int) -> Optional[Character]:
         """ID로 캐릭터 조회"""

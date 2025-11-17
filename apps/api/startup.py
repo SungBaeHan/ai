@@ -8,7 +8,9 @@ except Exception:
 
 def init_mongo_indexes() -> Optional[dict]:
     """Create commonly used indexes for Mongo collections."""
-    backend = os.getenv("DATA_BACKEND", "mongo").lower()
+    # DB_BACKEND 우선, 없으면 DATA_BACKEND (하위 호환성), 기본값은 mongo
+    backend = os.getenv("DB_BACKEND") or os.getenv("DATA_BACKEND", "mongo")
+    backend = backend.lower()
     if backend != "mongo" or not MongoCharacterRepository:
         return None
 

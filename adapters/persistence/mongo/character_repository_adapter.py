@@ -13,11 +13,13 @@ class MongoCharacterRepository(CharacterRepository):
     
     def __init__(self):
         import os
+        # 환경변수 우선순위: MONGODB_URI > MONGO_URI (하위 호환성)
+        # MONGO_DB_NAME > MONGO_DB (하위 호환성)
         # MONGO_URI: mongodb+srv://user:password@host/db 형식 필요
         # DB명이 URI에 없으면 기본값 /arcanaverse 사용
         # 예: mongodb+srv://user:pass@cluster.mongodb.net/arcanaverse?retryWrites=true&w=majority
-        self._uri = os.getenv("MONGO_URI")
-        self._db_name = os.getenv("MONGO_DB", "arcanaverse")
+        self._uri = os.getenv("MONGODB_URI") or os.getenv("MONGO_URI")
+        self._db_name = os.getenv("MONGO_DB_NAME") or os.getenv("MONGO_DB", "arcanaverse")
         self._client = None
         self._db = None
         self.collection = None
