@@ -17,14 +17,6 @@ ASSETS_DIR = ROOT / "assets"
 # === FastAPI 인스턴스 ===
 app = FastAPI(title="TRPG API", version="1.0.0")
 
-# === Static files mount ===
-assets_path = os.path.join(os.path.dirname(__file__), "../../apps/web-html/assets")
-if os.path.exists(assets_path):
-    app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
-    print(f"[INFO] Mounted /assets from {assets_path}")
-else:
-    print(f"[WARN] Static assets path not found: {assets_path}")
-
 app.include_router(health.router)
 app.include_router(debug.router, prefix="/v1")
 
@@ -52,8 +44,14 @@ app.add_middleware(
 
 
 # === 정적 파일 마운트 ===
+# 주의: /assets/images는 API 라우터가 처리하므로, /assets 경로에 정적 파일을 마운트하지 않음
+# 정적 파일은 nginx에서 직접 서빙하거나, 필요시 /static 경로를 사용
+# assets_path = os.path.join(os.path.dirname(__file__), "../../apps/web-html/assets")
+# 정적 파일 마운트 제거: /assets/images 라우터와 충돌 방지
+print(f"[INFO] Static files should be served via nginx, not FastAPI /assets mount")
+
 if ASSETS_DIR.is_dir():
-    app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+    print(f"[INFO] Assets directory exists: {ASSETS_DIR} (served via API or nginx)")
 if JSON_DIR.is_dir():
     app.mount("/json", StaticFiles(directory=str(JSON_DIR)), name="json")  # 홈/챗 폴백 JSON용
 
