@@ -10,6 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 from adapters.persistence.mongo import get_db
+from apps.api.utils import build_r2_public_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/assets", tags=["assets"])
@@ -44,8 +45,6 @@ def list_images(
         col_name = os.getenv("MONGO_IMAGES_COLLECTION", "images")
         col = db[col_name]
         
-        r2_base = os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
-        
         query: dict = {}
         if prefix:
             # assume "key" field contains the R2 object key
@@ -68,13 +67,13 @@ def list_images(
         # Prefer existing URL in document if present
         url = str(doc.get("url") or doc.get("public_url") or "")
         
-        # If there is no URL field, build it from R2_PUBLIC_BASE_URL + key
+        # If there is no URL field, build it from R2_PUBLIC_BASE_URL using common utility
         if not url:
-            if not r2_base:
+            url = build_r2_public_url(key)
+            if not url:
                 # Cannot build a valid URL without base; skip, but log once
                 logger.warning("Missing R2_PUBLIC_BASE_URL; cannot build URL for key=%s", key)
                 continue
-            url = f"{r2_base}/{key.lstrip('/')}"
         
         items.append(ImageItem(key=key, url=url))
     
