@@ -72,7 +72,7 @@ services:
     depends_on:
       - api
     ports:
-      - "8080:80"
+      - "80:80"
     volumes:
       - ../apps/web-html:/usr/share/nginx/html
       - ../assets:/usr/share/nginx/html/assets:ro

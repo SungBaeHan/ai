@@ -31,7 +31,9 @@ app.include_router(debug.router, prefix="/v1")
 # === CORS 설정 ===
 origins = [
     "https://arcanaverse.pages.dev",
-    "https://app.arcanaverse.ai"
+    "https://app.arcanaverse.ai",
+    "https://arcanaverse.ai",
+    "https://api.arcanaverse.ai"
 ]
 
 app.add_middleware(
