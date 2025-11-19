@@ -41,7 +41,7 @@
 - `apps/web-html/my.html` - config.js 로드 추가
 
 #### 생성된 파일
-- `apps/web-html/js/config.js` - API 기본 URL 설정 (`https://arcanaverse.onrender.com`)
+- `apps/web-html/js/config.js` - API 기본 URL 설정 (`https://api.arcanaverse.ai`)
 
 #### 주요 기능
 - 절대경로 API 호출: Cloudflare Pages → Render API 절대경로 사용
@@ -170,13 +170,13 @@ python scripts/migrate_sqlite_to_mongo.py --sqlite ".\data\db\app.sqlite3" --tab
 ### API 테스트
 ```bash
 # 헬스체크
-curl https://arcanaverse.onrender.com/health
+curl https://api.arcanaverse.ai/health
 
 # 데이터베이스 상태
-curl https://arcanaverse.onrender.com/health/db
+curl https://api.arcanaverse.ai/health/db
 
 # 이미지 목록
-curl https://arcanaverse.onrender.com/assets/images?prefix=char/&limit=10&signed=true
+curl https://api.arcanaverse.ai/assets/images?prefix=char/&limit=10&signed=true
 ```
 
 ## 주의사항
