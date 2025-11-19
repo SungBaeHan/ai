@@ -1,0 +1,123 @@
+# 배포 이력 - 2025-11-19
+
+## 주요 작업 내용
+
+### 1. 프론트 API 베이스 URL 정리
+
+#### 수정된 파일
+- `apps/web-html/js/config.js` - API 기본 URL을 `https://api.arcanaverse.ai`로 통일
+- `apps/web-html/home.html` - 이미지 갤러리 스크립트의 기본값을 `https://api.arcanaverse.ai`로 설정
+- `apps/web-html/chat.html` - 이미지 갤러리 스크립트의 기본값을 `https://api.arcanaverse.ai`로 설정
+- `docs/deployment_history_2025-11-07.md` - 문서 내 예시 URL 업데이트
+
+#### 주요 변경사항
+- 모든 프론트 코드에서 `arcanaverse.onrender.com` 제거
+- `http://api.arcanaverse.ai` → `https://api.arcanaverse.ai`로 통일
+- `window.API_BASE_URL`과 `window.API_BASE` 공통 상수 사용
+- 이미지 갤러리 스크립트에서 빈 문자열 기본값을 `https://api.arcanaverse.ai`로 변경
+
+### 2. FastAPI CORS 설정 보강
+
+#### 수정된 파일
+- `apps/api/main.py` - CORS 설정에 로컬 개발용 도메인 추가
+
+#### 추가된 도메인
+- `http://localhost:3000`
+- `http://localhost:5173`
+- `https://arcanaverse.ai` (이미 포함되어 있었음)
+- `https://api.arcanaverse.ai` (이미 포함되어 있었음)
+
+### 3. nginx 설정 및 FastAPI 라우터 충돌 해결
+
+#### 수정된 파일
+- `apps/api/main.py` - `/assets` 정적 파일 마운트 제거로 라우터 충돌 해결
+- `docker/nginx.conf` - `/assets/images` API 엔드포인트 프록시 추가
+
+#### 주요 변경사항
+- FastAPI에서 `/assets` 정적 파일 마운트 제거 (nginx에서 직접 서빙)
+- `/assets/images` 라우터를 정적 파일 마운트 전에 등록하여 우선순위 보장
+- nginx에서 `/assets/images` 요청을 FastAPI로 프록시하도록 설정
+
+### 4. `/assets/images` 엔드포인트 개선
+
+#### 수정된 파일
+- `apps/api/routes/assets.py` - MongoDB 기반으로 재구현, 404 제거
+
+#### 주요 변경사항
+- R2Storage 직접 호출 방식에서 MongoDB 메타데이터 조회 방식으로 변경
+- 빈 리스트일 때도 HTTP 200 반환 (404 제거)
+- 예외 발생 시 로깅 후 HTTP 500 반환
+- Pydantic 모델로 응답 스키마 정의 (`ImageListResponse`)
+
+#### 환경변수
+- `MONGO_URI` 또는 `MONGODB_URI`: MongoDB 연결 URI
+- `MONGO_DB` 또는 `MONGO_DB_NAME`: 데이터베이스 이름 (기본값: "arcanaverse")
+- `MONGO_IMAGES_COLLECTION`: 컬렉션 이름 (기본값: "images")
+- `R2_PUBLIC_BASE_URL`: R2 공개 URL 베이스
+
+### 5. R2 Public URL 빌더 함수 생성 및 적용
+
+#### 생성/수정된 파일
+- `apps/api/utils.py` - `build_public_image_url()` 함수 추가
+- `apps/api/routes/characters.py` - `normalize_image()`가 R2 URL 빌더 사용
+- `apps/api/routes/assets.py` - URL 생성 로직이 공통 함수 사용
+
+#### 주요 기능
+- `build_public_image_url(src_file)`: R2 public URL 생성
+  - 입력: 파일명 (예: "lily_01.png", "char/lily_01.png", "/assets/char/lily_01.png")
+  - 출력: `https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev/assets/char/lily_01.png`
+  - 항상 `/assets/char/` 접두사 사용
+  - 기존 접두사는 무시하고 파일명만 추출
+
+#### 적용된 엔드포인트
+- `/v1/characters` → `image` 필드가 R2 public URL로 생성
+- `/assets/images` → `url` 필드가 R2 public URL로 생성
+
+## API 엔드포인트
+
+### 이미지 목록
+- `GET /assets/images?prefix=char/&limit=60&signed=true`
+  - MongoDB에서 이미지 메타데이터 조회
+  - 빈 리스트일 때도 HTTP 200 반환
+  - 응답 형식: `{"items": [{"key": "...", "url": "..."}], "total": 42}`
+
+### 캐릭터 API
+- `GET /v1/characters` - 캐릭터 목록 (image 필드가 R2 public URL)
+- `GET /v1/characters/{id}` - 캐릭터 단일 조회 (image 필드가 R2 public URL)
+
+## 환경변수
+
+### 필수 환경변수
+- `R2_PUBLIC_BASE_URL`: R2 공개 URL 베이스 (예: `https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev`)
+- `MONGO_URI` 또는 `MONGODB_URI`: MongoDB 연결 URI
+- `MONGO_DB` 또는 `MONGO_DB_NAME`: MongoDB 데이터베이스 이름
+
+### 선택 환경변수
+- `MONGO_IMAGES_COLLECTION`: 이미지 메타데이터 컬렉션 이름 (기본값: "images")
+
+## 주요 커밋
+
+1. `1475e05` - Update frontend API base URL to api.arcanaverse.ai
+2. `665909f` - Point frontend image/API calls to api.arcanaverse.ai
+
+## 테스트
+
+### API 테스트
+```bash
+# 헬스체크
+curl https://api.arcanaverse.ai/health
+
+# 이미지 목록 (빈 리스트일 때도 200 반환)
+curl https://api.arcanaverse.ai/assets/images?prefix=char/&limit=60
+
+# 캐릭터 목록 (image 필드가 R2 public URL)
+curl https://api.arcanaverse.ai/v1/characters
+```
+
+## 주의사항
+
+1. **R2 Public URL 형식**: 모든 이미지 URL은 `/assets/char/` 접두사를 포함해야 함
+2. **정적 파일 서빙**: FastAPI에서 `/assets` 정적 파일 마운트를 제거했으므로, nginx에서 직접 서빙해야 함
+3. **CORS 설정**: 프론트 도메인과 API 도메인 모두 CORS 허용 목록에 포함되어 있음
+4. **404 제거**: `/assets/images` 엔드포인트는 빈 리스트일 때도 HTTP 200을 반환함
+
