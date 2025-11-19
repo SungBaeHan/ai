@@ -26,7 +26,7 @@ services:
     volumes:
       - ../_volumes/ollama_models:/root/.ollama
       - ../infra/ollama-entrypoint.sh:/ollama-entrypoint.sh:ro
-    entrypoint: ["/bin/sh", "-c", "chmod +x /ollama-entrypoint.sh && /ollama-entrypoint.sh"]
+    entrypoint: ["/bin/sh", "/ollama-entrypoint.sh"]
     # NOTE: disable default image HEALTHCHECK (curl not installed in container)
     healthcheck:
       disable: true  # ollama도 도커 HEALTHCHECK는 사용하지 않음
