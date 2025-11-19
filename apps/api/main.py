@@ -28,6 +28,10 @@ else:
 app.include_router(health.router)
 app.include_router(debug.router, prefix="/v1")
 
+# === API 라우터 등록 (정적 파일 마운트 전에 등록) ===
+from apps.api.routes import assets
+app.include_router(assets.router)  # /assets/images 라우터를 먼저 등록
+
 # === CORS 설정 ===
 origins = [
     "http://localhost:3000",
@@ -69,7 +73,6 @@ from apps.api.routes import chat as chat_router    # /v1/chat
 from apps.api.routes import ask as ask_router      # /v1/ask
 from apps.api.routes import auth as auth_router    # /v1/auth
 from apps.api.routes import auth_google            # /v1/auth/google
-from apps.api.routes import assets
 from apps.api.routes import debug_db
 from apps.api.routes import migrate
 
@@ -78,7 +81,6 @@ app.include_router(chat_router.router,   prefix="/v1/chat",        tags=["chat"]
 app.include_router(ask_router.router,    prefix="/v1/ask",         tags=["ask"])
 app.include_router(auth_router.router,   prefix="/v1/auth",        tags=["auth"])
 app.include_router(auth_google.router,   prefix="/v1/auth",        tags=["auth"])
-app.include_router(assets.router)
 app.include_router(debug_db.router)
 app.include_router(migrate.router)
 
