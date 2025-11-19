@@ -25,7 +25,19 @@ services:
       - "11434:11434"
     volumes:
       - ../_volumes/ollama_models:/root/.ollama
-    entrypoint: ["/bin/sh", "-lc", "ollama serve"]
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      ollama serve &
+      echo "Waiting for Ollama service to start..." &&
+      for i in 1 2 3 4 5 6 7 8 9 10; do
+        sleep 2 &&
+        curl -f http://localhost:11434/api/tags >/dev/null 2>&1 && break || true
+      done &&
+      echo "Pulling Ollama models..." &&
+      ollama pull trpg-gen || echo "Failed to pull trpg-gen (may already exist)" &&
+      ollama pull trpg-polish || echo "Failed to pull trpg-polish (may already exist)" &&
+      echo "Ollama models ready" &&
+      wait
     # NOTE: disable default image HEALTHCHECK (curl not installed in container)
     healthcheck:
       disable: true  # ollama도 도커 HEALTHCHECK는 사용하지 않음

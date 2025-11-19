@@ -321,7 +321,11 @@ async def chat(req: Request):
         raw = llm.invoke(messages)
         text = getattr(raw, "content", str(raw))
     except Exception as e:
-        return JSONResponse({"answer": f"(LLM 호출 오류) {e}"},
+        error_msg = str(e)
+        # 모델이 없을 때 더 명확한 메시지 제공
+        if "not found" in error_msg.lower() or "404" in error_msg:
+            error_msg = f"모델 '{use_model}'이 Ollama에 설치되어 있지 않습니다. Ollama 컨테이너에서 'ollama pull {use_model}' 명령을 실행해주세요."
+        return JSONResponse({"answer": f"(LLM 호출 오류) {error_msg}"},
                             headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
 
     if mode == "trpg":

@@ -64,8 +64,12 @@ def answer(q: str) -> str:
         text = getattr(raw, "content", str(raw))
         return text.strip() if text else ""
     except Exception as e:
-        print(f"[WARN] answer error: {e}")
-        return f"(오류 발생) {e}"
+        error_msg = str(e)
+        # 모델이 없을 때 더 명확한 메시지 제공
+        if "not found" in error_msg.lower() or "404" in error_msg:
+            error_msg = f"모델 '{DEFAULT_MODEL}'이 Ollama에 설치되어 있지 않습니다. Ollama 컨테이너에서 'ollama pull {DEFAULT_MODEL}' 명령을 실행해주세요."
+        print(f"[WARN] answer error: {error_msg}")
+        return f"(오류 발생) {error_msg}"
 
 # 라우터 인스턴스 생성
 router = APIRouter()
