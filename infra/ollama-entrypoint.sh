@@ -11,7 +11,7 @@ echo "[Ollama] Waiting for Ollama service to be ready..."
 sleep 15
 
 # Base 모델 설치 (이미 존재하면 건너뛰기)
-BASE_MODEL="qwen2.5:7b-instruct-q4_K_M"
+BASE_MODEL="qwen2.5:7b-instruct-q3_K_M"
 echo "[Ollama] Checking base model: $BASE_MODEL..."
 if ollama list | grep -q "^$BASE_MODEL "; then
   echo "[Ollama] Base model $BASE_MODEL already exists, skipping pull"
