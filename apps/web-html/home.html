@@ -202,7 +202,7 @@
 <script>
 (async () => {
   try {
-    const API = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : '';
+    const API = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : 'https://api.arcanaverse.ai';
     const url = `${API}/assets/images?prefix=char/&limit=60&signed=true`;
 
     const res = await fetch(url, { credentials: 'omit' });
