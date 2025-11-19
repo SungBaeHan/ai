@@ -11,7 +11,7 @@ from adapters.external.embedding.sentence_transformer import embed
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION = os.getenv("COLLECTION", "my_docs")
-OLLAMA_BASE = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+OLLAMA_BASE = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "trpg-gen")
 
 SYS_QA = """너는 유능한 도우미다. 답변은 간결하고 정확하게 한국어로 작성한다.

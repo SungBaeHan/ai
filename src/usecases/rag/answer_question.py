@@ -17,7 +17,7 @@ class AnswerQuestionUseCase:
         self.embedding_service = embedding_service
         self.qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
         self.collection = os.getenv("COLLECTION", "my_docs")
-        self.ollama_base = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+        self.ollama_base = os.getenv("OLLAMA_HOST", "http://ollama:11434")
         self.default_model = os.getenv("OLLAMA_MODEL", "trpg-gen")
         
         self.sys_qa = """너는 유능한 도우미다. 답변은 간결하고 정확하게 한국어로 작성한다.

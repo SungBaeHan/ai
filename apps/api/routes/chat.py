@@ -21,7 +21,7 @@ MAX_TURNS    = 12
 
 SESSIONS: Dict[str, Dict[str, Any]] = {}
 
-OLLAMA_BASE     = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+OLLAMA_BASE     = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 DEFAULT_GEN     = os.getenv("OLLAMA_MODEL", "trpg-gen")
 DEFAULT_POLISH  = os.getenv("OLLAMA_POLISH_MODEL", "trpg-polish")
 
