@@ -24,19 +24,19 @@ else
   fi
 fi
 
-# 커스텀 모델 생성 (이미 존재하면 건너뛰기)
-echo "[Ollama] Checking custom models..."
+# 커스텀 모델 생성 (기존 모델이 있으면 삭제 후 재생성)
+echo "[Ollama] Setting up custom models..."
 for model in trpg-gen trpg-polish; do
   echo "[Ollama] Checking if $model exists..."
   if ollama list | grep -q "^$model "; then
-    echo "[Ollama] Model $model already exists, skipping creation"
+    echo "[Ollama] Removing existing $model to recreate with new base model..."
+    ollama rm "$model" 2>/dev/null || true
+  fi
+  echo "[Ollama] Creating $model from Modelfile..."
+  if ollama create "$model" -f "/$model.Modelfile" 2>&1; then
+    echo "[Ollama] Successfully created $model"
   else
-    echo "[Ollama] Creating $model from Modelfile..."
-    if ollama create "$model" -f "/$model.Modelfile" 2>&1; then
-      echo "[Ollama] Successfully created $model"
-    else
-      echo "[Ollama] Warning: Failed to create $model"
-    fi
+    echo "[Ollama] Warning: Failed to create $model"
   fi
 done
 
