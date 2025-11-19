@@ -30,6 +30,8 @@ app.include_router(debug.router, prefix="/v1")
 
 # === CORS 설정 ===
 origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
     "https://arcanaverse.pages.dev",
     "https://app.arcanaverse.ai",
     "https://arcanaverse.ai",

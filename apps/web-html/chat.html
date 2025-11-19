@@ -82,7 +82,8 @@
   </div>
 
   <script>
-    const API_BASE = "https://api.arcanaverse.ai";
+    // API_BASE는 config.js에서 설정된 window.API_BASE를 사용
+    const API_BASE = (typeof window !== 'undefined' && window.API_BASE) ? window.API_BASE : 'https://api.arcanaverse.ai';
 
   /*
   console.info("[chat] inline script loaded");
