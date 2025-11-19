@@ -12,7 +12,7 @@ from fastapi import APIRouter, Query, HTTPException    # 라우터/쿼리/에러
 from pydantic import BaseModel, Field                  # 바디 검증 모델
 from adapters.persistence.factory import get_character_repo
 from src.domain.character import Character
-from apps.api.utils import build_r2_public_url
+from apps.api.utils import build_public_image_url
 
 router = APIRouter()                                   # 서브 라우터
 repo = get_character_repo()                            # Repository 인터페이스를 통한 접근
@@ -23,9 +23,9 @@ def normalize_image(path: str | None) -> str | None:
     이미지 경로를 R2 public URL로 변환합니다.
     
     - 이미 전체 URL인 경우 그대로 반환
-    - 상대 경로('/assets/...')인 경우 R2_PUBLIC_BASE_URL을 사용하여 R2 public URL 생성
+    - 파일명을 추출하여 /assets/char/ 접두사를 사용한 R2 public URL 생성
     """
-    return build_r2_public_url(path)
+    return build_public_image_url(path)
 
 class CharacterIn(BaseModel):
     """캐릭터 생성 입력 모델"""

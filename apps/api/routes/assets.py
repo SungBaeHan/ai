@@ -10,7 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 from adapters.persistence.mongo import get_db
-from apps.api.utils import build_r2_public_url
+from apps.api.utils import build_public_image_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/assets", tags=["assets"])
@@ -69,7 +69,7 @@ def list_images(
         
         # If there is no URL field, build it from R2_PUBLIC_BASE_URL using common utility
         if not url:
-            url = build_r2_public_url(key)
+            url = build_public_image_url(key)
             if not url:
                 # Cannot build a valid URL without base; skip, but log once
                 logger.warning("Missing R2_PUBLIC_BASE_URL; cannot build URL for key=%s", key)
