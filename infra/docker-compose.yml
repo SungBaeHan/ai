@@ -26,6 +26,8 @@ services:
     volumes:
       - ../_volumes/ollama_models:/root/.ollama
       - ../infra/ollama-entrypoint.sh:/ollama-entrypoint.sh:ro
+      - ../trpg-gen.Modelfile:/trpg-gen.Modelfile:ro
+      - ../trpg-polish.Modelfile:/trpg-polish.Modelfile:ro
     entrypoint: ["/bin/sh", "/ollama-entrypoint.sh"]
     # NOTE: disable default image HEALTHCHECK (curl not installed in container)
     healthcheck:

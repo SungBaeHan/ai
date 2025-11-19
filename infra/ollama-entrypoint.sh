@@ -10,14 +10,28 @@ echo "[Ollama] Ollama serve started (PID: $OLLAMA_PID)"
 echo "[Ollama] Waiting for Ollama service to be ready..."
 sleep 15
 
-# 모델 설치 시도
-echo "[Ollama] Pulling Ollama models..."
+# Base 모델 설치
+BASE_MODEL="qwen2.5:7b-instruct-q4_K_M"
+echo "[Ollama] Pulling base model: $BASE_MODEL..."
+if ollama pull "$BASE_MODEL" 2>&1; then
+  echo "[Ollama] Successfully pulled base model: $BASE_MODEL"
+else
+  echo "[Ollama] Warning: Failed to pull base model (may already exist)"
+fi
+
+# 커스텀 모델 생성
+echo "[Ollama] Creating custom models from Modelfiles..."
 for model in trpg-gen trpg-polish; do
-  echo "[Ollama] Attempting to pull $model..."
-  if ollama pull "$model" 2>&1; then
-    echo "[Ollama] Successfully pulled $model"
+  echo "[Ollama] Checking if $model exists..."
+  if ollama list | grep -q "^$model "; then
+    echo "[Ollama] Model $model already exists, skipping creation"
   else
-    echo "[Ollama] Warning: Failed to pull $model (may already exist or network issue)"
+    echo "[Ollama] Creating $model from Modelfile..."
+    if ollama create "$model" -f "/$model.Modelfile" 2>&1; then
+      echo "[Ollama] Successfully created $model"
+    else
+      echo "[Ollama] Warning: Failed to create $model"
+    fi
   fi
 done
 
