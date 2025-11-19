@@ -3,7 +3,7 @@
 // 필요 시 배포 환경에 맞춰 이 값만 바꾸면 됩니다.
 (function () {
   if (typeof window !== 'undefined' && !window.API_BASE_URL) {
-    window.API_BASE_URL = 'https://arcanaverse.onrender.com';
+    window.API_BASE_URL = 'https://api.arcanaverse.ai';
   }
 })();
 
