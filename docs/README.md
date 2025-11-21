@@ -151,6 +151,9 @@ python -m http.server 8080
 ### 헬스 체크
 - `GET /health` - 전체 서비스 건강 상태
 
+### OpenAI 테스트
+- `POST /api/test-openai-chat` - OpenAI API 연동 확인용 테스트 엔드포인트
+
 ## 문서 수집 및 인덱싱
 
 RAG 기능을 사용하려면 문서를 Qdrant에 인덱싱해야 합니다:
@@ -174,6 +177,52 @@ python scripts/import_characters_from_json.py
 # - apps/web-html/json/characters.json
 # - data/json/characters.json
 ```
+
+## OpenAI API 연동 테스트
+
+### 환경 변수 설정
+
+`.env` 파일에 다음 환경 변수를 설정해야 합니다:
+
+```bash
+OPEN_API_KEY=sk-...  # OpenAI API 키
+OPENAI_MODEL=gpt-4.1-mini  # 사용할 모델명 (기본값: gpt-4.1-mini)
+OPENAI_API_BASE=https://api.openai.com/v1  # API 베이스 URL (기본값: https://api.openai.com/v1)
+LLM_PROVIDER=openai  # LLM 제공자 선택 (openai 또는 ollama, 기본값: openai)
+```
+
+### 테스트 엔드포인트 호출
+
+로컬 개발 환경에서:
+
+```bash
+curl -X POST "http://localhost:8000/api/test-openai-chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "안녕, 릴리"}'
+```
+
+Docker / Oracle VM 환경에서:
+
+1. `.env` 파일에 `OPEN_API_KEY`, `OPENAI_MODEL`, `OPENAI_API_BASE`가 설정되어 있어야 합니다.
+2. Docker 컨테이너를 빌드하고 실행:
+   ```bash
+   docker compose build && docker compose up -d
+   ```
+3. VM 쉘에서 curl로 엔드포인트 호출:
+   ```bash
+   curl -X POST "http://localhost:8000/api/test-openai-chat" \
+     -H "Content-Type: application/json" \
+     -d '{"message": "안녕, 릴리"}'
+   ```
+
+### LLM Provider 선택
+
+환경 변수 `LLM_PROVIDER`를 통해 OpenAI와 Ollama를 선택적으로 사용할 수 있습니다:
+
+- `LLM_PROVIDER=openai`: OpenAI API 사용 (기본값)
+- `LLM_PROVIDER=ollama`: Ollama 로컬 모델 사용
+
+기존 LLM 호출 코드는 자동으로 설정된 provider를 사용합니다.
 
 ## 문제 해결
 

@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from pydantic import BaseModel
 import os
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -37,4 +38,40 @@ def db_check():
             return {"ok": True, "backend": "sqlite"}
         except Exception as e:
             return {"ok": False, "backend": "sqlite", "error": str(e)}
+
+
+# OpenAI 테스트 엔드포인트
+class TestOpenAIChatRequest(BaseModel):
+    message: str
+
+
+@router.post("/test-openai-chat")
+def test_openai_chat(req: TestOpenAIChatRequest):
+    """
+    OpenAI API 연동 확인용 테스트 엔드포인트
+    
+    요청:
+        {"message": "안녕"}
+    
+    응답:
+        {"reply": "..."}
+    """
+    try:
+        from adapters.external.openai import generate_chat_completion
+        
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant for Arcanaverse TRPG."},
+            {"role": "user", "content": req.message}
+        ]
+        
+        reply = generate_chat_completion(
+            messages=messages,
+            temperature=0.7,
+        )
+        
+        return {"reply": reply}
+    except ValueError as e:
+        return {"error": str(e), "reply": ""}
+    except Exception as e:
+        return {"error": str(e), "reply": ""}
 

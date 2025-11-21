@@ -104,3 +104,40 @@ def root():
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+# === OpenAI 테스트 엔드포인트 ===
+from pydantic import BaseModel
+
+class TestOpenAIChatRequest(BaseModel):
+    message: str
+
+@app.post("/api/test-openai-chat")
+def test_openai_chat(req: TestOpenAIChatRequest):
+    """
+    OpenAI API 연동 확인용 테스트 엔드포인트
+    
+    요청:
+        {"message": "안녕"}
+    
+    응답:
+        {"reply": "..."}
+    """
+    try:
+        from adapters.external.openai import generate_chat_completion
+        
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant for Arcanaverse TRPG."},
+            {"role": "user", "content": req.message}
+        ]
+        
+        reply = generate_chat_completion(
+            messages=messages,
+            temperature=0.7,
+        )
+        
+        return {"reply": reply}
+    except ValueError as e:
+        return {"error": str(e), "reply": ""}
+    except Exception as e:
+        return {"error": str(e), "reply": ""}

@@ -6,8 +6,8 @@ RAG 질문 응답 유즈케이스
 import os
 from typing import Optional
 from qdrant_client import QdrantClient
-from langchain_ollama import ChatOllama
 from src.ports.services.embedding_service import EmbeddingService
+from adapters.external.llm_client import get_default_llm_client
 
 
 class AnswerQuestionUseCase:
@@ -17,8 +17,6 @@ class AnswerQuestionUseCase:
         self.embedding_service = embedding_service
         self.qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
         self.collection = os.getenv("COLLECTION", "my_docs")
-        self.ollama_base = os.getenv("OLLAMA_HOST", "http://ollama:11434")
-        self.default_model = os.getenv("OLLAMA_MODEL", "trpg-gen")
         
         self.sys_qa = """너는 유능한 도우미다. 답변은 간결하고 정확하게 한국어로 작성한다.
 가능하면 근거(컨텍스트)를 자연스럽게 녹여 설명한다.
@@ -57,23 +55,20 @@ class AnswerQuestionUseCase:
         if context:
             sys_prompt += f"\n[검색 컨텍스트]\n{context}\n"
         
-        llm = ChatOllama(
-            base_url=self.ollama_base,
-            model=self.default_model,
-            timeout=120,
-            temperature=0.7,
-            top_p=0.9,
-        )
-        
         messages = [
             {"role": "system", "content": sys_prompt},
             {"role": "user", "content": question}
         ]
         
         try:
-            raw = llm.invoke(messages)
-            text = getattr(raw, "content", str(raw))
-            return text.strip() if text else ""
+            llm_client = get_default_llm_client()
+            response = llm_client.generate_chat_completion(
+                messages=messages,
+                temperature=0.7,
+                top_p=0.9,
+                timeout=120,
+            )
+            return response.strip() if response else ""
         except Exception as e:
             print(f"[WARN] answer error: {e}")
             return f"(오류 발생) {e}"

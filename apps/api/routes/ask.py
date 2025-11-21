@@ -6,13 +6,11 @@
 import os
 from fastapi import APIRouter, Query           # 라우터 및 쿼리 파라미터 유효성 검사용
 from qdrant_client import QdrantClient
-from langchain_ollama import ChatOllama
 from adapters.external.embedding.sentence_transformer import embed
+from adapters.external.llm_client import get_default_llm_client
 
 QDRANT_URL = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION = os.getenv("COLLECTION", "my_docs")
-OLLAMA_BASE = os.getenv("OLLAMA_HOST", "http://ollama:11434")
-DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "trpg-gen")
 
 SYS_QA = """너는 유능한 도우미다. 답변은 간결하고 정확하게 한국어로 작성한다.
 가능하면 근거(컨텍스트)를 자연스럽게 녹여 설명한다.
@@ -46,28 +44,22 @@ def answer(q: str) -> str:
     if context:
         sys_prompt += f"\n[검색 컨텍스트]\n{context}\n"
     
-    llm = ChatOllama(
-        base_url=OLLAMA_BASE,
-        model=DEFAULT_MODEL,
-        timeout=120,
-        temperature=0.7,
-        top_p=0.9,
-    )
-    
     messages = [
         {"role": "system", "content": sys_prompt},
         {"role": "user", "content": q}
     ]
     
     try:
-        raw = llm.invoke(messages)
-        text = getattr(raw, "content", str(raw))
-        return text.strip() if text else ""
+        llm_client = get_default_llm_client()
+        response = llm_client.generate_chat_completion(
+            messages=messages,
+            temperature=0.7,
+            top_p=0.9,
+            timeout=120,
+        )
+        return response.strip() if response else ""
     except Exception as e:
         error_msg = str(e)
-        # 모델이 없을 때 더 명확한 메시지 제공
-        if "not found" in error_msg.lower() or "404" in error_msg:
-            error_msg = f"모델 '{DEFAULT_MODEL}'이 Ollama에 설치되어 있지 않습니다. Ollama 컨테이너에서 'ollama pull {DEFAULT_MODEL}' 명령을 실행해주세요."
         print(f"[WARN] answer error: {error_msg}")
         return f"(오류 발생) {error_msg}"
 

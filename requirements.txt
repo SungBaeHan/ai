@@ -12,6 +12,7 @@ sentence-transformers
 # --- LLM 엔진 ---
 ollama
 langchain-ollama
+openai>=1.0.0
 
 # --- Pinterest 크롤러용 ---
 requests>=2.32.3
