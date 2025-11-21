@@ -17,22 +17,31 @@ ASSETS_DIR = ROOT / "assets"
 # === FastAPI 인스턴스 ===
 app = FastAPI(title="TRPG API", version="1.0.0")
 
-app.include_router(health.router)
-app.include_router(debug.router, prefix="/v1")
-
-# === API 라우터 등록 (정적 파일 마운트 전에 등록) ===
-from apps.api.routes import assets
-app.include_router(assets.router)  # /assets/images 라우터를 먼저 등록
-
 # === CORS 설정 ===
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://arcanaverse.pages.dev",
-    "https://app.arcanaverse.ai",
-    "https://arcanaverse.ai",
-    "https://api.arcanaverse.ai"
-]
+# 환경변수 CORS_ALLOW_ORIGINS를 읽어서 origin 목록으로 사용
+# 비어 있으면 기본값 사용
+def get_cors_origins():
+    """CORS 허용 origin 목록을 환경변수에서 읽거나 기본값 반환"""
+    cors_env = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
+    
+    if cors_env:
+        # 쉼표로 구분된 문자열을 리스트로 변환
+        origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+        if origins:
+            print(f"[INFO] CORS origins from env: {origins}")
+            return origins
+    
+    # 기본값
+    default_origins = [
+        "http://localhost:8080",
+        "https://arcanaverse.ai",
+        "https://www.arcanaverse.ai",
+        "https://api.arcanaverse.ai"
+    ]
+    print(f"[INFO] CORS origins using defaults: {default_origins}")
+    return default_origins
+
+origins = get_cors_origins()
 
 app.add_middleware(
     CORSMiddleware,
@@ -41,6 +50,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(health.router)
+app.include_router(debug.router, prefix="/v1")
+
+# === API 라우터 등록 (정적 파일 마운트 전에 등록) ===
+from apps.api.routes import assets
+app.include_router(assets.router)  # /assets/images 라우터를 먼저 등록
 
 
 # === 정적 파일 마운트 ===
