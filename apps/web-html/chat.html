@@ -83,7 +83,7 @@
 
   <script>
     // API_BASE는 config.js에서 설정된 window.API_BASE를 사용
-    const API_BASE = (typeof window !== 'undefined' && window.API_BASE) ? window.API_BASE : 'https://api.arcanaverse.ai';
+    const API_BASE = (typeof window !== 'undefined' && window.API_BASE) ? window.API_BASE : 'https://api.arcanaverse.ai/api';
 
   /*
   console.info("[chat] inline script loaded");
@@ -301,7 +301,7 @@
 <script>
 (async () => {
   try {
-    const API = (typeof window !== 'undefined' && window.API_BASE_URL) ? window.API_BASE_URL : 'https://api.arcanaverse.ai';
+    const API = (typeof window !== 'undefined' && window.API_BASE) ? window.API_BASE : 'https://api.arcanaverse.ai/api';
     const url = `${API}/assets/images?prefix=char/&limit=60&signed=true`;
 
     const res = await fetch(url, { credentials: 'omit' });

@@ -202,7 +202,7 @@ DB_NAME=arcanaverse
 JWT_SECRET=Arcanaverse
 
 # === CORS (쉼표로 구분) ===
-CORS_ALLOW_ORIGINS=http://localhost:8080,https://arcanaverse.ai,https://www.arcanaverse.ai
+CORS_ALLOW_ORIGINS=http://localhost:8080,https://arcanaverse.ai,https://www.arcanaverse.ai,https://api.arcanaverse.ai
 ENVEOF
   chmod 600 "$ENV_PATH"
   echo "📝 .env 템플릿 생성: $ENV_PATH (값 채워넣으세요)"
