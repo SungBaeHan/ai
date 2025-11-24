@@ -50,7 +50,7 @@ services:
       # .env에서 PORT, JWT, CORS 등 읽어옴. 여긴 필요한 override만.
       QDRANT_URL: "http://qdrant:6333"
     ports:
-      - "8000:8000"
+      - "80:8000"
     volumes:
       - ../apps:/app/apps:ro
       - ../packages:/app/packages:ro
@@ -66,19 +66,22 @@ services:
       retries: 5
       start_period: 30s
 
-  web:
-    build:
-      context: ..                   # repo 루트(~/ai)
-      dockerfile: docker/nginx.Dockerfile
-    container_name: trpg-web
-    restart: unless-stopped
-    depends_on:
-      - api
-    ports:
-      - "80:80"
-    volumes:
-      - ../apps/web-html:/usr/share/nginx/html
-      - ../assets:/usr/share/nginx/html/assets:ro
+  # NOTE:
+  # Frontend is served via Cloudflare Pages.
+  # Oracle VM exposes only FastAPI on port 80 for api.arcanaverse.ai.
+  # web:
+  #   build:
+  #     context: ..                   # repo 루트(~/ai)
+  #     dockerfile: docker/nginx.Dockerfile
+  #   container_name: trpg-web
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - api
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ../apps/web-html:/usr/share/nginx/html
+  #     - ../assets:/usr/share/nginx/html/assets:ro
 
 volumes:
   qdrant_storage:
