@@ -347,10 +347,10 @@ async def chat(req: Request):
         return JSONResponse({"answer": text, "sid": sid},
                             headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
     except Exception as e:
-        logger.exception(f"❌ LLM chat endpoint failed: {e}")
+        logger.exception("🔥 /v1/chat/ 라우터 내부 오류 발생!")
         raise HTTPException(
             status_code=500,
-            detail="LLM call failed on server"
+            detail=f"Internal Chat Error: {str(e)}"
         )
 
 @router.post("/reset")

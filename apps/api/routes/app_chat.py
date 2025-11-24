@@ -3,15 +3,18 @@
 # ========================================
 
 import os, time, uuid, random, re
+import logging
 from typing import Dict, List, Any, Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from qdrant_client import QdrantClient
 from langchain_ollama import ChatOllama
 from adapters.external.embedding.sentence_transformer import embed
+
+logger = logging.getLogger(__name__)
 
 QDRANT_URL   = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION   = os.getenv("COLLECTION", "my_docs")
@@ -274,73 +277,81 @@ router = APIRouter()
 @router.post("/")
 async def chat(req: Request):
     try:
-        data = await req.json()
-    except Exception:
-        data = {}
-
-    q = (data.get("message") or data.get("prompt") or data.get("text") or data.get("q") or "").strip()
-    mode = (data.get("mode") or "qa").strip().lower()
-    use_model   = data.get("model") or DEFAULT_GEN
-    polish_model= data.get("polish_model") or DEFAULT_POLISH
-    temperature = float(data.get("temperature") or 0.7)
-    top_p       = float(data.get("top_p") or 0.9)
-    choices     = int(data.get("choices") or 0)
-
-    character   = data.get("character") or None
-    character_id= data.get("character_id") or ((character.get("id") if isinstance(character, dict) else None))
-
-    sid = get_or_create_sid(req)
-    sess = SESSIONS[sid]
-    char_key = "default"
-    if isinstance(character, dict):
-        char_key = character.get("id") or character.get("name") or "default"
-    key = f"history_{mode}_{char_key}"
-    sess.setdefault(key, [])
-
-    if not q:
-        return JSONResponse({"answer": ""}, headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
-
-    context = "" if mode == "trpg" else retrieve_context(q)
-    char_ctx, char_rules = ("","")
-    if mode == "trpg" and isinstance(character, dict):
         try:
-            char_ctx, char_rules = character_to_context(dict(character))
+            data = await req.json()
         except Exception:
-            char_ctx, char_rules = ("","")
+            data = {}
 
-    llm = ChatOllama(
-        base_url=OLLAMA_BASE, model=use_model, timeout=120,
-        temperature=temperature, top_p=top_p,
-        repeat_penalty=PRESET.get("repeat_penalty", 1.25),
-        model_kwargs={"keep_alive":"30m", "num_predict":256},
-    )
+        q = (data.get("message") or data.get("prompt") or data.get("text") or data.get("q") or "").strip()
+        mode = (data.get("mode") or "qa").strip().lower()
+        use_model   = data.get("model") or DEFAULT_GEN
+        polish_model= data.get("polish_model") or DEFAULT_POLISH
+        temperature = float(data.get("temperature") or 0.7)
+        top_p       = float(data.get("top_p") or 0.9)
+        choices     = int(data.get("choices") or 0)
 
-    messages = build_messages(mode, sess[key], q, context, char_ctx, char_rules, choices=choices)
+        character   = data.get("character") or None
+        character_id= data.get("character_id") or ((character.get("id") if isinstance(character, dict) else None))
 
-    try:
-        raw = llm.invoke(messages)
-        text = getattr(raw, "content", str(raw))
-    except Exception as e:
-        error_msg = str(e)
-        # 모델이 없을 때 더 명확한 메시지 제공
-        if "not found" in error_msg.lower() or "404" in error_msg:
-            error_msg = f"모델 '{use_model}'이 Ollama에 설치되어 있지 않습니다. Ollama 컨테이너에서 'ollama pull {use_model}' 명령을 실행해주세요."
-        return JSONResponse({"answer": f"(LLM 호출 오류) {error_msg}"},
+        sid = get_or_create_sid(req)
+        sess = SESSIONS[sid]
+        char_key = "default"
+        if isinstance(character, dict):
+            char_key = character.get("id") or character.get("name") or "default"
+        key = f"history_{mode}_{char_key}"
+        sess.setdefault(key, [])
+
+        if not q:
+            return JSONResponse({"answer": ""}, headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
+
+        context = "" if mode == "trpg" else retrieve_context(q)
+        char_ctx, char_rules = ("","")
+        if mode == "trpg" and isinstance(character, dict):
+            try:
+                char_ctx, char_rules = character_to_context(dict(character))
+            except Exception:
+                char_ctx, char_rules = ("","")
+
+        llm = ChatOllama(
+            base_url=OLLAMA_BASE, model=use_model, timeout=120,
+            temperature=temperature, top_p=top_p,
+            repeat_penalty=PRESET.get("repeat_penalty", 1.25),
+            model_kwargs={"keep_alive":"30m", "num_predict":256},
+        )
+
+        messages = build_messages(mode, sess[key], q, context, char_ctx, char_rules, choices=choices)
+
+        try:
+            raw = llm.invoke(messages)
+            text = getattr(raw, "content", str(raw))
+        except Exception as e:
+            logger.exception(f"❌ LLM chat failed: {e}")
+            error_msg = str(e)
+            # 모델이 없을 때 더 명확한 메시지 제공
+            if "not found" in error_msg.lower() or "404" in error_msg:
+                error_msg = f"모델 '{use_model}'이 Ollama에 설치되어 있지 않습니다. Ollama 컨테이너에서 'ollama pull {use_model}' 명령을 실행해주세요."
+            return JSONResponse({"answer": f"(LLM 호출 오류) {error_msg}"},
+                                headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
+
+        if mode == "trpg":
+            text = postprocess_trpg(text, desired_choices=choices)
+            text = polish(text, model=polish_model)
+        elif re.match(r"^\s*(?:[-•]|\(?\d+\)?[.)])\s+\S", text):
+            text = postprocess_trpg(text, desired_choices=choices)
+            text = polish(text, model=polish_model)
+
+        user_text = q if mode != "trpg" else f"(플레이어의 의도/행동: {q})"
+        sess[key].extend([{"role":"user","content":user_text},{"role":"assistant","content":text}])
+        sess[key] = sess[key][-MAX_TURNS * 2:]
+
+        return JSONResponse({"answer": text, "sid": sid},
                             headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
-
-    if mode == "trpg":
-        text = postprocess_trpg(text, desired_choices=choices)
-        text = polish(text, model=polish_model)
-    elif re.match(r"^\s*(?:[-•]|\(?\d+\)?[.)])\s+\S", text):
-        text = postprocess_trpg(text, desired_choices=choices)
-        text = polish(text, model=polish_model)
-
-    user_text = q if mode != "trpg" else f"(플레이어의 의도/행동: {q})"
-    sess[key].extend([{"role":"user","content":user_text},{"role":"assistant","content":text}])
-    sess[key] = sess[key][-MAX_TURNS * 2:]
-
-    return JSONResponse({"answer": text, "sid": sid},
-                        headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
+    except Exception as e:
+        logger.exception("🔥 /v1/chat/ 라우터 내부 오류 발생!")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal Chat Error: {str(e)}"
+        )
 
 @router.post("/reset")
 def reset(req: Request):
