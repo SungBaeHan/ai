@@ -11,6 +11,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chat • TRPG</title>
   <script src="/js/config.js"></script>
+  <script>
+    // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
+    window.API_BASE_URL = 'https://api.arcanaverse.ai/api';
+  </script>
   <style>
     :root { color-scheme: dark; } /* 다크 테마 힌트 */
     body { margin:0; background:#0b0f14; color:#e5e7eb; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
@@ -83,9 +87,15 @@
 
   <script>
     // API_BASE는 config.js에서 설정된 window.API_BASE를 사용
+    const isLocal =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
     const API_BASE = (typeof window !== 'undefined' && window.API_BASE)
       ? window.API_BASE
-      : 'http://localhost:8000/api';
+      : (isLocal
+          ? 'http://localhost:8000/api'          // 로컬 개발용
+          : 'https://api.arcanaverse.ai/api');   // 배포 기본값
 
   /*
   console.info("[chat] inline script loaded");
@@ -303,9 +313,15 @@
 <script>
 (async () => {
   try {
+    const isLocal =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
     const API = (typeof window !== 'undefined' && window.API_BASE_URL)
       ? window.API_BASE_URL
-      : 'http://localhost:8000/api';
+      : (isLocal
+          ? 'http://localhost:8000/api'          // 로컬 개발용
+          : 'https://api.arcanaverse.ai/api');   // 배포 기본값
     const url = `${API}/assets/images?prefix=char/&limit=60&signed=true`;
 
     const res = await fetch(url, { credentials: 'omit' });
