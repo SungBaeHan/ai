@@ -22,7 +22,7 @@ class Settings:
     db_path: str = os.getenv("DB_PATH", "/data/db/app.sqlite3")
     
     # OpenAI 설정
-    open_api_key: Optional[str] = os.getenv("OPEN_API_KEY")
+    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
     openai_model: str = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
     openai_api_base: str = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
     

@@ -283,41 +283,41 @@ async def chat(req: Request):
     
     try:
         q = (data.get("message") or data.get("prompt") or data.get("text") or data.get("q") or "").strip()
-    mode = (data.get("mode") or "qa").strip().lower()
-    use_model   = data.get("model") or DEFAULT_GEN
-    polish_model= data.get("polish_model") or DEFAULT_POLISH
-    temperature = float(data.get("temperature") or 0.7)
-    top_p       = float(data.get("top_p") or 0.9)
-    choices     = int(data.get("choices") or 0)
+        mode = (data.get("mode") or "qa").strip().lower()
+        use_model   = data.get("model") or DEFAULT_GEN
+        polish_model= data.get("polish_model") or DEFAULT_POLISH
+        temperature = float(data.get("temperature") or 0.7)
+        top_p       = float(data.get("top_p") or 0.9)
+        choices     = int(data.get("choices") or 0)
 
-    character   = data.get("character") or None
-    character_id= data.get("character_id") or ((character.get("id") if isinstance(character, dict) else None))
+        character   = data.get("character") or None
+        character_id= data.get("character_id") or ((character.get("id") if isinstance(character, dict) else None))
 
-    sid = get_or_create_sid(req)
-    sess = SESSIONS[sid]
-    char_key = "default"
-    if isinstance(character, dict):
-        char_key = character.get("id") or character.get("name") or "default"
-    key = f"history_{mode}_{char_key}"
-    sess.setdefault(key, [])
+        sid = get_or_create_sid(req)
+        sess = SESSIONS[sid]
+        char_key = "default"
+        if isinstance(character, dict):
+            char_key = character.get("id") or character.get("name") or "default"
+        key = f"history_{mode}_{char_key}"
+        sess.setdefault(key, [])
 
-    if not q:
-        return JSONResponse({"answer": ""}, headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
+        if not q:
+            return JSONResponse({"answer": ""}, headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
 
-    context = "" if mode == "trpg" else retrieve_context(q)
-    char_ctx, char_rules = ("","")
-    if mode == "trpg" and isinstance(character, dict):
-        try:
-            char_ctx, char_rules = character_to_context(dict(character))
-        except Exception:
-            char_ctx, char_rules = ("","")
+        context = "" if mode == "trpg" else retrieve_context(q)
+        char_ctx, char_rules = ("","")
+        if mode == "trpg" and isinstance(character, dict):
+            try:
+                char_ctx, char_rules = character_to_context(dict(character))
+            except Exception:
+                char_ctx, char_rules = ("","")
 
-    llm = ChatOllama(
-        base_url=OLLAMA_BASE, model=use_model, timeout=120,
-        temperature=temperature, top_p=top_p,
-        repeat_penalty=PRESET.get("repeat_penalty", 1.25),
-        model_kwargs={"keep_alive":"30m", "num_predict":256},
-    )
+        llm = ChatOllama(
+            base_url=OLLAMA_BASE, model=use_model, timeout=120,
+            temperature=temperature, top_p=top_p,
+            repeat_penalty=PRESET.get("repeat_penalty", 1.25),
+            model_kwargs={"keep_alive":"30m", "num_predict":256},
+        )
 
         messages = build_messages(mode, sess[key], q, context, char_ctx, char_rules, choices=choices)
 

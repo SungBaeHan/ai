@@ -22,7 +22,7 @@
 #### 환경변수 설정
 ```bash
 # 필수 (OpenAI 사용 시)
-OPEN_API_KEY=sk-...                    # OpenAI API 키
+OPENAI_API_KEY=sk-...                    # OpenAI API 키
 OPENAI_MODEL=gpt-4.1-mini              # 사용할 모델명 (기본값: gpt-4.1-mini)
 OPENAI_API_BASE=https://api.openai.com/v1  # API 베이스 URL (기본값: https://api.openai.com/v1)
 
@@ -72,7 +72,7 @@ LLM_PROVIDER=openai                    # openai 또는 ollama (기본값: openai
 ## 환경변수
 
 ### 필수 환경변수 (OpenAI 사용 시)
-- `OPEN_API_KEY`: OpenAI API 키
+- `OPENAI_API_KEY`: OpenAI API 키
 - `LLM_PROVIDER`: LLM 제공자 선택 (`openai` 또는 `ollama`)
 
 ### 선택 환경변수

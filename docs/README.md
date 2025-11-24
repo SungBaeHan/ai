@@ -185,7 +185,7 @@ python scripts/import_characters_from_json.py
 `.env` 파일에 다음 환경 변수를 설정해야 합니다:
 
 ```bash
-OPEN_API_KEY=sk-...  # OpenAI API 키
+OPENAI_API_KEY=sk-...  # OpenAI API 키
 OPENAI_MODEL=gpt-4.1-mini  # 사용할 모델명 (기본값: gpt-4.1-mini)
 OPENAI_API_BASE=https://api.openai.com/v1  # API 베이스 URL (기본값: https://api.openai.com/v1)
 LLM_PROVIDER=openai  # LLM 제공자 선택 (openai 또는 ollama, 기본값: openai)
@@ -203,7 +203,7 @@ curl -X POST "http://localhost:8000/api/test-openai-chat" \
 
 Docker / Oracle VM 환경에서:
 
-1. `.env` 파일에 `OPEN_API_KEY`, `OPENAI_MODEL`, `OPENAI_API_BASE`가 설정되어 있어야 합니다.
+1. `.env` 파일에 `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_API_BASE`가 설정되어 있어야 합니다.
 2. Docker 컨테이너를 빌드하고 실행:
    ```bash
    docker compose build && docker compose up -d
