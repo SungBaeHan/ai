@@ -1,0 +1,315 @@
+# 배포 이력 - 2025-11-24
+
+## 주요 작업 내용
+
+### 1. 프론트엔드 API 경로에서 `/api` prefix 제거
+
+#### 배경
+- nginx 프록시 제거 후 FastAPI가 루트에 직접 노출되면서
+- 프론트엔드가 여전히 `https://api.arcanaverse.ai/api/v1/...` 경로로 호출하여 404 발생
+- API_BASE_URL에서 `/api` suffix를 제거하여 최종 요청 경로를 `/v1/...`로 맞춤
+
+#### 수정된 파일
+- `apps/web-html/home.html`
+- `apps/web-html/chat.html`
+- `apps/web-html/my.html`
+- `apps/web-html/js/config.js`
+
+#### 주요 변경사항
+
+1. **API_BASE_URL 설정 수정**
+   - `https://api.arcanaverse.ai/api` → `https://api.arcanaverse.ai`
+   - 로컬 개발 환경: `http://localhost:8000/api` → `http://localhost:8000`
+
+2. **window.API_BASE_URL 명시적 설정**
+   - `home.html`, `chat.html`, `my.html`에 `window.API_BASE_URL` 설정 추가
+   - Cloudflare Pages 배포 환경에서 확실하게 API 도메인 사용 보장
+
+3. **API 상수 로직 개선**
+   ```javascript
+   const isLocal =
+     typeof window !== 'undefined' &&
+     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+   const API_BASE = (typeof window !== 'undefined' && window.API_BASE_URL)
+     ? window.API_BASE_URL
+     : (typeof window !== 'undefined' && window.API_BASE)
+       ? window.API_BASE
+       : (isLocal
+           ? 'http://localhost:8000'
+           : 'https://api.arcanaverse.ai');
+   ```
+
+4. **API 호출 경로 확인**
+   - 모든 API 호출이 `${API_BASE}/v1/...` 형태로 올바르게 구성됨
+   - 예: `https://api.arcanaverse.ai/v1/characters?offset=0&limit=200`
+
+#### 최종 API 요청 URL
+- **배포 환경**: `https://api.arcanaverse.ai/v1/characters`
+- **로컬 개발 환경**: `http://localhost:8000/v1/characters`
+
+---
+
+### 2. Docker Compose 설정 변경 (nginx 프록시 제거)
+
+#### 배경
+- Cloudflare Pages는 프론트용, Oracle VM은 API 전용으로 분리
+- Oracle VM의 nginx(web) 컨테이너는 퍼블릭 서비스에서 제거
+- FastAPI(api) 컨테이너를 호스트 80 포트에 바인딩
+
+#### 수정된 파일
+- `infra/docker-compose.yml`
+
+#### 주요 변경사항
+
+1. **web/nginx 컨테이너 비활성화**
+   - `web` 서비스 블록 전체 주석 처리
+   - 주석 추가:
+     ```yaml
+     # NOTE:
+     # Frontend is served via Cloudflare Pages.
+     # Oracle VM exposes only FastAPI on port 80 for api.arcanaverse.ai.
+     ```
+
+2. **api 컨테이너 포트 변경**
+   - 기존: `"8000:8000"`
+   - 변경: `"80:8000"`
+   - FastAPI가 호스트의 80번 포트에서 직접 서비스됨
+
+#### 재배포 명령
+```bash
+cd ~/ai/infra
+docker compose down
+docker compose up -d
+```
+
+---
+
+### 3. CORS 설정 개선
+
+#### 수정된 파일
+- `apps/api/main.py`
+
+#### 주요 변경사항
+
+1. **로깅 개선**
+   - `print` 대신 `logging.getLogger(__name__)` 사용
+   - CORS 설정 로그 추가
+
+2. **CORS 설정 정리**
+   ```python
+   logger = logging.getLogger(__name__)
+
+   raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "")
+   if raw_origins:
+       origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+   else:
+       origins = []
+
+   logger.info("CORS_ALLOW_ORIGINS from env = %s", raw_origins)
+   logger.info("Parsed CORS origins = %s", origins)
+
+   app.add_middleware(
+       CORSMiddleware,
+       allow_origins=origins if origins else ["*"],
+       allow_credentials=True,
+       allow_methods=["*"],     # 모든 메소드 허용 (GET, POST, OPTIONS 등)
+       allow_headers=["*"],     # 모든 헤더 허용
+   )
+   ```
+
+3. **허용 Origin 목록**
+   - `https://arcanaverse.ai`
+   - `https://www.arcanaverse.ai`
+   - `https://api.arcanaverse.ai`
+   - 환경변수 `CORS_ALLOW_ORIGINS`로 설정 가능
+
+---
+
+### 4. OpenAI API 키 변수명 호환성 지원
+
+#### 배경
+- 기존 코드가 기대하는 변수명 `OPEN_API_KEY` 복구
+- 새로운 변수명 `OPENAI_API_KEY`도 허용하도록 호환성 지원
+- OpenAI 클라이언트 초기화 시 로그 출력
+
+#### 수정된 파일
+- `adapters/external/openai/openai_client.py`
+
+#### 주요 변경사항
+
+1. **두 환경변수 모두 지원**
+   ```python
+   api_key = (
+       os.getenv("OPEN_API_KEY")      # 기존 변수명
+       or os.getenv("OPENAI_API_KEY")  # 새 변수명
+   )
+   ```
+
+2. **Base URL 지원 확장**
+   ```python
+   base_url = (
+       os.getenv("OPENAI_API_BASE")
+       or os.getenv("OPENAI_BASE_URL")
+       or "https://api.openai.com/v1"
+   )
+   ```
+
+3. **디버깅 로그 추가**
+   ```python
+   if not api_key:
+       logger.error("❌ No OpenAI API key found. (OPEN_API_KEY / OPENAI_API_KEY both missing)")
+   else:
+       logger.info(
+           f"🔑 OpenAI Client Initialized | base={base_url} | model={model_name} | key_len={len(api_key)}"
+       )
+   ```
+
+#### 환경변수 설정 예시
+```bash
+# 기존 이름 복구 (필수)
+OPEN_API_KEY=sk-...
+
+# 새 이름도 같이 지원 가능 (선택)
+OPENAI_API_KEY=sk-...
+
+# 나머지는 유지
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_API_BASE=https://api.openai.com/v1
+```
+
+---
+
+### 5. /v1/chat/ 엔드포인트 오류 처리 개선
+
+#### 배경
+- /v1/chat/ 엔드포인트 내부에서 발생하는 모든 오류를 try/except로 잡아서
+- FastAPI 워커가 죽지 않도록 하고, 정확한 오류를 logger.exception()으로 출력
+- 응답은 HTTP 500 JSON으로 브라우저에 반환
+
+#### 수정된 파일
+- `apps/api/routes/chat.py`
+- `apps/api/routes/app_chat.py`
+
+#### 주요 변경사항
+
+1. **전체 함수를 try-except로 감싸기**
+   ```python
+   @router.post("/")
+   async def chat(req: Request):
+       try:
+           # ... 기존 코드 ...
+           return JSONResponse({"answer": text, "sid": sid}, ...)
+       except Exception as e:
+           logger.exception("🔥 /v1/chat/ 라우터 내부 오류 발생!")
+           raise HTTPException(
+               status_code=500,
+               detail=f"Internal Chat Error: {str(e)}"
+           )
+   ```
+
+2. **로깅 개선**
+   - `logger.exception()` 사용으로 상세한 스택 트레이스 로깅
+   - 브라우저에 `{"detail": "Internal Chat Error: ..."}` 형태의 JSON 응답 반환
+
+3. **Worker Crash 방지**
+   - 모든 예외를 포착하여 FastAPI worker crash 방지
+   - "Failed to fetch" 대신 정확한 오류 메시지 표시
+
+---
+
+## 주요 커밋
+
+1. `c71b01c` - 기본 도메인 수정
+2. `1e5eda0` - window.API_BASE_URL 적용
+3. `4e6142e` - nginx 설정 변경
+4. `7f64bd4` - api 호출 경로 변경
+5. `762875c` - api url 보정
+6. `ecb0d3e` - API_BASE_URL 우선 사용 및 window.API_BASE도 함께 설정하여 /api prefix 제거 보장
+7. `252354b` - fix: Update my.html to use window.API_BASE_URL for auth endpoint
+8. `93a3e82` - fix: Update CORS configuration with proper logging and allow all methods/headers
+9. `13a9f54` - fix: Add OPEN_API_KEY support and improve error handling in chat endpoint
+10. `8264854` - fix: Improve error handling in /v1/chat/ endpoint with comprehensive exception catching
+
+---
+
+## 검증 방법
+
+### 1. API 경로 확인
+```bash
+# 브라우저에서 https://arcanaverse.ai/home 접속 후
+# DevTools → Network 탭에서 첫 API 호출 확인
+# 예상 URL: https://api.arcanaverse.ai/v1/characters?offset=0&limit=200
+```
+
+### 2. CORS 확인
+```bash
+# Swagger UI 확인
+curl https://api.arcanaverse.ai/docs
+
+# CORS 설정 확인 (서버 로그)
+docker logs trpg-api | grep "CORS"
+```
+
+### 3. OpenAI 클라이언트 초기화 확인
+```bash
+# 서버 로그에서 OpenAI 클라이언트 초기화 메시지 확인
+docker logs trpg-api | grep "OpenAI Client Initialized"
+```
+
+### 4. 오류 처리 확인
+```bash
+# /v1/chat/ 엔드포인트 오류 발생 시
+# 서버 로그에서 "🔥 /v1/chat/ 라우터 내부 오류 발생!" 확인
+# 브라우저에서 {"detail": "Internal Chat Error: ..."} 형태의 응답 확인
+```
+
+---
+
+## 아키텍처 변경
+
+### 이전 (nginx 프록시 포함)
+```
+Cloudflare Pages → Oracle VM (nginx:80) → FastAPI:8000
+                    ↓
+              프론트엔드 서빙
+```
+
+### 현재 (nginx 프록시 제거)
+```
+Cloudflare Pages (프론트엔드) → Oracle VM (FastAPI:80)
+                              ↓
+                    api.arcanaverse.ai
+```
+
+---
+
+## 환경변수 요약
+
+### 프론트엔드 (Cloudflare Pages)
+- `window.API_BASE_URL = 'https://api.arcanaverse.ai'` (자동 설정)
+
+### 백엔드 (Oracle VM)
+- `OPEN_API_KEY` 또는 `OPENAI_API_KEY`: OpenAI API 키
+- `OPENAI_MODEL`: 사용할 모델명 (기본값: gpt-4.1-mini)
+- `OPENAI_API_BASE`: API 베이스 URL (기본값: https://api.openai.com/v1)
+- `CORS_ALLOW_ORIGINS`: 허용할 origin 목록 (쉼표로 구분)
+
+---
+
+## 주의사항
+
+1. **프론트엔드 재배포**: 변경사항 적용을 위해 Cloudflare Pages에 재배포 필요
+2. **API 서버 재시작**: docker-compose.yml 변경 후 서버 재시작 필요
+3. **환경변수 확인**: Oracle VM의 `.env` 파일에 필요한 환경변수 설정 확인
+4. **포트 충돌**: 기존 80번 포트를 사용하는 서비스가 있는지 확인
+
+---
+
+## 다음 단계 (선택사항)
+
+1. **모니터링 강화**: API 호출 실패율 모니터링 추가
+2. **에러 알림**: 심각한 오류 발생 시 알림 시스템 연동
+3. **성능 최적화**: API 응답 시간 최적화
+4. **로깅 개선**: 구조화된 로깅 (JSON 형태) 도입
+
