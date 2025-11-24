@@ -5,18 +5,45 @@ OpenAI API 클라이언트 유틸리티 모듈
 
 from typing import List, Dict, Optional
 import os
+import logging
 from openai import OpenAI
 
-# 환경변수에서 설정 읽기
-OPEN_API_KEY = os.getenv("OPEN_API_KEY")
-OPENAI_API_BASE = os.getenv("OPENAI_API_BASE", "https://api.openai.com/v1")
-DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+logger = logging.getLogger(__name__)
+
+# 1) 두 환경변수 모두 지원: 기존 코드와 새 코드 호환
+api_key = (
+    os.getenv("OPEN_API_KEY")      # 기존 변수명
+    or os.getenv("OPENAI_API_KEY")  # 새 변수명
+)
+
+# 2) Base URL
+base_url = (
+    os.getenv("OPENAI_API_BASE")
+    or os.getenv("OPENAI_BASE_URL")
+    or "https://api.openai.com/v1"
+)
+
+# 3) Model
+model_name = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+
+# 4) 디버깅 로그
+if not api_key:
+    logger.error("❌ No OpenAI API key found. (OPEN_API_KEY / OPENAI_API_KEY both missing)")
+else:
+    logger.info(
+        f"🔑 OpenAI Client Initialized | base={base_url} | model={model_name} | key_len={len(api_key)}"
+    )
 
 # OpenAI 클라이언트 인스턴스 생성
 client = OpenAI(
-    api_key=OPEN_API_KEY,
-    base_url=OPENAI_API_BASE,
-) if OPEN_API_KEY else None
+    api_key=api_key,
+    base_url=base_url,
+) if api_key else None
+
+# 호환성을 위한 변수명 유지
+OPENAI_API_KEY = api_key
+OPENAI_API_BASE = base_url
+DEFAULT_MODEL = model_name
 
 
 def generate_chat_completion(
@@ -38,11 +65,11 @@ def generate_chat_completion(
         assistant의 최종 reply 텍스트
     
     Raises:
-        ValueError: OPEN_API_KEY가 설정되지 않은 경우
+        ValueError: OPENAI_API_KEY가 설정되지 않은 경우
         Exception: OpenAI API 호출 실패 시
     """
     if not client:
-        raise ValueError("OPEN_API_KEY 환경변수가 설정되지 않았습니다.")
+        raise ValueError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
     
     response = client.chat.completions.create(
         model=model or DEFAULT_MODEL,

@@ -3,15 +3,18 @@
 # ========================================
 
 import os, time, uuid, random, re
+import logging
 from typing import Dict, List, Any, Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from qdrant_client import QdrantClient
 from langchain_ollama import ChatOllama
 from adapters.external.embedding.sentence_transformer import embed
+
+logger = logging.getLogger(__name__)
 
 QDRANT_URL   = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION   = os.getenv("COLLECTION", "my_docs")
@@ -277,8 +280,9 @@ async def chat(req: Request):
         data = await req.json()
     except Exception:
         data = {}
-
-    q = (data.get("message") or data.get("prompt") or data.get("text") or data.get("q") or "").strip()
+    
+    try:
+        q = (data.get("message") or data.get("prompt") or data.get("text") or data.get("q") or "").strip()
     mode = (data.get("mode") or "qa").strip().lower()
     use_model   = data.get("model") or DEFAULT_GEN
     polish_model= data.get("polish_model") or DEFAULT_POLISH
@@ -315,32 +319,39 @@ async def chat(req: Request):
         model_kwargs={"keep_alive":"30m", "num_predict":256},
     )
 
-    messages = build_messages(mode, sess[key], q, context, char_ctx, char_rules, choices=choices)
+        messages = build_messages(mode, sess[key], q, context, char_ctx, char_rules, choices=choices)
 
-    try:
-        raw = llm.invoke(messages)
-        text = getattr(raw, "content", str(raw))
-    except Exception as e:
-        error_msg = str(e)
-        # 모델이 없을 때 더 명확한 메시지 제공
-        if "not found" in error_msg.lower() or "404" in error_msg:
-            error_msg = f"모델 '{use_model}'이 Ollama에 설치되어 있지 않습니다. Ollama 컨테이너에서 'ollama pull {use_model}' 명령을 실행해주세요."
-        return JSONResponse({"answer": f"(LLM 호출 오류) {error_msg}"},
+        try:
+            raw = llm.invoke(messages)
+            text = getattr(raw, "content", str(raw))
+        except Exception as e:
+            logger.exception(f"❌ LLM chat failed: {e}")
+            error_msg = str(e)
+            # 모델이 없을 때 더 명확한 메시지 제공
+            if "not found" in error_msg.lower() or "404" in error_msg:
+                error_msg = f"모델 '{use_model}'이 Ollama에 설치되어 있지 않습니다. Ollama 컨테이너에서 'ollama pull {use_model}' 명령을 실행해주세요."
+            return JSONResponse({"answer": f"(LLM 호출 오류) {error_msg}"},
+                                headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
+
+        if mode == "trpg":
+            text = postprocess_trpg(text, desired_choices=choices)
+            text = polish(text, model=polish_model)
+        elif re.match(r"^\s*(?:[-•]|\(?\d+\)?[.)])\s+\S", text):
+            text = postprocess_trpg(text, desired_choices=choices)
+            text = polish(text, model=polish_model)
+
+        user_text = q if mode != "trpg" else f"(플레이어의 의도/행동: {q})"
+        sess[key].extend([{"role":"user","content":user_text},{"role":"assistant","content":text}])
+        sess[key] = sess[key][-MAX_TURNS * 2:]
+
+        return JSONResponse({"answer": text, "sid": sid},
                             headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
-
-    if mode == "trpg":
-        text = postprocess_trpg(text, desired_choices=choices)
-        text = polish(text, model=polish_model)
-    elif re.match(r"^\s*(?:[-•]|\(?\d+\)?[.)])\s+\S", text):
-        text = postprocess_trpg(text, desired_choices=choices)
-        text = polish(text, model=polish_model)
-
-    user_text = q if mode != "trpg" else f"(플레이어의 의도/행동: {q})"
-    sess[key].extend([{"role":"user","content":user_text},{"role":"assistant","content":text}])
-    sess[key] = sess[key][-MAX_TURNS * 2:]
-
-    return JSONResponse({"answer": text, "sid": sid},
-                        headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
+    except Exception as e:
+        logger.exception(f"❌ LLM chat endpoint failed: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="LLM call failed on server"
+        )
 
 @router.post("/reset")
 def reset(req: Request):
