@@ -313,15 +313,20 @@
 <script>
 (async () => {
   try {
+    /* === API BASE URL 자동 감지 수정 === */
+
     const isLocal =
       typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      (window.location.hostname === 'localhost' ||
+       window.location.hostname === '127.0.0.1');
 
     const API = (typeof window !== 'undefined' && window.API_BASE_URL)
       ? window.API_BASE_URL
       : (isLocal
-          ? 'http://localhost:8000/api'          // 로컬 개발용
-          : 'https://api.arcanaverse.ai/api');   // 배포 기본값
+          ? 'http://localhost:8000/api'
+          : 'https://api.arcanaverse.ai/api');
+
+    console.log('[API BASE URL]:', API);
     const url = `${API}/assets/images?prefix=char/&limit=60&signed=true`;
 
     const res = await fetch(url, { credentials: 'omit' });
