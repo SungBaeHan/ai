@@ -7,7 +7,7 @@
   const isProd = host === 'arcanaverse.ai' || host === 'www.arcanaverse.ai';
 
   const API_BASE = isProd
-    ? 'https://api.arcanaverse.ai/api'
+    ? 'https://api.arcanaverse.ai'
     : 'http://localhost:8000/api';
 
   const API_BASE_URL = API_BASE;
