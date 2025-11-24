@@ -27,7 +27,26 @@ docker-compose down
 
 ## 📝 주요 명령어
 
-// ... existing code ...
+### 서비스 상태 확인
+```bash
+# 모든 서비스 상태
+docker-compose -f infra/docker-compose.yml ps
+
+# 특정 서비스 로그
+docker-compose -f infra/docker-compose.yml logs -f api
+```
+
+### 데이터베이스 초기화
+```bash
+# SQLite 데이터베이스 초기화 (로컬 개발용)
+python -c "from adapters.persistence.sqlite import init_db; init_db()"
+```
+
+### 캐릭터 데이터 임포트
+```bash
+# JSON에서 캐릭터 임포트
+python scripts/import_characters_from_json.py
+```
 
 ## 🔍 문제 해결
 

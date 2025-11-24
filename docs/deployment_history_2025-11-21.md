@@ -1,0 +1,137 @@
+# 배포 이력 - 2025-11-21
+
+## 주요 작업 내용
+
+### 1. LLM Provider를 OpenAI로 전환
+
+#### 생성/수정된 파일
+- `adapters/external/llm_client.py` - LLM 클라이언트 공통 인터페이스 및 팩토리
+- `adapters/external/openai/__init__.py` - OpenAI 어댑터 초기화
+- `adapters/external/openai/openai_client.py` - OpenAI 클라이언트 구현
+- `apps/api/config.py` - 애플리케이션 설정 모듈 (환경변수 관리)
+- `apps/api/routes/ask.py` - LLM 클라이언트 팩토리 사용으로 변경
+- `src/usecases/rag/answer_question.py` - LLM 클라이언트 팩토리 사용으로 변경
+- `requirements.txt` - OpenAI 라이브러리 추가
+
+#### 주요 기능
+- **환경변수 기반 LLM Provider 선택**: `LLM_PROVIDER` 환경변수로 `openai` 또는 `ollama` 선택
+- **공통 인터페이스**: `LLMClient` 추상 클래스로 provider 독립적인 코드 작성
+- **팩토리 패턴**: `get_default_llm_client()` 함수로 설정에 맞는 클라이언트 자동 생성
+- **OpenAI 통합**: OpenAI API를 통한 LLM 호출 지원
+
+#### 환경변수 설정
+```bash
+# 필수 (OpenAI 사용 시)
+OPEN_API_KEY=sk-...                    # OpenAI API 키
+OPENAI_MODEL=gpt-4.1-mini              # 사용할 모델명 (기본값: gpt-4.1-mini)
+OPENAI_API_BASE=https://api.openai.com/v1  # API 베이스 URL (기본값: https://api.openai.com/v1)
+
+# LLM Provider 선택
+LLM_PROVIDER=openai                    # openai 또는 ollama (기본값: openai)
+```
+
+#### 적용된 엔드포인트
+- `/v1/ask` - RAG 기반 질문 응답 (OpenAI 사용)
+- `/v1/chat/` - TRPG 채팅 (기존 Ollama 유지, 향후 OpenAI 전환 가능)
+
+### 2. HTTPS 설정 개선
+
+#### 수정된 파일
+- `apps/api/main.py` - CORS 및 HTTPS 리다이렉트 설정 개선
+- `docker/nginx.conf` - nginx HTTPS 설정 간소화
+- `tests/test_cors.py` - CORS 테스트 코드 추가
+
+#### 주요 변경사항
+- **HTTPS 강제 리다이렉트**: HTTP 요청을 HTTPS로 자동 리다이렉트
+- **CORS 설정 개선**: 프론트엔드 도메인 허용 목록 정리
+- **nginx 설정 간소화**: 불필요한 설정 제거 및 최적화
+
+### 3. 도메인 매핑 수정
+
+#### 수정된 파일
+- `apps/web-html/chat.html` - API 베이스 URL 설정 개선
+- `apps/web-html/home.html` - API 베이스 URL 설정 개선
+- `apps/web-html/js/config.js` - API 베이스 URL 설정 로직 개선
+
+#### 주요 변경사항
+- API 베이스 URL 설정 로직 개선
+- 환경별 설정 유연성 향상
+- 도메인 매핑 일관성 확보
+
+## API 엔드포인트
+
+### 질문 응답 (RAG)
+- `GET /v1/ask?q={질문}` - OpenAI 기반 RAG 질문 응답
+  - 환경변수 `LLM_PROVIDER=openai` 설정 필요
+  - OpenAI API 키 필수
+
+### 헬스체크
+- `GET /health` - 서비스 상태 확인
+- `GET /health/env` - 환경변수 확인 (OpenAI 설정 포함)
+
+## 환경변수
+
+### 필수 환경변수 (OpenAI 사용 시)
+- `OPEN_API_KEY`: OpenAI API 키
+- `LLM_PROVIDER`: LLM 제공자 선택 (`openai` 또는 `ollama`)
+
+### 선택 환경변수
+- `OPENAI_MODEL`: 사용할 모델명 (기본값: `gpt-4.1-mini`)
+- `OPENAI_API_BASE`: API 베이스 URL (기본값: `https://api.openai.com/v1`)
+
+## 주요 커밋
+
+1. `b6a1bfd` - LLM 을 OpenAPI 로 변경
+2. `40a67f0` - https 설정 변경
+3. `8ace734` - https 설정 수정
+4. `30b4990` - 도메인 매핑 수정
+
+## 테스트
+
+### OpenAI API 테스트
+```bash
+# 환경변수 확인
+curl https://api.arcanaverse.ai/health/env
+
+# 질문 응답 테스트
+curl "https://api.arcanaverse.ai/v1/ask?q=안녕하세요"
+```
+
+### CORS 테스트
+```bash
+# 로컬 테스트
+pytest tests/test_cors.py
+```
+
+## 주의사항
+
+1. **OpenAI API 키**: 프로덕션 환경에서는 반드시 환경변수로 관리
+2. **LLM Provider 전환**: `LLM_PROVIDER` 환경변수로 OpenAI/Ollama 전환 가능
+3. **비용 관리**: OpenAI API 사용 시 토큰 사용량 모니터링 필요
+4. **HTTPS 강제**: 프로덕션 환경에서는 모든 HTTP 요청이 HTTPS로 리다이렉트됨
+
+## 아키텍처 변경
+
+### 이전 (Ollama 전용)
+```
+RAG UseCase → Ollama 직접 호출
+```
+
+### 현재 (Provider 선택 가능)
+```
+RAG UseCase → LLMClient 인터페이스
+                ↓
+        [LLM_PROVIDER 환경변수]
+                ↓
+    ┌───────────┴───────────┐
+    ↓                        ↓
+OpenAILLMClient      OllamaLLMClient
+```
+
+## 다음 단계 (선택사항)
+
+1. **채팅 엔드포인트 OpenAI 전환**: `/v1/chat/` 엔드포인트도 OpenAI 사용 옵션 추가
+2. **비용 최적화**: 토큰 사용량 모니터링 및 캐싱 전략 수립
+3. **에러 핸들링**: OpenAI API 에러 처리 개선
+
+

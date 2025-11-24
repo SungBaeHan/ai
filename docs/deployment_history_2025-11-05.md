@@ -1,24 +1,88 @@
 # 배포 이력 - 2025-11-05
 
-## Cloudflare
+## 주요 작업 내용
 
+### 1. Cloudflare 설정
+
+#### 도메인 및 DNS
 - 도메인: arcanaverse.ai
 - Pages: https://arcanaverse.pages.dev
 - DNS: app.arcanaverse.ai / api.arcanaverse.ai 연결
 - Cloudflare Tunnel 설정 및 해제 과정 포함
 
-## Render
+### 2. Render 배포 설정
 
+#### 배포 정보
 - Dockerfile: docker/api.Dockerfile
 - Branch: prd
-- 주요 이슈: COPY assets not found → 해결
-- 환경 변수 설정 (JWT_SECRET, DB_PATH 등)
 - Deploy URL: https://arcanaverse-api.onrender.com
 
-## FastAPI 테스트
+#### 주요 이슈 및 해결
+- **COPY assets not found** → 해결
+  - Cloudflare Pages에서 정적 파일 서빙하도록 변경
+  - Dockerfile에서 assets 복사 제거 (`b22d8bb`)
+- 환경 변수 설정 (JWT_SECRET, DB_PATH 등)
 
+### 3. 프론트엔드-백엔드 연결
+
+#### 수정된 파일
+- `apps/api/main.py` - CORS 설정 추가
+- `apps/web-html/chat.html` - API 베이스 URL 변경
+- `apps/web-html/home.html` - API 베이스 URL 변경
+- `apps/web-html/my.html` - API 베이스 URL 변경
+
+#### 주요 변경사항
+- 프론트엔드를 `api.arcanaverse.ai`로 연결 (`578699b`)
+- CORS 설정 추가: Cloudflare Pages와 Render API 간 통신 허용
+- 모든 API 호출을 절대 경로로 변경
+
+### 4. Docker 설정 개선
+
+#### 수정된 파일
+- `docker/api.Dockerfile` - assets 복사 제거
+
+#### 주요 변경사항
+- Cloudflare Pages에서 정적 파일 서빙하므로 Docker 이미지에서 assets 제거
+- 이미지 크기 최적화
+
+## API 엔드포인트
+
+### 헬스체크
+- `GET /health` - 서비스 상태 확인
+- `GET /docs` - API 문서
+
+## 테스트
+
+### API 테스트
 ```bash
+# 헬스체크
 curl -I https://api.arcanaverse.ai/health
+
+# API 문서
 curl -I https://api.arcanaverse.ai/docs
 ```
 
+## 주요 커밋
+
+1. `b22d8bb` - chore: remove COPY assets (served by Cloudflare Pages)
+2. `578699b` - feat: connect frontend to api.arcanaverse.ai and add CORS config
+3. `6ad2763` - test: trigger Cloudflare Pages deploy
+4. `a832c91` - 커서 적용 버전
+
+## 배포 아키텍처
+
+```
+Cloudflare Pages (프론트엔드)
+  └─> https://app.arcanaverse.ai
+      └─> API 호출 → https://api.arcanaverse.ai
+
+Render (백엔드 API)
+  └─> https://api.arcanaverse.ai
+      └─> FastAPI 서버
+```
+
+## 주의사항
+
+1. **정적 파일 서빙**: Cloudflare Pages에서 처리하므로 Docker 이미지에 포함하지 않음
+2. **CORS 설정**: 프론트엔드와 백엔드 도메인이 다르므로 CORS 설정 필수
+3. **환경 변수**: Render에서 필수 환경 변수 설정 필요 (JWT_SECRET, DB_PATH 등)
