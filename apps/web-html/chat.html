@@ -94,7 +94,7 @@
     const API_BASE = (typeof window !== 'undefined' && window.API_BASE)
       ? window.API_BASE
       : (isLocal
-          ? 'http://localhost:8000/api'          // 로컬 개발용
+          ? 'http://localhost:8000'          // 로컬 개발용
           : 'https://api.arcanaverse.ai');   // 배포 기본값
 
   /*
@@ -323,7 +323,7 @@
     const API = (typeof window !== 'undefined' && window.API_BASE_URL)
       ? window.API_BASE_URL
       : (isLocal
-          ? 'http://localhost:8000/api'
+          ? 'http://localhost:8000'
           : 'https://api.arcanaverse.ai');
 
     console.log('[API BASE URL]:', API);

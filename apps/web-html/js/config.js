@@ -8,7 +8,7 @@
 
   const API_BASE = isProd
     ? 'https://api.arcanaverse.ai'
-    : 'http://localhost:8000/api';
+    : 'http://localhost:8000';
 
   const API_BASE_URL = API_BASE;
 
