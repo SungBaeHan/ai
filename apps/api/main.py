@@ -1,6 +1,8 @@
 # apps/api/main.py
 from apps.api import bootstrap  # noqa: F401  (sets env early)
-import os, pathlib
+import os
+import logging
+import pathlib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -9,46 +11,33 @@ from apps.api.routes import health
 from apps.api.routes import debug
 from apps.api.config import settings
 
+logger = logging.getLogger(__name__)
+
 # === 환경값 ===
 ROOT = pathlib.Path(__file__).resolve().parents[2]        # 프로젝트 루트 추정
 JSON_DIR = ROOT / "data" / "json"
 ASSETS_DIR = ROOT / "assets"
 
+# === CORS 설정 ===
+raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "")
+if raw_origins:
+    origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+else:
+    origins = []
+
+# 디버깅용 로그
+logger.info("CORS_ALLOW_ORIGINS from env = %s", raw_origins)
+logger.info("Parsed CORS origins = %s", origins)
+
 # === FastAPI 인스턴스 ===
 app = FastAPI(title="TRPG API", version="1.0.0")
 
-# === CORS 설정 ===
-# 환경변수 CORS_ALLOW_ORIGINS를 읽어서 origin 목록으로 사용
-# 비어 있으면 기본값 사용
-def get_cors_origins():
-    """CORS 허용 origin 목록을 환경변수에서 읽거나 기본값 반환"""
-    cors_env = os.getenv("CORS_ALLOW_ORIGINS", "").strip()
-    
-    if cors_env:
-        # 쉼표로 구분된 문자열을 리스트로 변환
-        origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
-        if origins:
-            print(f"[INFO] CORS origins from env: {origins}")
-            return origins
-    
-    # 기본값
-    default_origins = [
-        "http://localhost:8080",
-        "https://arcanaverse.ai",
-        "https://www.arcanaverse.ai",
-        "https://api.arcanaverse.ai"
-    ]
-    print(f"[INFO] CORS origins using defaults: {default_origins}")
-    return default_origins
-
-origins = get_cors_origins()
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=origins if origins else ["*"],  # env가 비면 임시로 전체 허용
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],     # 모든 메소드 허용 (GET, POST, OPTIONS 등)
+    allow_headers=["*"],     # 모든 헤더 허용
 )
 
 app.include_router(health.router)
