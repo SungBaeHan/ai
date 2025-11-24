@@ -12,6 +12,7 @@
   <script>
     // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
+    window.API_BASE = 'https://api.arcanaverse.ai';  // API_BASE도 함께 설정
   </script>
   <style>
     :root { color-scheme: dark; }
@@ -68,11 +69,13 @@
       typeof window !== 'undefined' &&
       (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-    const API_BASE = (typeof window !== 'undefined' && window.API_BASE)
-      ? window.API_BASE
-      : (isLocal
-          ? 'http://localhost:8000'          // 로컬 개발용
-          : 'https://api.arcanaverse.ai');   // 배포 기본값
+    const API_BASE = (typeof window !== 'undefined' && window.API_BASE_URL)
+      ? window.API_BASE_URL
+      : (typeof window !== 'undefined' && window.API_BASE)
+        ? window.API_BASE
+        : (isLocal
+            ? 'http://localhost:8000'          // 로컬 개발용
+            : 'https://api.arcanaverse.ai');   // 배포 기본값
     
     // API 실패 시 로컬 JSON 대체 경로(있다면 사용됨)
     const CANDIDATES = ['/json/characters.json','/characters.json','/static/characters.json'];
