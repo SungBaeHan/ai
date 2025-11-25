@@ -38,65 +38,15 @@ ALLOWED_ORIGINS = [
     "https://www.arcanaverse.ai",
 ]
 
-# CORS 설정 로깅
 logger.info("CORS ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
 
-# CORS 헤더 추가 헬퍼 함수
-def add_cors_headers_to_response(response, origin: str = None):
-    """모든 응답에 CORS 헤더 추가"""
-    if not origin:
-        origin = "https://www.arcanaverse.ai"  # 기본값
-    
-    # 허용된 origin이거나 www.arcanaverse.ai인 경우
-    if origin in ALLOWED_ORIGINS or "www.arcanaverse.ai" in origin or "arcanaverse.ai" in origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
-    else:
-        # 디버깅용: 일단 추가
-        response.headers["Access-Control-Allow-Origin"] = origin
-    
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Expose-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    return response
-
-# 커스텀 CORS 미들웨어 - 모든 요청에 CORS 헤더 명시적으로 추가
-@app.middleware("http")
-async def add_cors_headers_middleware(request, call_next):
-    origin = request.headers.get("origin") or request.headers.get("Origin")
-    path = request.url.path
-    
-    logger.info(f"CORS middleware: method={request.method}, origin={origin}, path={path}")
-    
-    # OPTIONS preflight 요청 처리
-    if request.method == "OPTIONS":
-        logger.info(f"CORS OPTIONS preflight from origin: {origin}, path: {path}")
-        response = JSONResponse(content={}, status_code=200)
-        response = add_cors_headers_to_response(response, origin)
-        response.headers["Access-Control-Max-Age"] = "3600"
-        return response
-    
-    # 실제 요청 처리
-    try:
-        response = await call_next(request)
-        response = add_cors_headers_to_response(response, origin)
-        return response
-    except Exception as e:
-        # 예외 발생 시에도 CORS 헤더 추가
-        logger.exception(f"Error in request {path}: {e}")
-        error_response = JSONResponse(
-            content={"detail": str(e)},
-            status_code=500
-        )
-        return add_cors_headers_to_response(error_response, origin)
-
-# FastAPI의 기본 CORS 미들웨어도 추가 (이중 보안)
+# 👉 커스텀 미들웨어는 제거하고, FastAPI CORSMiddleware 하나만 사용한다.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,  # ✅ 쿠키/인증정보 허용
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
+    allow_credentials=True,          # 쿠키/인증정보 허용
+    allow_methods=["*"],             # 모든 메서드 허용
+    allow_headers=["*"],             # 모든 헤더 허용
     expose_headers=["*"],
     max_age=3600,
 )
@@ -152,35 +102,31 @@ app.include_router(migrate.router)
 from adapters.persistence.mongo.factory import create_character_repository
 repo = create_character_repository()
 
-# === 예외 핸들러 - 모든 예외에 CORS 헤더 추가 ===
-
+# === 예외 핸들러 ===
 @app.exception_handler(FastAPIHTTPException)
 async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
-    origin = request.headers.get("origin") or request.headers.get("Origin")
     response = JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail}
     )
-    return add_cors_headers_to_response(response, origin)
+    return response
 
 @app.exception_handler(StarletteHTTPException)
 async def starlette_exception_handler(request: Request, exc: StarletteHTTPException):
-    origin = request.headers.get("origin") or request.headers.get("Origin")
     response = JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail}
     )
-    return add_cors_headers_to_response(response, origin)
+    return response
 
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
-    origin = request.headers.get("origin") or request.headers.get("Origin")
     logger.exception(f"Unhandled exception: {exc}")
     response = JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"}
     )
-    return add_cors_headers_to_response(response, origin)
+    return response
 
 # === Startup Hook ===
 @app.on_event("startup")
