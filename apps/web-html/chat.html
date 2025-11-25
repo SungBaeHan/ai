@@ -214,38 +214,49 @@
 
     // 백엔드 LLM 호출
     async function askLLM(message, mode='trpg', choices=0){
-      const token = getToken();
-      const headers = { 'Content-Type': 'application/json' };
-      
-      // 로그인 토큰이 있으면 헤더에 추가
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const payload = {
-        message, mode,
-        model:'trpg-gen', polish_model:'trpg-polish', choices,
-        character_id: CURRENT_CHAR?.id ?? null,
-        character: CURRENT_CHAR ? {
-          id: CURRENT_CHAR.id, name: CURRENT_CHAR.name, archetype: CURRENT_CHAR.archetype,
-          summary: CURRENT_CHAR.summary, shortBio: CURRENT_CHAR.shortBio, longBio: CURRENT_CHAR.longBio,
-          background: CURRENT_CHAR.background, scenario: CURRENT_CHAR.scenario, system_prompt: CURRENT_CHAR.system_prompt,
-          greeting: CURRENT_CHAR.greeting, tags: CURRENT_CHAR.tags,
-        } : null,
-      };
       try {
-        const r = await fetch(`${API_BASE}/v1/chat/`, { method:'POST', headers, body: JSON.stringify(payload) });
+        const token = getToken();
+        const headers = { 'Content-Type': 'application/json' };
+        
+        // 로그인 토큰이 있으면 헤더에 추가
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+        
+        const payload = {
+          message, mode,
+          model:'trpg-gen', polish_model:'trpg-polish', choices,
+          character_id: CURRENT_CHAR?.id ?? null,
+          character: CURRENT_CHAR ? {
+            id: CURRENT_CHAR.id, name: CURRENT_CHAR.name, archetype: CURRENT_CHAR.archetype,
+            summary: CURRENT_CHAR.summary, shortBio: CURRENT_CHAR.shortBio, longBio: CURRENT_CHAR.longBio,
+            background: CURRENT_CHAR.background, scenario: CURRENT_CHAR.scenario, system_prompt: CURRENT_CHAR.system_prompt,
+            greeting: CURRENT_CHAR.greeting, tags: CURRENT_CHAR.tags,
+          } : null,
+        };
+        
+        const url = `${API_BASE}/v1/chat/`;
+        console.log('[askLLM] Request URL:', url);
+        console.log('[askLLM] API_BASE:', API_BASE);
+        console.log('[askLLM] Payload:', payload);
+        
+        const r = await fetch(url, { method:'POST', headers, body: JSON.stringify(payload) });
+        
+        console.log('[askLLM] Response status:', r.status, r.statusText);
+        console.log('[askLLM] Response headers:', Object.fromEntries(r.headers.entries()));
         
         if (!r.ok) {
           const errorText = await r.text();
-          console.error(`[HTTP ${r.status}] ${errorText}`);
+          console.error(`[askLLM] HTTP ${r.status} Error:`, errorText);
           throw new Error(`HTTP ${r.status}: ${errorText || 'Server error'}`);
         }
         
         const j = await r.json();
+        console.log('[askLLM] Response JSON:', j);
         return (j?.answer||'').trim();
       } catch(e) {
-        console.error('[chat fetch error]', e);
+        console.error('[askLLM] Error:', e);
+        console.error('[askLLM] Error stack:', e.stack);
         const errorMsg = e.message || String(e);
         return `(오류 발생) ${errorMsg}`;
       }
@@ -292,9 +303,23 @@
         
         const v=ta.value.trim(); if(!v)return;
         addUser(v); ta.value=''; btn.disabled=true;
-        try{ const ans=await askLLM(v,'trpg'); addBot(ans||'(응답이 비어있습니다)'); }
-        catch(e){ addBot('서버 오류: '+e.message); }
-        finally{ btn.disabled=false; ta.focus(); }
+        
+        console.log('[send] Starting API call with message:', v);
+        console.log('[send] API_BASE:', API_BASE);
+        
+        try{ 
+          const ans=await askLLM(v,'trpg');
+          console.log('[send] Received answer:', ans);
+          addBot(ans||'(응답이 비어있습니다)');
+        }
+        catch(e){ 
+          console.error('[send] Error caught:', e);
+          addBot('서버 오류: '+e.message);
+        }
+        finally{ 
+          btn.disabled=false; 
+          ta.focus(); 
+        }
       }
       
       // 입력 필드 포커스 시 로그인 체크
