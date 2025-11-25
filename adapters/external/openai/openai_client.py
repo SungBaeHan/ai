@@ -5,6 +5,7 @@ OpenAI API 클라이언트 유틸리티 모듈
 
 from typing import List, Dict, Optional
 import os
+import time
 import logging
 from openai import OpenAI
 
@@ -59,7 +60,7 @@ def generate_chat_completion(
         messages: 메시지 리스트 [{"role": "system"|"user"|"assistant", "content": "..."}]
         model: 사용할 모델명 (기본값: 환경변수 OPENAI_MODEL 또는 "gpt-4o-mini")
         temperature: 생성 온도 (0.0 ~ 2.0, 기본값: 0.7)
-        max_tokens: 최대 토큰 수 (기본값: 64)
+        max_tokens: 최대 토큰 수 (기본값: 32)
     
     Returns:
         assistant의 최종 reply 텍스트
@@ -71,15 +72,28 @@ def generate_chat_completion(
     if not client:
         raise ValueError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
     
-    # max_tokens가 명시되지 않으면 기본값 64 사용
+    # max_tokens가 명시되지 않으면 기본값 32 사용
     if max_tokens is None:
-        max_tokens = 64
+        max_tokens = 32
     
+    # 실제 사용할 모델명 결정
+    actual_model = model or DEFAULT_MODEL
+    
+    # OpenAI 호출 시간 측정 및 로깅
+    start = time.perf_counter()
     response = client.chat.completions.create(
-        model=model or DEFAULT_MODEL,
+        model=actual_model,
         messages=messages,
         temperature=temperature,
         max_tokens=max_tokens,
+    )
+    elapsed = time.perf_counter() - start
+    
+    logger.info(
+        "OpenAI chat completed in %.2fs (model=%s, max_tokens=%s)",
+        elapsed,
+        actual_model,
+        max_tokens,
     )
     
     return response.choices[0].message.content or ""

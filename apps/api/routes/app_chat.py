@@ -287,12 +287,14 @@ async def _invoke_llm_with_timeout(llm, messages, timeout: float = 20.0):
     ChatOllama.invoke 를 별도 스레드에서 실행하면서,
     전체 호출 시간을 timeout 초로 강제 제한한다.
     """
+    logger.info("Calling LLM with overall timeout=%.1fs", timeout)
     try:
         # 블로킹 호출을 스레드풀로 넘기고, asyncio.wait_for 로 전체 시간 제한
         raw = await asyncio.wait_for(
             asyncio.to_thread(llm.invoke, messages),
             timeout=timeout,
         )
+        logger.info("LLM call finished within timeout.")
         return raw
     except asyncio.TimeoutError:
         logger.exception("❌ LLM overall timeout (>%s sec)", timeout)
@@ -385,6 +387,12 @@ async def chat(req: Request):
                 char_ctx, char_rules = ("", "")
 
         # 3) 메인 LLM 설정 (Ollama)
+        logger.info(
+            "/v1/chat using model=%s, LLM_TIMEOUT=%.1fs, LLM_NUM_PREDICT=%s",
+            use_model,
+            LLM_TIMEOUT,
+            LLM_NUM_PREDICT,
+        )
         llm = ChatOllama(
             base_url=OLLAMA_BASE,
             model=use_model,

@@ -214,25 +214,25 @@
     // 백엔드 LLM 호출
     async function askLLM(message, mode='trpg', choices=0){
       try {
-        const token = getToken();
-        const headers = { 'Content-Type': 'application/json' };
-        
-        // 로그인 토큰이 있으면 헤더에 추가
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
-        
-        const payload = {
-          message, mode,
-          model:'trpg-gen', polish_model:'trpg-polish', choices,
-          character_id: CURRENT_CHAR?.id ?? null,
-          character: CURRENT_CHAR ? {
-            id: CURRENT_CHAR.id, name: CURRENT_CHAR.name, archetype: CURRENT_CHAR.archetype,
-            summary: CURRENT_CHAR.summary, shortBio: CURRENT_CHAR.shortBio, longBio: CURRENT_CHAR.longBio,
-            background: CURRENT_CHAR.background, scenario: CURRENT_CHAR.scenario, system_prompt: CURRENT_CHAR.system_prompt,
-            greeting: CURRENT_CHAR.greeting, tags: CURRENT_CHAR.tags,
-          } : null,
-        };
+      const token = getToken();
+      const headers = { 'Content-Type': 'application/json' };
+      
+      // 로그인 토큰이 있으면 헤더에 추가
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const payload = {
+        message, mode,
+        model:'trpg-gen', polish_model:'trpg-polish', choices,
+        character_id: CURRENT_CHAR?.id ?? null,
+        character: CURRENT_CHAR ? {
+          id: CURRENT_CHAR.id, name: CURRENT_CHAR.name, archetype: CURRENT_CHAR.archetype,
+          summary: CURRENT_CHAR.summary, shortBio: CURRENT_CHAR.shortBio, longBio: CURRENT_CHAR.longBio,
+          background: CURRENT_CHAR.background, scenario: CURRENT_CHAR.scenario, system_prompt: CURRENT_CHAR.system_prompt,
+          greeting: CURRENT_CHAR.greeting, tags: CURRENT_CHAR.tags,
+        } : null,
+      };
         
         const url = `${API_BASE_URL}/v1/chat/`;
         console.log('[askLLM] Request URL:', url);
@@ -255,9 +255,9 @@
           throw new Error(`HTTP ${r.status}: ${errorText || 'Server error'}`);
         }
         
-        const j = await r.json();
+      const j = await r.json();
         console.log('[askLLM] Response JSON:', j);
-        return (j?.answer||'').trim();
+      return (j?.answer||'').trim();
       } catch(e) {
         console.error('[askLLM] Error:', e);
         console.error('[askLLM] Error stack:', e.stack);

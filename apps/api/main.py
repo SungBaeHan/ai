@@ -34,9 +34,9 @@ ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     # 프로덕션 도메인 (Cloudflare Pages)
-    "https://arcanaverse.ai",
-    "https://www.arcanaverse.ai",
-]
+        "https://arcanaverse.ai",
+        "https://www.arcanaverse.ai",
+    ]
 
 logger.info("CORS ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
 
