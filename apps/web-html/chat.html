@@ -233,10 +233,22 @@
           greeting: CURRENT_CHAR.greeting, tags: CURRENT_CHAR.tags,
         } : null,
       };
-      const r = await fetch(`${API_BASE}/v1/chat/`, { method:'POST', headers, body: JSON.stringify(payload) });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const j = await r.json();
-      return (j?.answer||'').trim();
+      try {
+        const r = await fetch(`${API_BASE}/v1/chat/`, { method:'POST', headers, body: JSON.stringify(payload) });
+        
+        if (!r.ok) {
+          const errorText = await r.text();
+          console.error(`[HTTP ${r.status}] ${errorText}`);
+          throw new Error(`HTTP ${r.status}: ${errorText || 'Server error'}`);
+        }
+        
+        const j = await r.json();
+        return (j?.answer||'').trim();
+      } catch(e) {
+        console.error('[chat fetch error]', e);
+        const errorMsg = e.message || String(e);
+        return `(오류 발생) ${errorMsg}`;
+      }
     }
 
     // 초기화
