@@ -242,9 +242,18 @@ def postprocess_trpg(text: str, desired_choices: int = 0) -> str:
 
 def polish(text: str, model: Optional[str] = None) -> str:
     try:
-        polisher = ChatOllama(base_url=OLLAMA_BASE, model=(model or DEFAULT_POLISH),
-                              temperature=0.3, top_p=0.9, timeout=120,
-                              model_kwargs={"keep_alive":"30m","num_predict":256})
+        polisher = ChatOllama(
+            base_url=OLLAMA_BASE,
+            model=(model or DEFAULT_POLISH),
+            temperature=0.3,
+            top_p=0.9,
+            # 🔻 폴리싱은 가볍게, 타임아웃 짧게
+            timeout=20,
+            model_kwargs={
+                "keep_alive": "30m",
+                "num_predict": 128,
+            },
+        )
         msg = [
             {"role":"system","content":"너는 한국어 문장 교정 전문가다. 자연스러운 문장으로 다듬어라."},
             {"role":"user","content": POLISH_PROMPT.format(TEXT=text)},
@@ -276,7 +285,14 @@ router = APIRouter()
 
 @router.post("/")
 async def chat(req: Request):
+    """
+    /v1/chat 엔드포인트 (TRPG + QA 겸용)
+    - Ollama + Qdrant 기반
+    - Cloudflare 524 방지를 위해 timeout/num_predict 줄이고,
+      LLM 에러/타임아웃 시 즉시 500으로 응답한다.
+    """
     try:
+        # 요청 JSON 파싱 (실패 시 빈 dict)
         try:
             data = await req.json()
         except Exception:
@@ -284,17 +300,19 @@ async def chat(req: Request):
 
         q = (data.get("message") or data.get("prompt") or data.get("text") or data.get("q") or "").strip()
         mode = (data.get("mode") or "qa").strip().lower()
-        use_model   = data.get("model") or DEFAULT_GEN
-        polish_model= data.get("polish_model") or DEFAULT_POLISH
-        temperature = float(data.get("temperature") or 0.7)
-        top_p       = float(data.get("top_p") or 0.9)
-        choices     = int(data.get("choices") or 0)
+        use_model    = data.get("model") or DEFAULT_GEN
+        polish_model = data.get("polish_model") or DEFAULT_POLISH
+        temperature  = float(data.get("temperature") or 0.7)
+        top_p        = float(data.get("top_p") or 0.9)
+        choices      = int(data.get("choices") or 0)
 
-        character   = data.get("character") or None
-        character_id= data.get("character_id") or ((character.get("id") if isinstance(character, dict) else None))
+        character    = data.get("character") or None
+        character_id = data.get("character_id") or ((character.get("id") if isinstance(character, dict) else None))
 
-        sid = get_or_create_sid(req)
+        sid  = get_or_create_sid(req)
         sess = SESSIONS[sid]
+
+        # 캐릭터별 히스토리 키
         char_key = "default"
         if isinstance(character, dict):
             char_key = character.get("id") or character.get("name") or "default"
@@ -302,55 +320,93 @@ async def chat(req: Request):
         sess.setdefault(key, [])
 
         if not q:
-            return JSONResponse({"answer": ""}, headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
+            # 빈 질문이면 그냥 빈 응답
+            return JSONResponse(
+                {"answer": ""},
+                headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"},
+            )
 
+        # RAG 컨텍스트
         context = "" if mode == "trpg" else retrieve_context(q)
-        char_ctx, char_rules = ("","")
+
+        # 캐릭터 컨텍스트/룰
+        char_ctx, char_rules = ("", "")
         if mode == "trpg" and isinstance(character, dict):
             try:
                 char_ctx, char_rules = character_to_context(dict(character))
             except Exception:
-                char_ctx, char_rules = ("","")
+                char_ctx, char_rules = ("", "")
 
+        # 🔻 메인 LLM (TRPG/QA 공용)
         llm = ChatOllama(
-            base_url=OLLAMA_BASE, model=use_model, timeout=120,
-            temperature=temperature, top_p=top_p,
+            base_url=OLLAMA_BASE,
+            model=use_model,
+            # Cloudflare 524 방지를 위한 짧은 타임아웃
+            timeout=30,
+            temperature=temperature,
+            top_p=top_p,
             repeat_penalty=PRESET.get("repeat_penalty", 1.25),
-            model_kwargs={"keep_alive":"30m", "num_predict":256},
+            model_kwargs={
+                "keep_alive": "30m",
+                # 한 번에 뽑는 토큰 수를 줄여 응답 시간 감소
+                "num_predict": 128,
+            },
         )
 
-        messages = build_messages(mode, sess[key], q, context, char_ctx, char_rules, choices=choices)
+        messages = build_messages(
+            mode=mode,
+            history=sess[key],
+            user_msg=q,
+            context=context,
+            char_ctx=char_ctx,
+            char_rules=char_rules,
+            choices=choices,
+        )
 
+        # 🔻 LLM 호출부 – 에러/타임아웃 시 즉시 500으로 처리
         try:
             raw = llm.invoke(messages)
             text = getattr(raw, "content", str(raw))
         except Exception as e:
-            logger.exception(f"❌ LLM chat failed: {e}")
-            error_msg = str(e)
-            # 모델이 없을 때 더 명확한 메시지 제공
-            if "not found" in error_msg.lower() or "404" in error_msg:
-                error_msg = f"모델 '{use_model}'이 Ollama에 설치되어 있지 않습니다. Ollama 컨테이너에서 'ollama pull {use_model}' 명령을 실행해주세요."
-            return JSONResponse({"answer": f"(LLM 호출 오류) {error_msg}"},
-                                headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
+            logger.exception("❌ LLM invoke timeout or error: %s", e)
+            # Cloudflare 524로 넘어가기 전에 바로 500 응답
+            raise HTTPException(
+                status_code=500,
+                detail="LLM 처리 중 오류 또는 타임아웃이 발생했습니다.",
+            )
 
+        # 🔻 후처리 (TRPG 장면 + 선택지 + 폴리싱)
         if mode == "trpg":
             text = postprocess_trpg(text, desired_choices=choices)
             text = polish(text, model=polish_model)
         elif re.match(r"^\s*(?:[-•]|\(?\d+\)?[.)])\s+\S", text):
+            # QA 모드인데 목록/불릿 형태로 떨어진 경우도 TRPG 스타일 후처리
             text = postprocess_trpg(text, desired_choices=choices)
             text = polish(text, model=polish_model)
 
+        # 🔻 히스토리 관리
         user_text = q if mode != "trpg" else f"(플레이어의 의도/행동: {q})"
-        sess[key].extend([{"role":"user","content":user_text},{"role":"assistant","content":text}])
-        sess[key] = sess[key][-MAX_TURNS * 2:]
+        sess[key].extend(
+            [
+                {"role": "user", "content": user_text},
+                {"role": "assistant", "content": text},
+            ]
+        )
+        sess[key] = sess[key][-MAX_TURNS * 2 :]
 
-        return JSONResponse({"answer": text, "sid": sid},
-                            headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
+        return JSONResponse(
+            {"answer": text, "sid": sid},
+            headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"},
+        )
+
+    except HTTPException:
+        # 위에서 올린 HTTPException은 그대로 전달
+        raise
     except Exception as e:
-        logger.exception("🔥 /v1/chat/ 라우터 내부 오류 발생!")
+        logger.exception("🔥 /v1/chat/ 라우터 내부 오류 발생! %s", e)
         raise HTTPException(
             status_code=500,
-            detail=f"Internal Chat Error: {str(e)}"
+            detail=f"Internal Chat Error: {str(e)}",
         )
 
 @router.post("/reset")

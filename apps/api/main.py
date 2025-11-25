@@ -83,7 +83,7 @@ if settings.is_sqlite:
 
 # === 라우터 등록 ===
 from apps.api.routes import characters                 # 캐릭터 API
-from apps.api.routes import chat as chat_router    # /v1/chat
+from apps.api.routes import app_chat as chat_router    # /v1/chat (TRPG LLM)
 from apps.api.routes import ask as ask_router      # /v1/ask
 from apps.api.routes import auth as auth_router    # /v1/auth
 from apps.api.routes import auth_google            # /v1/auth/google
