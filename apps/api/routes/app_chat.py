@@ -29,6 +29,15 @@ OLLAMA_BASE     = os.getenv("OLLAMA_HOST", "http://ollama:11434")
 DEFAULT_GEN     = os.getenv("OLLAMA_MODEL", "trpg-gen")
 DEFAULT_POLISH  = os.getenv("OLLAMA_POLISH_MODEL", "trpg-polish")
 
+# LLM 튜닝 파라미터 (환경변수로도 오버라이드 가능)
+LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "25"))          # 메인 LLM 전체 타임아웃 (초)
+LLM_NUM_PREDICT = int(os.getenv("LLM_NUM_PREDICT", "96"))    # 메인 LLM 토큰 수
+POLISH_TIMEOUT = float(os.getenv("POLISH_TIMEOUT", "10"))    # 폴리싱 타임아웃 (초)
+POLISH_NUM_PREDICT = int(os.getenv("POLISH_NUM_PREDICT", "64"))
+
+# 폴리싱 사용 여부 (기본 OFF)
+ENABLE_POLISH = os.getenv("ENABLE_POLISH", "0") == "1"
+
 SAFE_SCENE_FILL   = int(os.getenv("SAFE_SCENE_FILL",   "0"))
 SAFE_MIN_CHOICES  = int(os.getenv("SAFE_MIN_CHOICES", "0"))
 DEFAULT_CHOICES   = ["조용히 주변을 살핀다","가까운 사람에게 말을 건다","잠시 기다리며 상황을 본다"]
@@ -248,11 +257,10 @@ def polish(text: str, model: Optional[str] = None) -> str:
             model=(model or DEFAULT_POLISH),
             temperature=0.3,
             top_p=0.9,
-            # 🔻 폴리싱은 가볍게, 타임아웃 짧게
-            timeout=20,
+            timeout=POLISH_TIMEOUT,
             model_kwargs={
                 "keep_alive": "30m",
-                "num_predict": 128,
+                "num_predict": POLISH_NUM_PREDICT,
             },
         )
         msg = [
@@ -378,15 +386,13 @@ async def chat(req: Request):
         llm = ChatOllama(
             base_url=OLLAMA_BASE,
             model=use_model,
-            # 개별 HTTP 타임아웃(transport)도 30초 정도로 둔다.
-            timeout=30,
+            timeout=LLM_TIMEOUT,
             temperature=temperature,
             top_p=top_p,
             repeat_penalty=PRESET.get("repeat_penalty", 1.25),
             model_kwargs={
                 "keep_alive": "30m",
-                # 한 번에 생성할 토큰 수를 줄여 응답 시간 단축
-                "num_predict": 128,
+                "num_predict": LLM_NUM_PREDICT,
             },
         )
 
@@ -400,18 +406,27 @@ async def chat(req: Request):
             choices=choices,
         )
 
-        # 4) LLM 호출 (전체 20초 제한)
-        raw = await _invoke_llm_with_timeout(llm, messages, timeout=20.0)
+        # 4) LLM 호출 (전체 타임아웃 제한)
+        raw = await _invoke_llm_with_timeout(llm, messages, timeout=LLM_TIMEOUT)
         text = getattr(raw, "content", str(raw))
 
         # 5) 후처리 (TRPG 장면 + 선택지 + 폴리싱)
+        # 요청에서 polish 플래그를 받을 수 있게 (기본값: None → 상수 ENABLE_POLISH 사용)
+        polish_flag = data.get("polish")
+        if polish_flag is None:
+            use_polish = ENABLE_POLISH  # 환경설정 기본값
+        else:
+            use_polish = bool(polish_flag)
+
         if mode == "trpg":
             text = postprocess_trpg(text, desired_choices=choices)
-            text = polish(text, model=polish_model)
+            if use_polish:
+                text = polish(text, model=polish_model)
         elif re.match(r"^\s*(?:[-•]|\(?\d+\)?[.)])\s+\S", text):
             # QA 모드인데 목록/불릿 형태면 TRPG 스타일 후처리
             text = postprocess_trpg(text, desired_choices=choices)
-            text = polish(text, model=polish_model)
+            if use_polish:
+                text = polish(text, model=polish_model)
 
         # 6) 히스토리 업데이트
         user_text = q if mode != "trpg" else f"(플레이어의 의도/행동: {q})"
