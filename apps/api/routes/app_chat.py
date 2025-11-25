@@ -21,7 +21,9 @@ QDRANT_URL   = os.getenv("QDRANT_URL", "http://localhost:6333")
 COLLECTION   = os.getenv("COLLECTION", "my_docs")
 SESSION_COOKIE = "sid"
 SESSION_TTL  = 60 * 60 * 6
-MAX_TURNS    = 12
+# 한 캐릭터/모드당 유지할 최근 턴 수
+# (유저+AI 1쌍을 1턴으로 봄)
+MAX_TURNS      = 3
 
 SESSIONS: Dict[str, Dict[str, Any]] = {}
 
@@ -43,8 +45,8 @@ SAFE_MIN_CHOICES  = int(os.getenv("SAFE_MIN_CHOICES", "0"))
 DEFAULT_CHOICES   = ["조용히 주변을 살핀다","가까운 사람에게 말을 건다","잠시 기다리며 상황을 본다"]
 
 PRESET = dict(temperature=0.9, top_p=0.95, repeat_penalty=1.25)
-MAX_TURNS_QA   = 12
-MAX_TURNS_TRPG = 6
+MAX_TURNS_QA   = 3
+MAX_TURNS_TRPG = 3
 
 BAD_PATTERNS = [(r'하고 있습니다','하고 있다'),(r'합니다\.', '해요.'),(r'합니다\b','해요')]
 

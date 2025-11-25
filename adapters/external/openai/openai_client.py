@@ -24,7 +24,7 @@ base_url = (
 )
 
 # 3) Model
-model_name = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
+model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 # 4) 디버깅 로그
 if not api_key:
@@ -57,9 +57,9 @@ def generate_chat_completion(
     
     Args:
         messages: 메시지 리스트 [{"role": "system"|"user"|"assistant", "content": "..."}]
-        model: 사용할 모델명 (기본값: 환경변수 OPENAI_MODEL 또는 "gpt-4.1-mini")
+        model: 사용할 모델명 (기본값: 환경변수 OPENAI_MODEL 또는 "gpt-4o-mini")
         temperature: 생성 온도 (0.0 ~ 2.0, 기본값: 0.7)
-        max_tokens: 최대 토큰 수 (기본값: None, 모델 기본값 사용)
+        max_tokens: 최대 토큰 수 (기본값: 64)
     
     Returns:
         assistant의 최종 reply 텍스트
@@ -70,6 +70,10 @@ def generate_chat_completion(
     """
     if not client:
         raise ValueError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
+    
+    # max_tokens가 명시되지 않으면 기본값 64 사용
+    if max_tokens is None:
+        max_tokens = 64
     
     response = client.chat.completions.create(
         model=model or DEFAULT_MODEL,
