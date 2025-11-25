@@ -19,6 +19,7 @@ JSON_DIR = ROOT / "data" / "json"
 ASSETS_DIR = ROOT / "assets"
 
 # === CORS 설정 ===
+# 🔧 Add CORS fix: allow both arcanaverse.ai and www.arcanaverse.ai
 raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "")
 if raw_origins:
     origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
@@ -32,12 +33,19 @@ logger.info("Parsed CORS origins = %s", origins)
 # === FastAPI 인스턴스 ===
 app = FastAPI(title="TRPG API", version="1.0.0")
 
+# Default allowed origins when CORS_ALLOW_ORIGINS is not set
+default_origins = [
+    "https://arcanaverse.ai",
+    "https://www.arcanaverse.ai",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins else ["*"],  # env가 비면 임시로 전체 허용
+    allow_origins=origins if origins else default_origins,
     allow_credentials=True,
     allow_methods=["*"],     # 모든 메소드 허용 (GET, POST, OPTIONS 등)
     allow_headers=["*"],     # 모든 헤더 허용
+    expose_headers=["*"],    # 모든 응답 헤더 노출
 )
 
 app.include_router(health.router)
