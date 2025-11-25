@@ -64,25 +64,23 @@
   </div>
 
   <script>
-    // API_BASE는 config.js에서 설정된 window.API_BASE를 사용
-    const isLocal =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-    const API_BASE = (typeof window !== 'undefined' && window.API_BASE_URL)
-      ? window.API_BASE_URL
-      : (typeof window !== 'undefined' && window.API_BASE)
-        ? window.API_BASE
-        : (isLocal
-            ? 'http://localhost:8000'          // 로컬 개발용
-            : 'https://api.arcanaverse.ai');   // 배포 기본값
+    // 절대경로 API_BASE_URL 상수 정의
+    const API_BASE_URL =
+      window.location.hostname === "arcanaverse.ai" ||
+      window.location.hostname === "www.arcanaverse.ai"
+        ? "https://api.arcanaverse.ai"
+        : "http://localhost:8000";
     
     // API 실패 시 로컬 JSON 대체 경로(있다면 사용됨)
     const CANDIDATES = ['/json/characters.json','/characters.json','/static/characters.json'];
 
         // 서버 API에서 캐릭터 목록 로드
     async function loadFromApi() {
-      const r = await fetch(`${API_BASE}/v1/characters?offset=0&limit=200`);
+      const r = await fetch(`${API_BASE_URL}/v1/characters?offset=0&limit=200`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const j = await r.json();
       return j.items || [];
@@ -224,16 +222,10 @@
       (window.location.hostname === 'localhost' ||
        window.location.hostname === '127.0.0.1');
 
-    const API = (typeof window !== 'undefined' && window.API_BASE_URL)
-      ? window.API_BASE_URL
-      : (isLocal
-          ? 'http://localhost:8000'
-          : 'https://api.arcanaverse.ai');
+    console.log('[API BASE URL]:', API_BASE_URL);
+    const url = `${API_BASE_URL}/assets/images?prefix=char/&limit=60&signed=true`;
 
-    console.log('[API BASE URL]:', API);
-    const url = `${API}/assets/images?prefix=char/&limit=60&signed=true`;
-
-    const res = await fetch(url, { credentials: 'omit' });
+    const res = await fetch(url, { credentials: 'include' });
     const data = await res.json();
 
     const $g = document.getElementById('gallery') || (() => {

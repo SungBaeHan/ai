@@ -220,18 +220,12 @@
   </div>
 
   <script>
-    // API_BASE는 window.API_BASE_URL을 우선 사용, 없으면 window.API_BASE 사용
-    const isLocal =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
-    const API_BASE = (typeof window !== 'undefined' && window.API_BASE_URL)
-      ? window.API_BASE_URL
-      : (typeof window !== 'undefined' && window.API_BASE)
-        ? window.API_BASE
-        : (isLocal
-            ? 'http://localhost:8000'          // 로컬 개발용
-            : 'https://api.arcanaverse.ai');   // 배포 기본값
+    // 절대경로 API_BASE_URL 상수 정의
+    const API_BASE_URL =
+      window.location.hostname === "arcanaverse.ai" ||
+      window.location.hostname === "www.arcanaverse.ai"
+        ? "https://api.arcanaverse.ai"
+        : "http://localhost:8000";
     
          // 토큰 관리
      const TOKEN_KEY = 'access_token';
@@ -301,8 +295,9 @@
         try {
           const token = response.credential; // Google Identity Services에서 받은 JWT 토큰
           // 백엔드에 토큰 전송하여 검증 및 사용자 정보 받기
-          const fetchResponse = await fetch(`${API_BASE}/v1/auth/google`, {
+          const fetchResponse = await fetch(`${API_BASE_URL}/v1/auth/google`, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token })
           });
