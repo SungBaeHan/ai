@@ -18,43 +18,31 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]        # 프로젝트 루트 
 JSON_DIR = ROOT / "data" / "json"
 ASSETS_DIR = ROOT / "assets"
 
-# === CORS 설정 ===
-# --- Updated CORS Settings ---
-raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "")
-if raw_origins:
-    origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
-else:
-    origins = []
-
-# 디버깅용 로그
-logger.info("CORS_ALLOW_ORIGINS from env = %s", raw_origins)
-logger.info("Parsed CORS origins = %s", origins)
-
 # === FastAPI 인스턴스 ===
 app = FastAPI(title="TRPG API", version="1.0.0")
 
-# Default allowed origins when CORS_ALLOW_ORIGINS is not set
-default_origins = [
-    # Local dev
+# ✅ 허용할 Origin 목록 (로컬 + 배포)
+ALLOWED_ORIGINS = [
+    # 로컬 개발
     "http://localhost",
+    "http://127.0.0.1",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
-    # Production domains
+    # 프로덕션 도메인 (Cloudflare Pages)
     "https://arcanaverse.ai",
-    "https://www.arcanaverse.ai",  # <-- REQUIRED for Cloudflare Pages
+    "https://www.arcanaverse.ai",
 ]
 
+# 기존 CORS 설정 부분 전부 지우고, 딱 이 한 번만 추가되게!
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins else default_origins,
-    allow_credentials=True,
-    allow_methods=["*"],     # 모든 메소드 허용 (GET, POST, OPTIONS 등)
-    allow_headers=["*"],     # 모든 헤더 허용
-    expose_headers=["*"],    # 모든 응답 헤더 노출
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=False,  # 🔴 일단 쿠키는 안 쓰는 걸로, CORS 단순화
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-# --- End Updated CORS Settings ---
 
 app.include_router(health.router)
 app.include_router(debug.router, prefix="/v1")
