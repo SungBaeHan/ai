@@ -39,13 +39,15 @@ ALLOWED_ORIGINS = [
 logger.info("CORS ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
 
 # 기존 CORS 설정 부분 전부 지우고, 딱 이 한 번만 추가되게!
+# CORS 미들웨어는 가장 먼저 추가해야 합니다 (다른 미들웨어보다 먼저 실행되도록)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,  # 🔴 일단 쿠키는 안 쓰는 걸로, CORS 단순화
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],  # 모든 응답 헤더 노출
+    max_age=3600,  # preflight 요청 캐시 시간 (1시간)
 )
 
 app.include_router(health.router)
