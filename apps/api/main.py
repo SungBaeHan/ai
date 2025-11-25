@@ -57,7 +57,7 @@ def add_cors_headers_to_response(response, origin: str = None):
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
     response.headers["Access-Control-Allow-Headers"] = "*"
     response.headers["Access-Control-Expose-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "false"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
 # 커스텀 CORS 미들웨어 - 모든 요청에 CORS 헤더 명시적으로 추가
@@ -94,7 +94,7 @@ async def add_cors_headers_middleware(request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=False,
+    allow_credentials=True,  # ✅ 쿠키/인증정보 허용
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
     expose_headers=["*"],
