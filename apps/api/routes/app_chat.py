@@ -12,7 +12,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from qdrant_client import QdrantClient
-from langchain_ollama import ChatOllama
+# from langchain_ollama import ChatOllama  # OpenAI로 통일하여 주석 처리
+from langchain_openai import ChatOpenAI
 from adapters.external.embedding.sentence_transformer import embed
 
 logger = logging.getLogger(__name__)
@@ -27,9 +28,10 @@ MAX_TURNS      = 3
 
 SESSIONS: Dict[str, Dict[str, Any]] = {}
 
-OLLAMA_BASE     = os.getenv("OLLAMA_HOST", "http://ollama:11434")
-DEFAULT_GEN     = os.getenv("OLLAMA_MODEL", "trpg-gen")
-DEFAULT_POLISH  = os.getenv("OLLAMA_POLISH_MODEL", "trpg-polish")
+# OpenAI로 통일하여 Ollama 관련 상수는 주석 처리
+# OLLAMA_BASE     = os.getenv("OLLAMA_HOST", "http://ollama:11434")
+# DEFAULT_GEN     = os.getenv("OLLAMA_MODEL", "trpg-gen")
+DEFAULT_POLISH  = os.getenv("OLLAMA_POLISH_MODEL", "trpg-polish")  # polish 함수에서 사용 (현재는 OpenAI 사용)
 
 # LLM 튜닝 파라미터 (환경변수로도 오버라이드 가능)
 LLM_TIMEOUT = float(os.getenv("LLM_TIMEOUT", "25"))          # 메인 LLM 전체 타임아웃 (초)
@@ -253,17 +255,14 @@ def postprocess_trpg(text: str, desired_choices: int = 0) -> str:
     return out.strip()
 
 def polish(text: str, model: Optional[str] = None) -> str:
+    """
+    폴리싱 함수 - OpenAI로 변경
+    """
     try:
-        polisher = ChatOllama(
-            base_url=OLLAMA_BASE,
-            model=(model or DEFAULT_POLISH),
+        polisher = ChatOpenAI(
+            model="gpt-4o-mini",
             temperature=0.3,
-            top_p=0.9,
-            timeout=POLISH_TIMEOUT,
-            model_kwargs={
-                "keep_alive": "30m",
-                "num_predict": POLISH_NUM_PREDICT,
-            },
+            max_tokens=32,
         )
         msg = [
             {"role":"system","content":"너는 한국어 문장 교정 전문가다. 자연스러운 문장으로 다듬어라."},
@@ -284,7 +283,7 @@ def polish(text: str, model: Optional[str] = None) -> str:
 
 async def _invoke_llm_with_timeout(llm, messages, timeout: float = 20.0):
     """
-    ChatOllama.invoke 를 별도 스레드에서 실행하면서,
+    LLM.invoke 를 별도 스레드에서 실행하면서,
     전체 호출 시간을 timeout 초로 강제 제한한다.
     """
     logger.info("Calling LLM with overall timeout=%.1fs", timeout)
@@ -326,12 +325,13 @@ router = APIRouter()
 async def chat(req: Request):
     """
     /v1/chat 엔드포인트 (TRPG + QA 겸용)
-    - Ollama + (임시로 RAG OFF)
+    - OpenAI로 강제 통일 (gpt-4o-mini, max_tokens=32)
+    - 캐릭터의 model 필드는 무시하고 항상 OpenAI 사용
     - Cloudflare 524 방지를 위해:
-      * 전체 LLM 호출을 20초로 제한
-      * num_predict 를 128로 축소
+      * 전체 LLM 호출을 25초로 제한
       * 에러/타임아웃 시 HTTP 500 으로 바로 응답
     """
+    logger.info("[TRPG] /v1/chat endpoint called")
     try:
         # 1) 요청 파싱
         try:
@@ -347,7 +347,8 @@ async def chat(req: Request):
             or ""
         ).strip()
         mode = (data.get("mode") or "qa").strip().lower()
-        use_model = data.get("model") or DEFAULT_GEN
+        # 캐릭터 DB의 model 설정은 무시하고 OpenAI로 강제 통일
+        use_model = "gpt-4o-mini"
         polish_model = data.get("polish_model") or DEFAULT_POLISH
         temperature = float(data.get("temperature") or 0.7)
         top_p = float(data.get("top_p") or 0.9)
@@ -386,24 +387,12 @@ async def chat(req: Request):
             except Exception:
                 char_ctx, char_rules = ("", "")
 
-        # 3) 메인 LLM 설정 (Ollama)
-        logger.info(
-            "/v1/chat using model=%s, LLM_TIMEOUT=%.1fs, LLM_NUM_PREDICT=%s",
-            use_model,
-            LLM_TIMEOUT,
-            LLM_NUM_PREDICT,
-        )
-        llm = ChatOllama(
-            base_url=OLLAMA_BASE,
+        # 3) 메인 LLM 설정 (OpenAI로 강제 통일)
+        logger.info("[TRPG] Using OpenAI model=%s", use_model)
+        llm = ChatOpenAI(
             model=use_model,
-            timeout=LLM_TIMEOUT,
             temperature=temperature,
-            top_p=top_p,
-            repeat_penalty=PRESET.get("repeat_penalty", 1.25),
-            model_kwargs={
-                "keep_alive": "30m",
-                "num_predict": LLM_NUM_PREDICT,
-            },
+            max_tokens=32,
         )
 
         messages = build_messages(
@@ -417,7 +406,8 @@ async def chat(req: Request):
         )
 
         # 4) LLM 호출 (전체 타임아웃 제한)
-        raw = await _invoke_llm_with_timeout(llm, messages, timeout=LLM_TIMEOUT)
+        # OpenAI는 기본적으로 빠르므로 타임아웃을 25초로 설정
+        raw = await _invoke_llm_with_timeout(llm, messages, timeout=25.0)
         text = getattr(raw, "content", str(raw))
 
         # 5) 후처리 (TRPG 장면 + 선택지 + 폴리싱)
