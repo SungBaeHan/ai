@@ -313,10 +313,18 @@ async def chat(req: Request):
                 char_ctx, char_rules = ("","")
 
         llm = ChatOllama(
-            base_url=OLLAMA_BASE, model=use_model, timeout=120,
-            temperature=temperature, top_p=top_p,
+            base_url=OLLAMA_BASE,
+            model=use_model,
+            # Cloudflare 100초 제한을 피하기 위해 전체 타임아웃을 30초로 단축
+            timeout=30,
+            temperature=temperature,
+            top_p=top_p,
             repeat_penalty=PRESET.get("repeat_penalty", 1.25),
-            model_kwargs={"keep_alive":"30m", "num_predict":256},
+            # 토큰 길이를 줄여 응답 시간을 단축
+            model_kwargs={
+                "keep_alive": "30m",
+                "num_predict": 128,
+            },
         )
 
         messages = build_messages(mode, sess[key], q, context, char_ctx, char_rules, choices=choices)
@@ -325,13 +333,12 @@ async def chat(req: Request):
             raw = llm.invoke(messages)
             text = getattr(raw, "content", str(raw))
         except Exception as e:
-            logger.exception(f"❌ LLM chat failed: {e}")
-            error_msg = str(e)
-            # 모델이 없을 때 더 명확한 메시지 제공
-            if "not found" in error_msg.lower() or "404" in error_msg:
-                error_msg = f"모델 '{use_model}'이 Ollama에 설치되어 있지 않습니다. Ollama 컨테이너에서 'ollama pull {use_model}' 명령을 실행해주세요."
-            return JSONResponse({"answer": f"(LLM 호출 오류) {error_msg}"},
-                                headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"})
+            # 여기서 바로 500을 던져서 Cloudflare 504로 변환되기 전에 응답을 마무리한다.
+            logger.exception("❌ LLM invoke timeout or error: %s", e)
+            raise HTTPException(
+                status_code=500,
+                detail="LLM 처리 중 오류 또는 타임아웃이 발생했습니다.",
+            )
 
         if mode == "trpg":
             text = postprocess_trpg(text, desired_choices=choices)
