@@ -19,7 +19,7 @@ JSON_DIR = ROOT / "data" / "json"
 ASSETS_DIR = ROOT / "assets"
 
 # === CORS 설정 ===
-# 🔧 Add CORS fix: allow both arcanaverse.ai and www.arcanaverse.ai
+# --- Updated CORS Settings ---
 raw_origins = os.getenv("CORS_ALLOW_ORIGINS", "")
 if raw_origins:
     origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
@@ -35,8 +35,15 @@ app = FastAPI(title="TRPG API", version="1.0.0")
 
 # Default allowed origins when CORS_ALLOW_ORIGINS is not set
 default_origins = [
+    # Local dev
+    "http://localhost",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    # Production domains
     "https://arcanaverse.ai",
-    "https://www.arcanaverse.ai",
+    "https://www.arcanaverse.ai",  # <-- REQUIRED for Cloudflare Pages
 ]
 
 app.add_middleware(
@@ -47,6 +54,7 @@ app.add_middleware(
     allow_headers=["*"],     # 모든 헤더 허용
     expose_headers=["*"],    # 모든 응답 헤더 노출
 )
+# --- End Updated CORS Settings ---
 
 app.include_router(health.router)
 app.include_router(debug.router, prefix="/v1")
