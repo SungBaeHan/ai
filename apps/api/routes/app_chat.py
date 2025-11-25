@@ -3,6 +3,7 @@
 # ========================================
 
 import os, time, uuid, random, re
+import asyncio
 import logging
 from typing import Dict, List, Any, Optional
 
@@ -271,6 +272,32 @@ def polish(text: str, model: Optional[str] = None) -> str:
         print(f"[WARN] polish error: {e}")
         return text
 
+async def _invoke_llm_with_timeout(llm, messages, timeout: float = 20.0):
+    """
+    ChatOllama.invoke 를 별도 스레드에서 실행하면서,
+    전체 호출 시간을 timeout 초로 강제 제한한다.
+    """
+    try:
+        # 블로킹 호출을 스레드풀로 넘기고, asyncio.wait_for 로 전체 시간 제한
+        raw = await asyncio.wait_for(
+            asyncio.to_thread(llm.invoke, messages),
+            timeout=timeout,
+        )
+        return raw
+    except asyncio.TimeoutError:
+        logger.exception("❌ LLM overall timeout (>%s sec)", timeout)
+        raise HTTPException(
+            status_code=500,
+            detail=f"LLM 전체 처리 시간이 {timeout}초를 초과했습니다.",
+        )
+    except Exception as e:
+        logger.exception("❌ LLM invoke error: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="LLM 처리 중 내부 오류가 발생했습니다.",
+        )
+
+
 class ChatIn(BaseModel):
     message: str
     mode: str = "qa"
@@ -287,29 +314,39 @@ router = APIRouter()
 async def chat(req: Request):
     """
     /v1/chat 엔드포인트 (TRPG + QA 겸용)
-    - Ollama + Qdrant 기반
-    - Cloudflare 524 방지를 위해 timeout/num_predict 줄이고,
-      LLM 에러/타임아웃 시 즉시 500으로 응답한다.
+    - Ollama + (임시로 RAG OFF)
+    - Cloudflare 524 방지를 위해:
+      * 전체 LLM 호출을 20초로 제한
+      * num_predict 를 128로 축소
+      * 에러/타임아웃 시 HTTP 500 으로 바로 응답
     """
     try:
-        # 요청 JSON 파싱 (실패 시 빈 dict)
+        # 1) 요청 파싱
         try:
             data = await req.json()
         except Exception:
             data = {}
 
-        q = (data.get("message") or data.get("prompt") or data.get("text") or data.get("q") or "").strip()
+        q = (
+            data.get("message")
+            or data.get("prompt")
+            or data.get("text")
+            or data.get("q")
+            or ""
+        ).strip()
         mode = (data.get("mode") or "qa").strip().lower()
-        use_model    = data.get("model") or DEFAULT_GEN
+        use_model = data.get("model") or DEFAULT_GEN
         polish_model = data.get("polish_model") or DEFAULT_POLISH
-        temperature  = float(data.get("temperature") or 0.7)
-        top_p        = float(data.get("top_p") or 0.9)
-        choices      = int(data.get("choices") or 0)
+        temperature = float(data.get("temperature") or 0.7)
+        top_p = float(data.get("top_p") or 0.9)
+        choices = int(data.get("choices") or 0)
 
-        character    = data.get("character") or None
-        character_id = data.get("character_id") or ((character.get("id") if isinstance(character, dict) else None))
+        character = data.get("character") or None
+        character_id = data.get("character_id") or (
+            (character.get("id") if isinstance(character, dict) else None)
+        )
 
-        sid  = get_or_create_sid(req)
+        sid = get_or_create_sid(req)
         sess = SESSIONS[sid]
 
         # 캐릭터별 히스토리 키
@@ -320,16 +357,16 @@ async def chat(req: Request):
         sess.setdefault(key, [])
 
         if not q:
-            # 빈 질문이면 그냥 빈 응답
+            # 빈 메시지면 그냥 빈 응답
             return JSONResponse(
                 {"answer": ""},
                 headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"},
             )
 
-        # RAG 컨텍스트
-        context = "" if mode == "trpg" else retrieve_context(q)
+        # 2) 컨텍스트 구성
+        #    👉 우선 성능 문제 파악을 위해 RAG(검색) OFF: context=""
+        context = ""  # 이전: "" if mode == "trpg" else retrieve_context(q)
 
-        # 캐릭터 컨텍스트/룰
         char_ctx, char_rules = ("", "")
         if mode == "trpg" and isinstance(character, dict):
             try:
@@ -337,18 +374,18 @@ async def chat(req: Request):
             except Exception:
                 char_ctx, char_rules = ("", "")
 
-        # 🔻 메인 LLM (TRPG/QA 공용)
+        # 3) 메인 LLM 설정 (Ollama)
         llm = ChatOllama(
             base_url=OLLAMA_BASE,
             model=use_model,
-            # Cloudflare 524 방지를 위한 짧은 타임아웃
+            # 개별 HTTP 타임아웃(transport)도 30초 정도로 둔다.
             timeout=30,
             temperature=temperature,
             top_p=top_p,
             repeat_penalty=PRESET.get("repeat_penalty", 1.25),
             model_kwargs={
                 "keep_alive": "30m",
-                # 한 번에 뽑는 토큰 수를 줄여 응답 시간 감소
+                # 한 번에 생성할 토큰 수를 줄여 응답 시간 단축
                 "num_predict": 128,
             },
         )
@@ -363,28 +400,20 @@ async def chat(req: Request):
             choices=choices,
         )
 
-        # 🔻 LLM 호출부 – 에러/타임아웃 시 즉시 500으로 처리
-        try:
-            raw = llm.invoke(messages)
-            text = getattr(raw, "content", str(raw))
-        except Exception as e:
-            logger.exception("❌ LLM invoke timeout or error: %s", e)
-            # Cloudflare 524로 넘어가기 전에 바로 500 응답
-            raise HTTPException(
-                status_code=500,
-                detail="LLM 처리 중 오류 또는 타임아웃이 발생했습니다.",
-            )
+        # 4) LLM 호출 (전체 20초 제한)
+        raw = await _invoke_llm_with_timeout(llm, messages, timeout=20.0)
+        text = getattr(raw, "content", str(raw))
 
-        # 🔻 후처리 (TRPG 장면 + 선택지 + 폴리싱)
+        # 5) 후처리 (TRPG 장면 + 선택지 + 폴리싱)
         if mode == "trpg":
             text = postprocess_trpg(text, desired_choices=choices)
             text = polish(text, model=polish_model)
         elif re.match(r"^\s*(?:[-•]|\(?\d+\)?[.)])\s+\S", text):
-            # QA 모드인데 목록/불릿 형태로 떨어진 경우도 TRPG 스타일 후처리
+            # QA 모드인데 목록/불릿 형태면 TRPG 스타일 후처리
             text = postprocess_trpg(text, desired_choices=choices)
             text = polish(text, model=polish_model)
 
-        # 🔻 히스토리 관리
+        # 6) 히스토리 업데이트
         user_text = q if mode != "trpg" else f"(플레이어의 의도/행동: {q})"
         sess[key].extend(
             [
@@ -400,7 +429,7 @@ async def chat(req: Request):
         )
 
     except HTTPException:
-        # 위에서 올린 HTTPException은 그대로 전달
+        # 위에서 올린 HTTPException 은 그대로 전달
         raise
     except Exception as e:
         logger.exception("🔥 /v1/chat/ 라우터 내부 오류 발생! %s", e)
