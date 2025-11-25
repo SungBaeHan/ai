@@ -35,6 +35,9 @@ ALLOWED_ORIGINS = [
     "https://www.arcanaverse.ai",
 ]
 
+# CORS 설정 로깅
+logger.info("CORS ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
+
 # 기존 CORS 설정 부분 전부 지우고, 딱 이 한 번만 추가되게!
 app.add_middleware(
     CORSMiddleware,
@@ -42,6 +45,7 @@ app.add_middleware(
     allow_credentials=False,  # 🔴 일단 쿠키는 안 쓰는 걸로, CORS 단순화
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # 모든 응답 헤더 노출
 )
 
 app.include_router(health.router)
