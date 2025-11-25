@@ -3,10 +3,12 @@ from apps.api import bootstrap  # noqa: F401  (sets env early)
 import os
 import logging
 import pathlib
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import HTTPException as FastAPIHTTPException
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from apps.api.startup import init_mongo_indexes
 from apps.api.routes import health
 from apps.api.routes import debug
@@ -39,39 +41,45 @@ ALLOWED_ORIGINS = [
 # CORS 설정 로깅
 logger.info("CORS ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
 
+# CORS 헤더 추가 헬퍼 함수
+def add_cors_headers_to_response(response, origin: str = None):
+    """모든 응답에 CORS 헤더 추가"""
+    if not origin:
+        origin = "https://www.arcanaverse.ai"  # 기본값
+    
+    # 허용된 origin이거나 www.arcanaverse.ai인 경우
+    if origin in ALLOWED_ORIGINS or "www.arcanaverse.ai" in origin or "arcanaverse.ai" in origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    else:
+        # 디버깅용: 일단 추가
+        response.headers["Access-Control-Allow-Origin"] = origin
+    
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "false"
+    return response
+
 # 커스텀 CORS 미들웨어 - 모든 요청에 CORS 헤더 명시적으로 추가
 @app.middleware("http")
-async def add_cors_headers(request, call_next):
-    origin = request.headers.get("origin")
+async def add_cors_headers_middleware(request, call_next):
+    origin = request.headers.get("origin") or request.headers.get("Origin")
     path = request.url.path
     
-    # CORS 헤더 추가 헬퍼 함수
-    def add_cors_to_response(response):
-        if origin and origin in ALLOWED_ORIGINS:
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-            response.headers["Access-Control-Allow-Headers"] = "*"
-            response.headers["Access-Control-Expose-Headers"] = "*"
-            response.headers["Access-Control-Allow-Credentials"] = "false"
-        elif origin:
-            # 허용되지 않은 origin도 일단 헤더는 추가 (디버깅용)
-            logger.warning(f"CORS: Origin {origin} not in ALLOWED_ORIGINS for {path}")
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        return response
+    logger.info(f"CORS middleware: method={request.method}, origin={origin}, path={path}")
     
     # OPTIONS preflight 요청 처리
     if request.method == "OPTIONS":
-        logger.info(f"CORS OPTIONS request from origin: {origin}, path: {path}")
+        logger.info(f"CORS OPTIONS preflight from origin: {origin}, path: {path}")
         response = JSONResponse(content={}, status_code=200)
-        response = add_cors_to_response(response)
+        response = add_cors_headers_to_response(response, origin)
         response.headers["Access-Control-Max-Age"] = "3600"
         return response
     
     # 실제 요청 처리
     try:
         response = await call_next(request)
-        response = add_cors_to_response(response)
+        response = add_cors_headers_to_response(response, origin)
         return response
     except Exception as e:
         # 예외 발생 시에도 CORS 헤더 추가
@@ -80,7 +88,7 @@ async def add_cors_headers(request, call_next):
             content={"detail": str(e)},
             status_code=500
         )
-        return add_cors_to_response(error_response)
+        return add_cors_headers_to_response(error_response, origin)
 
 # FastAPI의 기본 CORS 미들웨어도 추가 (이중 보안)
 app.add_middleware(
@@ -143,6 +151,36 @@ app.include_router(migrate.router)
 # === Repository factory ===
 from adapters.persistence.mongo.factory import create_character_repository
 repo = create_character_repository()
+
+# === 예외 핸들러 - 모든 예외에 CORS 헤더 추가 ===
+
+@app.exception_handler(FastAPIHTTPException)
+async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
+    origin = request.headers.get("origin") or request.headers.get("Origin")
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+    return add_cors_headers_to_response(response, origin)
+
+@app.exception_handler(StarletteHTTPException)
+async def starlette_exception_handler(request: Request, exc: StarletteHTTPException):
+    origin = request.headers.get("origin") or request.headers.get("Origin")
+    response = JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail}
+    )
+    return add_cors_headers_to_response(response, origin)
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    origin = request.headers.get("origin") or request.headers.get("Origin")
+    logger.exception(f"Unhandled exception: {exc}")
+    response = JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"}
+    )
+    return add_cors_headers_to_response(response, origin)
 
 # === Startup Hook ===
 @app.on_event("startup")
