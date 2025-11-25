@@ -43,28 +43,44 @@ logger.info("CORS ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
 @app.middleware("http")
 async def add_cors_headers(request, call_next):
     origin = request.headers.get("origin")
+    path = request.url.path
     
-    # OPTIONS preflight 요청 처리
-    if request.method == "OPTIONS":
-        response = JSONResponse(content={})
-        if origin in ALLOWED_ORIGINS:
+    # CORS 헤더 추가 헬퍼 함수
+    def add_cors_to_response(response):
+        if origin and origin in ALLOWED_ORIGINS:
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
             response.headers["Access-Control-Allow-Headers"] = "*"
-            response.headers["Access-Control-Max-Age"] = "3600"
+            response.headers["Access-Control-Expose-Headers"] = "*"
+            response.headers["Access-Control-Allow-Credentials"] = "false"
+        elif origin:
+            # 허용되지 않은 origin도 일단 헤더는 추가 (디버깅용)
+            logger.warning(f"CORS: Origin {origin} not in ALLOWED_ORIGINS for {path}")
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        return response
+    
+    # OPTIONS preflight 요청 처리
+    if request.method == "OPTIONS":
+        logger.info(f"CORS OPTIONS request from origin: {origin}, path: {path}")
+        response = JSONResponse(content={}, status_code=200)
+        response = add_cors_to_response(response)
+        response.headers["Access-Control-Max-Age"] = "3600"
         return response
     
     # 실제 요청 처리
-    response = await call_next(request)
-    
-    # CORS 헤더 추가
-    if origin in ALLOWED_ORIGINS:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Expose-Headers"] = "*"
-    
-    return response
+    try:
+        response = await call_next(request)
+        response = add_cors_to_response(response)
+        return response
+    except Exception as e:
+        # 예외 발생 시에도 CORS 헤더 추가
+        logger.exception(f"Error in request {path}: {e}")
+        error_response = JSONResponse(
+            content={"detail": str(e)},
+            status_code=500
+        )
+        return add_cors_to_response(error_response)
 
 # FastAPI의 기본 CORS 미들웨어도 추가 (이중 보안)
 app.add_middleware(
