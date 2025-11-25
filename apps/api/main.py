@@ -6,6 +6,7 @@ import pathlib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from apps.api.startup import init_mongo_indexes
 from apps.api.routes import health
 from apps.api.routes import debug
@@ -38,16 +39,42 @@ ALLOWED_ORIGINS = [
 # CORS 설정 로깅
 logger.info("CORS ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
 
-# 기존 CORS 설정 부분 전부 지우고, 딱 이 한 번만 추가되게!
-# CORS 미들웨어는 가장 먼저 추가해야 합니다 (다른 미들웨어보다 먼저 실행되도록)
+# 커스텀 CORS 미들웨어 - 모든 요청에 CORS 헤더 명시적으로 추가
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    origin = request.headers.get("origin")
+    
+    # OPTIONS preflight 요청 처리
+    if request.method == "OPTIONS":
+        response = JSONResponse(content={})
+        if origin in ALLOWED_ORIGINS:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+            response.headers["Access-Control-Allow-Headers"] = "*"
+            response.headers["Access-Control-Max-Age"] = "3600"
+        return response
+    
+    # 실제 요청 처리
+    response = await call_next(request)
+    
+    # CORS 헤더 추가
+    if origin in ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Expose-Headers"] = "*"
+    
+    return response
+
+# FastAPI의 기본 CORS 미들웨어도 추가 (이중 보안)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=False,  # 🔴 일단 쿠키는 안 쓰는 걸로, CORS 단순화
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
-    expose_headers=["*"],  # 모든 응답 헤더 노출
-    max_age=3600,  # preflight 요청 캐시 시간 (1시간)
+    expose_headers=["*"],
+    max_age=3600,
 )
 
 app.include_router(health.router)
