@@ -1,0 +1,201 @@
+# 배포 이력 - 2025-11-25
+
+## 주요 작업 내용
+
+### 1. LLM 엔진을 OpenAI로 강제 통일
+
+#### 배경
+- `/v1/chat` 엔드포인트에서 Ollama와 OpenAI를 선택적으로 사용하던 구조를 단순화
+- 캐릭터별로 다른 모델을 사용하던 복잡성을 제거하고 일관된 응답 품질 확보
+- Cloudflare 524 타임아웃 방지를 위해 더 빠른 응답 시간 확보
+
+#### 수정된 파일
+- `apps/api/routes/app_chat.py`
+- `adapters/external/openai/openai_client.py`
+- `requirements.txt`
+
+#### 주요 변경사항
+
+1. **LLM 선택 로직 단순화**
+   - 기존: `ChatOllama`와 `ChatOpenAI`를 조건부로 선택
+   - 변경: 모든 TRPG/QA 모드에서 `ChatOpenAI`만 사용하도록 강제
+   - 모델: `gpt-4o-mini` (고정)
+   - `max_tokens`: `32` (고정)
+
+2. **캐릭터 모델 필드 무시**
+   ```python
+   # 기존
+   use_model = data.get("model") or DEFAULT_GEN
+   
+   # 변경
+   # 캐릭터 DB의 model 설정은 무시하고 OpenAI로 강제 통일
+   use_model = "gpt-4o-mini"
+   ```
+
+3. **Ollama 관련 코드 제거**
+   - `from langchain_ollama import ChatOllama` 주석 처리
+   - `from langchain_openai import ChatOpenAI` 추가
+   - `OLLAMA_BASE`, `DEFAULT_GEN` 상수 주석 처리
+
+4. **polish() 함수도 OpenAI로 변경**
+   - 기존: `ChatOllama` 사용
+   - 변경: `ChatOpenAI` 사용 (모델: `gpt-4o-mini`, `max_tokens=32`)
+
+5. **의존성 추가**
+   - `requirements.txt`에 `langchain-openai>=0.2.0` 추가
+   - `ModuleNotFoundError: No module named 'langchain_openai'` 에러 해결
+
+### 2. OpenAI 어댑터 튜닝 및 로깅 강화
+
+#### 배경
+- OpenAI 호출 성능 모니터링 및 디버깅을 위한 로깅 추가
+- `max_tokens` 기본값을 32로 제한하여 응답 시간 단축
+
+#### 수정된 파일
+- `adapters/external/openai/openai_client.py`
+
+#### 주요 변경사항
+
+1. **기본 모델 및 max_tokens 설정**
+   - 기본 모델: `gpt-4o-mini` (이미 설정됨)
+   - `max_tokens` 기본값: `64` → `32`로 변경
+
+2. **호출 시간 로깅 추가**
+   ```python
+   import time
+   
+   start = time.perf_counter()
+   response = client.chat.completions.create(...)
+   elapsed = time.perf_counter() - start
+   
+   logger.info(
+       "OpenAI chat completed in %.2fs (model=%s, max_tokens=%s)",
+       elapsed,
+       actual_model,
+       max_tokens,
+   )
+   ```
+
+3. **/v1/chat 라우터 로깅 강화**
+   - LLM 호출 시작/완료 로그 추가
+   - 모델 이름 및 설정값 로그 출력
+   ```python
+   logger.info("[TRPG] /v1/chat endpoint called")
+   logger.info("[TRPG] Using OpenAI model=%s", use_model)
+   logger.info("Calling LLM with overall timeout=%.1fs", timeout)
+   logger.info("LLM call finished within timeout.")
+   ```
+
+### 3. TRPG 시스템 프롬프트 개선 (NPC/동행자 대사 반응 강화)
+
+#### 배경
+- 플레이어가 말을 걸었을 때 NPC/동행자가 반응하지 않는 문제 개선
+- 더 생동감 있는 대화를 위해 NPC/동행자의 직접 대사를 적극적으로 출력
+
+#### 수정된 파일
+- `apps/api/routes/app_chat.py`
+
+#### 주요 변경사항
+
+1. **SYS_TRPG_NOCHOICE 프롬프트 수정**
+   - 플레이어 입력 해석: 행동/의도뿐 아니라 대사도 함께 해석
+   - NPC/동행자 반응: 플레이어가 말을 걸면 주요 NPC/동행자의 대사로 최소 한 번 반응
+   - 대사 출력: 매 장면마다 NPC/동행자의 직설적 대사 최소 한 문장 포함 (따옴표 사용)
+   - 시작 묘사: 배경/감각 묘사 또는 등장인물의 표정/몸짓 묘사로 시작
+   - 출력 형식: 배경/상황 묘사 2~4문장 + NPC/동행자의 직접 대사 1~2문장
+
+2. **주요 원칙 추가**
+   ```
+   - 플레이어 입력은 행동/의도와 대사로 함께 해석한다.
+   - 플레이어가 말을 건 경우, 반드시 주요 NPC나 동행자의 대사로 최소 한 번은 직접 반응한다.
+   - 매 장면마다 최소 한 문장은 NPC/동행자의 직설적인 대사로 쓴다(따옴표 사용).
+   ```
+
+## 기술적 세부사항
+
+### LLM 설정 통일
+
+```python
+# apps/api/routes/app_chat.py
+from langchain_openai import ChatOpenAI
+
+# 캐릭터 DB의 model 설정은 무시하고 OpenAI로 강제 통일
+use_model = "gpt-4o-mini"
+
+llm = ChatOpenAI(
+    model=use_model,
+    temperature=temperature,
+    max_tokens=32,
+)
+```
+
+### OpenAI 어댑터 로깅
+
+```python
+# adapters/external/openai/openai_client.py
+start = time.perf_counter()
+response = client.chat.completions.create(
+    model=actual_model,
+    messages=messages,
+    temperature=temperature,
+    max_tokens=max_tokens,
+)
+elapsed = time.perf_counter() - start
+
+logger.info(
+    "OpenAI chat completed in %.2fs (model=%s, max_tokens=%s)",
+    elapsed,
+    actual_model,
+    max_tokens,
+)
+```
+
+### 의존성 추가
+
+```txt
+# requirements.txt
+# --- LLM 엔진 ---
+ollama
+langchain-ollama
+langchain-openai>=0.2.0
+openai>=1.0.0
+```
+
+## 기대 효과
+
+1. **응답 시간 단축**
+   - OpenAI API는 Ollama보다 일반적으로 더 빠른 응답 시간 제공
+   - `max_tokens=32`로 제한하여 토큰 생성 시간 단축
+
+2. **일관된 응답 품질**
+   - 모든 캐릭터에서 동일한 모델 사용으로 일관된 품질 확보
+   - 캐릭터별 모델 설정 복잡성 제거
+
+3. **디버깅 용이성**
+   - 상세한 로깅으로 OpenAI 호출 성능 모니터링 가능
+   - 문제 발생 시 로그를 통한 빠른 원인 파악
+
+4. **더 생동감 있는 대화**
+   - NPC/동행자가 플레이어의 말에 적극적으로 반응
+   - 직접 대사를 통한 몰입감 향상
+
+## 주의사항
+
+1. **의존성 설치 필요**
+   - `pip install langchain-openai>=0.2.0` 실행 필요
+   - 또는 `pip install -r requirements.txt`로 전체 의존성 설치
+
+2. **OpenAI API 키 필요**
+   - `OPENAI_API_KEY` 또는 `OPEN_API_KEY` 환경변수 설정 필수
+
+3. **비용 고려**
+   - OpenAI API 사용 시 토큰 기반 과금 발생
+   - `max_tokens=32`로 제한하여 비용 최소화
+
+## 다음 단계
+
+- OpenAI 호출 성능 모니터링 및 최적화
+- 필요시 `max_tokens` 값 조정
+- NPC/동행자 대사 품질 피드백 수집 및 프롬프트 개선
+
+
