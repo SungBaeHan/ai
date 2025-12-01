@@ -23,7 +23,7 @@ def get_db() -> Database:
     """MongoDB 데이터베이스 싱글톤"""
     global _db
     if _db is None:
-        db_name = os.getenv("MONGO_DB", "trpg_ai")
+        db_name = os.getenv("MONGO_DB", "arcanaverse")
         _db = get_client()[db_name]
     return _db
 
