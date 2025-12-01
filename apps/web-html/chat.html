@@ -220,13 +220,18 @@
      */
     function checkAccountStatus() {
       const token = getToken();
+      const info  = getUserInfo();
+
+      console.log('[ACCOUNT] token:', !!token, 'info:', info);
+
       if (!token) return { ok: false, reason: 'login' };
 
-      const info = getUserInfo();
-      if (!info) return { ok: false, reason: 'login' };
+      if (!info)  return { ok: false, reason: 'login' };
 
       const is_use = info.is_use || 'N';
       const is_lock = info.is_lock || 'Y';
+
+      console.log('[ACCOUNT] is_use:', is_use, 'is_lock:', is_lock);
 
       if (is_lock === 'Y') return { ok: false, reason: 'lock' };
       if (is_use !== 'Y') return { ok: false, reason: 'use' };

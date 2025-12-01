@@ -305,9 +305,8 @@
     // 구글 로그인 성공 처리
     async function handleGoogleLogin(response) {
       try {
-        const token = response.credential; // Google Identity Services에서 받은 JWT 토큰
+        const token = response.credential;
 
-        // 백엔드에 토큰 전송하여 검증 및 사용자 정보 받기
         const fetchResponse = await fetch(`${API_BASE_URL}/v1/auth/google`, {
           method: 'POST',
           credentials: 'include',
@@ -323,25 +322,24 @@
 
         const data = await fetchResponse.json();
 
-        // access_token 저장
-        localStorage.setItem(TOKEN_KEY, data.access_token);
-
-        // user_info 저장 (플래그 포함)
         const userInfo = {
           email: data.email,
           name: data.name,
-          // 새로 추가된 필드들
+          picture: data.picture,
           is_use: data.is_use ?? 'N',
           is_lock: data.is_lock ?? 'Y',
-          member_level: data.member_level ?? 1
+          member_level: data.member_level ?? 1,
         };
-        localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo));
+
+        // 공용 setter 사용
+        setToken(data.access_token, userInfo);
+        console.log('[LOGIN] userInfo stored:', userInfo);
 
         updateUI();
         showToast('로그인 성공!', 1500);
-      } catch (error) {
-        console.error('Login error:', error);
-        showToast('로그인에 실패했습니다: ' + error.message, 3000);
+      } catch (err) {
+        console.error(err);
+        showToast('로그인 중 오류가 발생했습니다.', 2000);
       }
     }
 
