@@ -278,6 +278,18 @@
       if (isLoggedIn && userInfo) {
         document.getElementById('profile-name').textContent = userInfo.name || '사용자';
         document.getElementById('profile-email').textContent = userInfo.email || '';
+        
+        // 상태 텍스트 (선택)
+        const statusTextParts = [];
+        if (userInfo.is_lock === 'Y') statusTextParts.push('차단됨');
+        if (userInfo.is_use !== 'Y') statusTextParts.push('사용 불가');
+        if (statusTextParts.length === 0) statusTextParts.push('정상');
+
+        // 이메일 아래쪽에 상태를 같이 보여주고 싶다면
+        document.getElementById('profile-email').textContent =
+          `${userInfo.email || ''} • ${statusTextParts.join(', ')}`;
+
+        // 아바타 설정 부분은 기존 그대로...
         const avatar = document.getElementById('profile-avatar');
         if (userInfo.picture) {
           avatar.style.backgroundImage = `url(${userInfo.picture})`;
@@ -290,38 +302,47 @@
       }
     }
 
-                   // 구글 로그인 성공 처리
-      async function handleGoogleLogin(response) {
-        try {
-          const token = response.credential; // Google Identity Services에서 받은 JWT 토큰
-          // 백엔드에 토큰 전송하여 검증 및 사용자 정보 받기
-          const fetchResponse = await fetch(`${API_BASE_URL}/v1/auth/google`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token })
-          });
+    // 구글 로그인 성공 처리
+    async function handleGoogleLogin(response) {
+      try {
+        const token = response.credential; // Google Identity Services에서 받은 JWT 토큰
 
-                   if (!fetchResponse.ok) {
-            const errorText = await fetchResponse.text();
-            console.error('Login failed:', fetchResponse.status, errorText);
-            throw new Error(`로그인 실패 (${fetchResponse.status}): ${errorText}`);
-          }
+        // 백엔드에 토큰 전송하여 검증 및 사용자 정보 받기
+        const fetchResponse = await fetch(`${API_BASE_URL}/v1/auth/google`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
 
-                   const data = await fetchResponse.json();
-          localStorage.setItem(TOKEN_KEY, data.access_token);
-          if (data.email || data.name) {
-            localStorage.setItem(USER_INFO_KEY, JSON.stringify({
-              email: data.email,
-              name: data.name
-            }));
-          }
-          updateUI();
-          showToast('로그인 성공!', 1500);
-       } catch (error) {
-         console.error('Login error:', error);
-         showToast('로그인에 실패했습니다: ' + error.message, 3000);
-       }
+        if (!fetchResponse.ok) {
+          const errorText = await fetchResponse.text();
+          console.error('Login failed:', fetchResponse.status, errorText);
+          throw new Error(`로그인 실패 (${fetchResponse.status}): ${errorText}`);
+        }
+
+        const data = await fetchResponse.json();
+
+        // access_token 저장
+        localStorage.setItem(TOKEN_KEY, data.access_token);
+
+        // user_info 저장 (플래그 포함)
+        const userInfo = {
+          email: data.email,
+          name: data.name,
+          // 새로 추가된 필드들
+          is_use: data.is_use ?? 'N',
+          is_lock: data.is_lock ?? 'Y',
+          member_level: data.member_level ?? 1
+        };
+        localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo));
+
+        updateUI();
+        showToast('로그인 성공!', 1500);
+      } catch (error) {
+        console.error('Login error:', error);
+        showToast('로그인에 실패했습니다: ' + error.message, 3000);
+      }
     }
 
     // 로그아웃 처리

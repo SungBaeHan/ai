@@ -199,8 +199,40 @@
 
     // 토큰 관리
     const TOKEN_KEY = 'access_token';
+    const USER_INFO_KEY = 'user_info';
+
     function getToken() { return localStorage.getItem(TOKEN_KEY); }
     function isLoggedIn() { return !!getToken(); }
+
+    function getUserInfo() {
+      const raw = localStorage.getItem(USER_INFO_KEY);
+      if (!raw) return null;
+      try { return JSON.parse(raw); } catch (_) { return null; }
+    }
+
+    /**
+     * 계정 상태 체크
+     * - ok: true 면 채팅 가능
+     * - ok: false 이면 reason 으로 상태 구분
+     *   - 'login': 로그인 필요
+     *   - 'lock': 계정 차단
+     *   - 'use': 사용 불가
+     */
+    function checkAccountStatus() {
+      const token = getToken();
+      if (!token) return { ok: false, reason: 'login' };
+
+      const info = getUserInfo();
+      if (!info) return { ok: false, reason: 'login' };
+
+      const is_use = info.is_use || 'N';
+      const is_lock = info.is_lock || 'Y';
+
+      if (is_lock === 'Y') return { ok: false, reason: 'lock' };
+      if (is_use !== 'Y') return { ok: false, reason: 'use' };
+
+      return { ok: true, reason: null };
+    }
 
     // 토스트 메시지 표시
     function showToast(msg='준비중입니다', ms=2000){
@@ -291,11 +323,21 @@
       // 입력 동작
       const ta=document.getElementById('ta'), btn=document.getElementById('send');
       
-      // 비로그인 상태에서 입력/전송 시도 시 로그인 필요 메시지 표시
+      // 비로그인 상태에서 입력/전송 시도 시 계정 상태 체크
       function checkLoginAndSend(){
-        if (!isLoggedIn()) {
-          showToast('로그인이 필요합니다.', 2000);
-          ta.blur(); // 입력 필드 포커스 제거
+        const status = checkAccountStatus();
+
+        if (!status.ok) {
+          if (status.reason === 'login') {
+            showToast('로그인이 필요합니다.', 2000);
+          } else if (status.reason === 'lock') {
+            showToast('현재 계정이 차단된 상태입니다.', 2000);
+          } else if (status.reason === 'use') {
+            showToast('현재 사용이 불가한 상태입니다.', 2000);
+          } else {
+            showToast('계정 상태를 확인할 수 없습니다.', 2000);
+          }
+          ta.blur();
           return false;
         }
         return true;
@@ -326,21 +368,41 @@
         }
       }
       
-      // 입력 필드 포커스 시 로그인 체크
+      // 입력 필드 포커스 시 계정 상태 체크
       ta.addEventListener('focus', (ev) => {
-        if (!isLoggedIn()) {
+        const status = checkAccountStatus();
+        if (!status.ok) {
           ev.preventDefault();
           ta.blur();
-          showToast('로그인이 필요합니다.', 2000);
+
+          if (status.reason === 'login') {
+            showToast('로그인이 필요합니다.', 2000);
+          } else if (status.reason === 'lock') {
+            showToast('현재 계정이 차단된 상태입니다.', 2000);
+          } else if (status.reason === 'use') {
+            showToast('현재 사용이 불가한 상태입니다.', 2000);
+          } else {
+            showToast('계정 상태를 확인할 수 없습니다.', 2000);
+          }
         }
       });
 
-      // 클릭 시 로그인 체크
+      // 클릭 시도 시 계정 상태 체크
       ta.addEventListener('click', (ev) => {
-        if (!isLoggedIn()) {
+        const status = checkAccountStatus();
+        if (!status.ok) {
           ev.preventDefault();
           ta.blur();
-          showToast('로그인이 필요합니다.', 2000);
+
+          if (status.reason === 'login') {
+            showToast('로그인이 필요합니다.', 2000);
+          } else if (status.reason === 'lock') {
+            showToast('현재 계정이 차단된 상태입니다.', 2000);
+          } else if (status.reason === 'use') {
+            showToast('현재 사용이 불가한 상태입니다.', 2000);
+          } else {
+            showToast('계정 상태를 확인할 수 없습니다.', 2000);
+          }
         }
       });
 
