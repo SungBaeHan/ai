@@ -1,0 +1,22 @@
+name: Deploy to Oracle VM (dev)
+
+on:
+  push:
+    branches:
+      - dev  # dev 브랜치에 push될 때마다 배포
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH to Oracle VM and deploy
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.ORACLE_HOST }}
+          username: ${{ secrets.ORACLE_USER }}
+          key: ${{ secrets.ORACLE_SSH_KEY }}
+          port: ${{ secrets.ORACLE_PORT || 22 }}
+          script: |
+            cd /home/ubuntu/ai/infra
+            ./deploy_from_git.sh dev
