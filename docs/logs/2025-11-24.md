@@ -313,3 +313,4 @@ Cloudflare Pages (프론트엔드) → Oracle VM (FastAPI:80)
 3. **성능 최적화**: API 응답 시간 최적화
 4. **로깅 개선**: 구조화된 로깅 (JSON 형태) 도입
 
+

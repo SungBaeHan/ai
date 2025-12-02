@@ -158,3 +158,4 @@ trpg-ai/
 - `packages/` 디렉토리는 레거시 코드로, 호환성을 위해 남겨두었습니다.
 - 일부 디렉토리(`middleware/`, `schemas/`, `ollama/`, `qdrant/` 등)는 비어있지만 향후 확장을 위해 준비되어 있습니다.
 
+

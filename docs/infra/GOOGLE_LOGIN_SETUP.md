@@ -111,3 +111,4 @@ docker-compose restart api web
 3. **토큰 만료 시간**: 현재 7일로 설정되어 있음 (필요시 조정)
 4. **CORS 설정**: `CORS_ALLOW_ORIGINS` 환경 변수로 허용 도메인 제한
 
+
