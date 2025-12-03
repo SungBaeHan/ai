@@ -10,6 +10,7 @@ class SessionValidateRequest(BaseModel):
 class SessionValidateResponse(BaseModel):
     ok: bool = True
     user_id: str
+    email: str
     display_name: str
     member_level: int
     is_use: bool

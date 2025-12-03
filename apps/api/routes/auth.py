@@ -177,6 +177,7 @@ async def validate_session(payload: SessionValidateRequest):
     return SessionValidateResponse(
         ok=True,
         user_id=str(user["_id"]),
+        email=user.get("email", info.email),
         display_name=user.get("display_name", info.display_name),
         member_level=user.get("member_level", info.member_level),
         is_use=(user.get("is_use", "Y") == "Y"),
