@@ -330,49 +330,77 @@
     // 세션 검증을 통해 UI 업데이트
     async function updateUIFromSession() {
       const token = localStorage.getItem(TOKEN_KEY);
-      const isLoggedIn = !!token;
+      const userInfoV2 = localStorage.getItem(USER_INFO_KEY);
+      const isLoggedIn = !!token && !!userInfoV2;
 
-      document.getElementById('login-section').classList.toggle('hidden', isLoggedIn);
-      document.getElementById('profile-section').classList.toggle('hidden', !isLoggedIn);
-      document.getElementById('settings-section').classList.toggle('hidden', !isLoggedIn);
+      const loginSection    = document.getElementById('login-section');
+      const profileSection  = document.getElementById('profile-section');
+      const settingsSection = document.getElementById('settings-section');
 
-      if (isLoggedIn) {
-        try {
-          const API_BASE_URL =
-            window.location.hostname === "arcanaverse.ai" ||
-            window.location.hostname === "www.arcanaverse.ai"
-              ? "https://api.arcanaverse.ai"
-              : "http://localhost:8000";
+      if (loginSection)    loginSection.classList.toggle('hidden', isLoggedIn);
+      if (profileSection)  profileSection.classList.toggle('hidden', !isLoggedIn);
+      if (settingsSection) settingsSection.classList.toggle('hidden', !isLoggedIn);
 
-          const userInfoV2 = localStorage.getItem(USER_INFO_KEY);
-          if (!userInfoV2) {
-            return;
-          }
+      // 토큰이 없으면 바로 로그아웃 UI 유지
+      if (!isLoggedIn) {
+        return;
+      }
 
-          const res = await fetch(`${API_BASE_URL}/v1/auth/validate-session`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token: userInfoV2 }),
-            credentials: "include",
-          });
+      try {
+        const API_BASE_URL =
+          window.location.hostname === "arcanaverse.ai" ||
+          window.location.hostname === "www.arcanaverse.ai"
+            ? "https://api.arcanaverse.ai"
+            : "http://localhost:8000";
 
-          if (res.ok) {
-            const session = await res.json();
-            document.getElementById('profile-name').textContent = session.display_name || '사용자';
-            document.getElementById('profile-email').textContent = session.user_id || '';
-            
-            // 상태 텍스트
-            const statusTextParts = [];
-            if (session.is_lock) statusTextParts.push('차단됨');
-            if (!session.is_use) statusTextParts.push('사용 불가');
-            if (statusTextParts.length === 0) statusTextParts.push('정상');
+        const res = await fetch(`${API_BASE_URL}/v1/auth/validate-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: userInfoV2 }),
+          credentials: "include",
+        });
 
-            document.getElementById('profile-email').textContent =
-              `${session.user_id || ''} • ${statusTextParts.join(', ')}`;
-          }
-        } catch (err) {
-          console.error('Failed to validate session:', err);
+        if (!res.ok) {
+          // 세션 만료 또는 무효화 → 토큰 삭제 및 로그아웃 UI로 전환
+          clearAuth();
+          if (loginSection)    loginSection.classList.remove('hidden');
+          if (profileSection)  profileSection.classList.add('hidden');
+          if (settingsSection) settingsSection.classList.add('hidden');
+          showToast('로그인이 만료되었습니다. 다시 로그인해주세요.', 2000);
+          return;
         }
+
+        const session = await res.json();
+
+        const profileNameEl  = document.getElementById('profile-name');
+        const profileEmailEl = document.getElementById('profile-email');
+
+        if (profileNameEl) {
+          profileNameEl.textContent = session.display_name || '사용자';
+        }
+
+        // 상태 텍스트 구성 (is_lock / is_use 는 'Y'/'N' 또는 boolean 둘 다 대응)
+        const statusTextParts = [];
+        const isLocked = session.is_lock === 'Y' || session.is_lock === true;
+        const isUsable = session.is_use === 'Y' || session.is_use === true;
+
+        if (isLocked)      statusTextParts.push('차단됨');
+        if (!isUsable)     statusTextParts.push('사용 불가');
+        if (statusTextParts.length === 0) statusTextParts.push('정상');
+
+        const baseEmail = session.email || session.user_id || '';
+
+        if (profileEmailEl) {
+          profileEmailEl.textContent =
+            `${baseEmail} • ${statusTextParts.join(', ')}`;
+        }
+      } catch (err) {
+        console.error('Failed to validate session:', err);
+        // 에러 시에도 안전하게 로그아웃 상태로 돌려둠
+        clearAuth();
+        if (loginSection)    loginSection.classList.remove('hidden');
+        if (profileSection)  profileSection.classList.add('hidden');
+        if (settingsSection) settingsSection.classList.add('hidden');
       }
     }
 
