@@ -7,11 +7,17 @@
 
 import os
 import time
+from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Body
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import requests
+from bson import ObjectId
+
+from adapters.persistence.mongo.factory import get_mongo_client
+from apps.api.core.user_info_token import decode_user_info_token
+from apps.api.schemas.user_session import SessionValidateRequest, SessionValidateResponse
 
 try:
     import jwt
@@ -124,3 +130,55 @@ async def logout():
     # 실제로는 토큰 무효화 목록(블랙리스트)에 추가하거나,
     # 짧은 만료 시간으로 인해 클라이언트에서만 삭제해도 됨
     return {"message": "Logged out successfully"}
+
+
+@router.post("/validate-session", response_model=SessionValidateResponse)
+async def validate_session(payload: SessionValidateRequest):
+    """
+    로컬스토리지에 저장된 user_info_v2 토큰을 검증하고
+    is_use / is_lock / member_level 정보를 반환한다.
+    """
+    try:
+        info = decode_user_info_token(payload.token)
+    except ValueError:
+        raise HTTPException(status_code=401, detail="invalid_token")
+
+    now = datetime.now(timezone.utc)
+    if info.expired_at < now:
+        raise HTTPException(status_code=401, detail="token_expired")
+
+    db = get_mongo_client()
+    users = db.users
+
+    try:
+        user = users.find_one({"_id": ObjectId(info.user_id)})
+    except Exception:
+        raise HTTPException(status_code=401, detail="invalid_user_id")
+
+    if not user:
+        raise HTTPException(status_code=401, detail="user_not_found")
+
+    # last_login_at 이 DB 값과 다르면, 이전 세션 토큰 → 무효
+    db_last_login = user.get("last_login_at")
+    if db_last_login is None:
+        raise HTTPException(status_code=401, detail="session_invalidated")
+
+    # timezone 정보가 없으면 UTC로 가정
+    if isinstance(db_last_login, datetime):
+        if db_last_login.tzinfo is None:
+            db_last_login = db_last_login.replace(tzinfo=timezone.utc)
+    else:
+        raise HTTPException(status_code=401, detail="session_invalidated")
+
+    # last_login_at 비교 (마이크로초 단위 차이 무시)
+    if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
+        raise HTTPException(status_code=401, detail="session_invalidated")
+
+    return SessionValidateResponse(
+        ok=True,
+        user_id=str(user["_id"]),
+        display_name=user.get("display_name", info.display_name),
+        member_level=user.get("member_level", info.member_level),
+        is_use=(user.get("is_use", "Y") == "Y"),
+        is_lock=(user.get("is_lock", "N") == "Y"),
+    )

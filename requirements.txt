@@ -32,4 +32,7 @@ pymongo>=4.6.0
 certifi>=2024.2.2
 
 # --- Environment ---
-python-dotenv==1.0.1 
+python-dotenv==1.0.1
+
+# --- Cryptography ---
+cryptography>=43.0.0

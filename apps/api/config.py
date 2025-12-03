@@ -29,6 +29,10 @@ class Settings:
     # LLM Provider 설정 (기본값: openai)
     llm_provider: str = os.getenv("LLM_PROVIDER", "openai").lower()
     
+    # User Info Token V2 설정
+    AUTH_USER_INFO_V2_SECRET: str = os.getenv("AUTH_USER_INFO_V2_SECRET", "arcanaverse.ai.secret.v2")
+    AUTH_USER_INFO_V2_EXPIRE_MINUTES: int = int(os.getenv("AUTH_USER_INFO_V2_EXPIRE_MINUTES", "4320"))  # 3일
+    
     @property
     def is_mongo(self) -> bool:
         """MongoDB를 사용하는지 확인"""

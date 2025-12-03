@@ -245,17 +245,34 @@
       return localStorage.getItem(TOKEN_KEY);
     }
 
-    // 사용자 정보 가져오기
-    function getUserInfo() {
-      const info = localStorage.getItem(USER_INFO_KEY);
-      return info ? JSON.parse(info) : null;
-    }
+    // 사용자 정보 가져오기 (세션 검증을 통해)
+    async function getUserInfo() {
+      const userInfoV2 = localStorage.getItem(USER_INFO_KEY);
+      if (!userInfoV2) {
+        return null;
+      }
 
-    // 토큰 설정
-    function setToken(token, userInfo) {
-      localStorage.setItem(TOKEN_KEY, token);
-      if (userInfo) {
-        localStorage.setItem(USER_INFO_KEY, JSON.stringify(userInfo));
+      try {
+        const API_BASE_URL =
+          window.location.hostname === "arcanaverse.ai" ||
+          window.location.hostname === "www.arcanaverse.ai"
+            ? "https://api.arcanaverse.ai"
+            : "http://localhost:8000";
+
+        const res = await fetch(`${API_BASE_URL}/v1/auth/validate-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: userInfoV2 }),
+          credentials: "include",
+        });
+
+        if (res.ok) {
+          return await res.json();
+        }
+        return null;
+      } catch (err) {
+        console.error('Failed to get user info:', err);
+        return null;
       }
     }
 
@@ -266,40 +283,8 @@
     }
 
     // UI 업데이트
-    function updateUI() {
-      const token = getToken();
-      const userInfo = getUserInfo();
-      const isLoggedIn = !!token;
-
-      document.getElementById('login-section').classList.toggle('hidden', isLoggedIn);
-      document.getElementById('profile-section').classList.toggle('hidden', !isLoggedIn);
-      document.getElementById('settings-section').classList.toggle('hidden', !isLoggedIn);
-
-      if (isLoggedIn && userInfo) {
-        document.getElementById('profile-name').textContent = userInfo.name || '사용자';
-        document.getElementById('profile-email').textContent = userInfo.email || '';
-        
-        // 상태 텍스트 (선택)
-        const statusTextParts = [];
-        if (userInfo.is_lock === 'Y') statusTextParts.push('차단됨');
-        if (userInfo.is_use !== 'Y') statusTextParts.push('사용 불가');
-        if (statusTextParts.length === 0) statusTextParts.push('정상');
-
-        // 이메일 아래쪽에 상태를 같이 보여주고 싶다면
-        document.getElementById('profile-email').textContent =
-          `${userInfo.email || ''} • ${statusTextParts.join(', ')}`;
-
-        // 아바타 설정 부분은 기존 그대로...
-        const avatar = document.getElementById('profile-avatar');
-        if (userInfo.picture) {
-          avatar.style.backgroundImage = `url(${userInfo.picture})`;
-          avatar.style.backgroundSize = 'cover';
-          avatar.style.backgroundPosition = 'center';
-          avatar.textContent = '';
-        } else {
-          avatar.textContent = (userInfo.name || '?').charAt(0).toUpperCase();
-        }
-      }
+    async function updateUI() {
+      await updateUIFromSession();
     }
 
     // 구글 로그인 성공 처리
@@ -322,24 +307,72 @@
 
         const data = await fetchResponse.json();
 
-        const userInfo = {
-          email: data.email,
-          name: data.name,
-          picture: data.picture,
-          is_use: data.is_use ?? 'N',
-          is_lock: data.is_lock ?? 'Y',
-          member_level: data.member_level ?? 1,
-        };
+        // access_token은 그대로 유지
+        localStorage.setItem(TOKEN_KEY, data.access_token);
+        
+        // 암호화된 user_info_v2 토큰 문자열만 저장
+        localStorage.setItem(USER_INFO_KEY, data.user_info_v2);
+        
+        // 예전 user_info 값은 더 이상 사용하지 않으므로 제거
+        localStorage.removeItem('user_info');
 
-        // 공용 setter 사용
-        setToken(data.access_token, userInfo);
-        console.log('[LOGIN] userInfo stored:', userInfo);
+        console.log('[LOGIN] user_info_v2 token stored');
 
-        updateUI();
+        // 세션 검증을 통해 사용자 정보 가져오기
+        await updateUIFromSession();
         showToast('로그인 성공!', 1500);
       } catch (err) {
         console.error(err);
         showToast('로그인 중 오류가 발생했습니다.', 2000);
+      }
+    }
+
+    // 세션 검증을 통해 UI 업데이트
+    async function updateUIFromSession() {
+      const token = localStorage.getItem(TOKEN_KEY);
+      const isLoggedIn = !!token;
+
+      document.getElementById('login-section').classList.toggle('hidden', isLoggedIn);
+      document.getElementById('profile-section').classList.toggle('hidden', !isLoggedIn);
+      document.getElementById('settings-section').classList.toggle('hidden', !isLoggedIn);
+
+      if (isLoggedIn) {
+        try {
+          const API_BASE_URL =
+            window.location.hostname === "arcanaverse.ai" ||
+            window.location.hostname === "www.arcanaverse.ai"
+              ? "https://api.arcanaverse.ai"
+              : "http://localhost:8000";
+
+          const userInfoV2 = localStorage.getItem(USER_INFO_KEY);
+          if (!userInfoV2) {
+            return;
+          }
+
+          const res = await fetch(`${API_BASE_URL}/v1/auth/validate-session`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token: userInfoV2 }),
+            credentials: "include",
+          });
+
+          if (res.ok) {
+            const session = await res.json();
+            document.getElementById('profile-name').textContent = session.display_name || '사용자';
+            document.getElementById('profile-email').textContent = session.user_id || '';
+            
+            // 상태 텍스트
+            const statusTextParts = [];
+            if (session.is_lock) statusTextParts.push('차단됨');
+            if (!session.is_use) statusTextParts.push('사용 불가');
+            if (statusTextParts.length === 0) statusTextParts.push('정상');
+
+            document.getElementById('profile-email').textContent =
+              `${session.user_id || ''} • ${statusTextParts.join(', ')}`;
+          }
+        } catch (err) {
+          console.error('Failed to validate session:', err);
+        }
       }
     }
 
@@ -377,8 +410,8 @@
     }
 
     // 페이지 로드 시 초기화
-    document.addEventListener('DOMContentLoaded', () => {
-      updateUI();
+    document.addEventListener('DOMContentLoaded', async () => {
+      await updateUI();
       
       // Google Identity Services 로드 대기
       if (typeof google !== 'undefined') {

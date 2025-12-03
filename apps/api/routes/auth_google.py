@@ -8,13 +8,14 @@
 
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import requests
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from adapters.persistence.mongo.factory import get_mongo_client
+from apps.api.core.user_info_token import create_user_info_token
 
 try:
     import jwt
@@ -93,7 +94,7 @@ def get_or_create_user(user_info: dict) -> dict:
     MongoDB users 컬렉션과 연동:
     - email 또는 google_id(sub)로 조회
     - 없으면 새 문서 생성
-    - 있으면 email/display_name/updated_at 갱신
+    - 있으면 email/display_name/updated_at/last_login_at 갱신
     """
     db = get_mongo_client()
     users = db.users
@@ -102,7 +103,7 @@ def get_or_create_user(user_info: dict) -> dict:
     google_id = user_info["sub"]
     name = user_info.get("name") or email
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
 
     # 기존 유저 조회
     doc = users.find_one({"$or": [{"email": email}, {"google_id": google_id}]})
@@ -112,6 +113,7 @@ def get_or_create_user(user_info: dict) -> dict:
             "email": email,
             "display_name": name,
             "updated_at": now,
+            "last_login_at": now,
         }
         users.update_one({"_id": doc["_id"]}, {"$set": update})
         doc.update(update)
@@ -126,6 +128,7 @@ def get_or_create_user(user_info: dict) -> dict:
             "member_level": 1,
             "created_at": now,
             "updated_at": now,
+            "last_login_at": now,
         }
         inserted_id = users.insert_one(doc).inserted_id
         doc["_id"] = inserted_id
@@ -139,24 +142,37 @@ async def google_login(body: GoogleLoginRequest):
     - 프론트: POST /v1/auth/google { token }
     - 처리:
       1) Google token 검증
-      2) users 컬렉션 get_or_create
-      3) access_token + 계정 플래그 반환
+      2) users 컬렉션 get_or_create (last_login_at 업데이트)
+      3) access_token + user_info_v2 (암호화된 토큰) 반환
     """
     # 1) Google 토큰 검증
     user_info = verify_google_token(body.token)
 
-    # 2) users 컬렉션 동기화 (없으면 생성)
+    # 2) users 컬렉션 동기화 (없으면 생성, last_login_at 업데이트)
     user_doc = get_or_create_user(user_info)
 
     # 3) access_token 생성
     access_token = create_jwt_token(user_info)
 
-    # 4) 응답에 계정 플래그 포함
+    # 4) user_info_v2 토큰 생성 (암호화된 토큰)
+    last_login_at = user_doc.get("last_login_at")
+    if isinstance(last_login_at, datetime):
+        # MongoDB에서 가져온 datetime이 timezone 정보가 없을 수 있으므로 UTC로 변환
+        if last_login_at.tzinfo is None:
+            last_login_at = last_login_at.replace(tzinfo=timezone.utc)
+    else:
+        last_login_at = datetime.now(timezone.utc)
+
+    user_info_v2 = create_user_info_token(
+        user_id=str(user_doc["_id"]),
+        email=user_doc["email"],
+        display_name=user_doc.get("display_name") or user_info["name"],
+        member_level=user_doc.get("member_level", 1),
+        last_login_at=last_login_at,
+    )
+
+    # 5) 응답: access_token과 암호화된 user_info_v2만 반환
     return {
         "access_token": access_token,
-        "email": user_doc["email"],
-        "name": user_doc.get("display_name") or user_info["name"],
-        "is_use": user_doc.get("is_use", "N"),
-        "is_lock": user_doc.get("is_lock", "Y"),
-        "member_level": user_doc.get("member_level", 1),
+        "user_info_v2": user_info_v2,
     }

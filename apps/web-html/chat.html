@@ -204,10 +204,28 @@
     function getToken() { return localStorage.getItem(TOKEN_KEY); }
     function isLoggedIn() { return !!getToken(); }
 
-    function getUserInfo() {
-      const raw = localStorage.getItem(USER_INFO_KEY);
-      if (!raw) return null;
-      try { return JSON.parse(raw); } catch (_) { return null; }
+    async function getUserInfo() {
+      const userInfoV2 = localStorage.getItem(USER_INFO_KEY);
+      if (!userInfoV2) {
+        return null;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/v1/auth/validate-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: userInfoV2 }),
+          credentials: "include",
+        });
+
+        if (res.ok) {
+          return await res.json();
+        }
+        return null;
+      } catch (err) {
+        console.error('Failed to get user info:', err);
+        return null;
+      }
     }
 
     /**
@@ -218,9 +236,9 @@
      *   - 'lock': 계정 차단
      *   - 'use': 사용 불가
      */
-    function checkAccountStatus() {
+    async function checkAccountStatus() {
       const token = getToken();
-      const info  = getUserInfo();
+      const info  = await getUserInfo();
 
       console.log('[ACCOUNT] token:', !!token, 'info:', info);
 
@@ -228,13 +246,13 @@
 
       if (!info)  return { ok: false, reason: 'login' };
 
-      const is_use = info.is_use || 'N';
-      const is_lock = info.is_lock || 'Y';
+      const is_use = info.is_use || false;
+      const is_lock = info.is_lock || false;
 
       console.log('[ACCOUNT] is_use:', is_use, 'is_lock:', is_lock);
 
-      if (is_lock === 'Y') return { ok: false, reason: 'lock' };
-      if (is_use !== 'Y') return { ok: false, reason: 'use' };
+      if (is_lock) return { ok: false, reason: 'lock' };
+      if (!is_use) return { ok: false, reason: 'use' };
 
       return { ok: true, reason: null };
     }
@@ -329,8 +347,8 @@
       const ta=document.getElementById('ta'), btn=document.getElementById('send');
       
       // 비로그인 상태에서 입력/전송 시도 시 계정 상태 체크
-      function checkLoginAndSend(){
-        const status = checkAccountStatus();
+      async function checkLoginAndSend(){
+        const status = await checkAccountStatus();
 
         if (!status.ok) {
           if (status.reason === 'login') {
@@ -350,7 +368,7 @@
 
       async function send(){
         // 로그인 체크
-        if (!checkLoginAndSend()) return;
+        if (!(await checkLoginAndSend())) return;
         
         const v=ta.value.trim(); if(!v)return;
         addUser(v); ta.value=''; btn.disabled=true;
@@ -374,8 +392,8 @@
       }
       
       // 입력 필드 포커스 시 계정 상태 체크
-      ta.addEventListener('focus', (ev) => {
-        const status = checkAccountStatus();
+      ta.addEventListener('focus', async (ev) => {
+        const status = await checkAccountStatus();
         if (!status.ok) {
           ev.preventDefault();
           ta.blur();
@@ -393,8 +411,8 @@
       });
 
       // 클릭 시도 시 계정 상태 체크
-      ta.addEventListener('click', (ev) => {
-        const status = checkAccountStatus();
+      ta.addEventListener('click', async (ev) => {
+        const status = await checkAccountStatus();
         if (!status.ok) {
           ev.preventDefault();
           ta.blur();
