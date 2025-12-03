@@ -49,3 +49,4 @@
 - `/v1/ask` 엔드포인트는 OpenAI 기반 RAG 기능으로 2025-11-21 업데이트됨 (참고: `deployment_history_2025-11-21.md`)
 
 
+

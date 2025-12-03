@@ -112,3 +112,4 @@ docker-compose restart api web
 4. **CORS 설정**: `CORS_ALLOW_ORIGINS` 환경 변수로 허용 도메인 제한
 
 
+
