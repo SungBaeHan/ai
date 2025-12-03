@@ -58,6 +58,11 @@ docker-compose down -v
 > 상세한 일자별 작업 내역은 `docs/logs/` 아래 md 파일들에 기록한다.
 > README에는 최근 작업 몇 개만 요약해서 보여준다.
 
+### 2025-12
+
+- 12/03: 암호화된 user_info_v2 토큰 시스템 구현 (Fernet 암호화, 세션 검증 API, 세션 만료 처리)
+- 12/03: 세션 검증 응답에 email 필드 추가, 프론트엔드 세션 관리 개선
+
 ### 2025-01
 
 - 01/27: 사용자 인증 및 계정 관리 시스템 구축 (User CRUD API, MongoDB 연동, 계정 상태 관리)
@@ -107,6 +112,7 @@ docker-compose down -v
 
 ### 인증 API
 - `POST /v1/auth/google` - 구글 로그인
+- `POST /v1/auth/validate-session` - 세션 검증 (user_info_v2 토큰 검증)
 - `GET /v1/auth/me` - 현재 사용자 정보 조회
 - `POST /v1/auth/logout` - 로그아웃
 

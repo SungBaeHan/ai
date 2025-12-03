@@ -1,0 +1,95 @@
+[33m05fabff[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mdev[m[33m, [m[1;31morigin/dev[m[33m)[m fix: add email field to session validation response
+[33m6b2050a[m [1] logo out 버튼 버그 패치 [2] 사용자 정보 표기 변경
+[33m910d78c[m feat: implement encrypted user_info_v2 token system with session validation
+[33m45be475[m README 재 배포
+[33m5734107[m CI/CD 수정
+[33m0a7570b[m CICD 스크립트 수정 반영
+[33me78f83f[m ReadMe 정리
+[33m052ba65[m git action 추가
+[33m015a7f5[m History 정리
+[33m3e5efb7[m README.md 정비
+[33m863038d[m 작업 내용 추가
+[33m36cc21e[m Update USER_INFO_KEY from user_info to user_info_v2 for localStorage versioning
+[33md31f451[m Improve login flow: store account status flags and add debugging logs
+[33m7794566[m Change default MongoDB database name from trpg_ai to arcanaverse
+[33maa2a9a2[m Refactor Google OAuth endpoint with improved error handling and user management
+[33mdc19b85[m 계정 제어 추가
+[33mbf69e70[m Add pydantic[email] for EmailStr validation
+[33mfe369da[m Add pydantic[email] dependency for EmailStr validation
+[33m0316856[m 구조도 추가
+[33mef18836[m Add user CRUD API with clean schema and MongoDB integration
+[33mc88718e[m[33m ([m[1;33mtag: [m[1;33mProduction_backup_v1[m[33m, [m[1;31morigin/prd_v1[m[33m, [m[1;31morigin/prd[m[33m, [m[1;31morigin/main[m[33m, [m[1;32mprd_v1[m[33m, [m[1;32mprd[m[33m, [m[1;32mmain[m[33m)[m 25일 작업 내용 기록
+[33m0cc51cd[m 프롬프트 수정
+[33m43d45ba[m openai 연결 수정
+[33mf933ca4[m LLM 호출 변경
+[33mefae498[m LLM 호출 개선
+[33m8334900[m feat: Tune OpenAI to gpt-4o-mini with max_tokens=64 and reduce MAX_TURNS to 3
+[33m4e83068[m feat: Tune LLM params for Oracle micro VM and make polish optional
+[33m07b54f7[m feat: Add 20s timeout wrapper for LLM calls and disable RAG for performance testing
+[33m9b3bd76[m refactor: Restore /v1/chat to app_chat.py with optimized timeout/error handling
+[33m359c48f[m test: Replace /v1/chat endpoint with simple test version for CORS/524 debugging
+[33m1b517d5[m refactor: Simplify CORS configuration - use only FastAPI CORSMiddleware
+[33m550daf3[m refactor: Unify API calls to use absolute paths with credentials include
+[33m0903cfa[m fix: Enable CORS credentials to allow cookies and authentication
+[33m983ad2e[m fix: Add exception handlers to ensure CORS headers on all error responses
+[33m2dab50c[m fix: Improve CORS middleware with better error handling and logging
+[33m8f497d5[m fix: Reduce ChatOllama timeout to 30s and simplify error handling to prevent 504 timeout
+[33mf60d589[m fix: Add explicit CORS middleware to ensure headers are always set
+[33m768f081[m fix: Improve CORS middleware configuration with explicit methods and max_age
+[33m6f025a3[m fix: Add expose_headers and logging to CORS middleware
+[33m5cb53f4[m refactor: Simplify CORS settings - remove env var logic and use hardcoded origins
+[33ma057f58[m fix: Update CORS origins to include local dev ports and production domains
+[33m4630f2c[m debug: Add detailed logging to chat API calls for troubleshooting
+[33m21cb3c7[m fix: Add www.arcanaverse.ai to CORS allowed origins and expose all headers
+[33m1d1a2f8[m 에러 추적 코드 추가
+[33m51266eb[m docs: Add deployment history for 2025-11-24
+[33m8264854[m fix: Improve error handling in /v1/chat/ endpoint with comprehensive exception catching
+[33m695ec62[m OPEN_API_KEY => OPENAI_API_KEY
+[33m13a9f54[m fix: Add OPEN_API_KEY support and improve error handling in chat endpoint
+[33m93a3e82[m fix: Update CORS configuration with proper logging and allow all methods/headers
+[33m252354b[m fix: Update my.html to use window.API_BASE_URL for auth endpoint
+[33mecb0d3e[m fix: API_BASE_URL ?곗꽑 ?ъ슜 諛?window.API_BASE???④퍡 ?ㅼ젙?섏뿬 /api prefix ?쒓굅 蹂댁옣
+[33m762875c[m api url 보정
+[33m7f64bd4[m api 호출 경로 변경
+[33m4e6142e[m nginx 설정 변경
+[33m1e5eda0[m window.API_BASE_URL 적용
+[33m14e1afa[m 작업 일지
+[33mc71b01c[m 기본 도메인 수정
+[33m30b4990[m 도메인 매핑 수정
+[33m40a67f0[m https 설정 변경
+[33m8ace734[m https 설정 수정
+[33mb6a1bfd[m LLM 을 OpenAPI 로 변경
+[33mf3a0062[m fix: Switch to qwen2.5:1.5b model for 1GB memory VM
+[33m7be0cce[m fix: Force recreate custom models on container start
+[33m33d099a[m fix: Switch to qwen2.5:3b model for lower memory usage
+[33m73a16ae[m fix: Reduce Ollama model memory usage to q2_K quantization
+[33me87c990[m fix: Ollama 紐⑤뜽 硫붾え由??ъ슜??理쒖쟻??諛?Git ?쒓? ?몄퐫???ㅼ젙
+[33mb7fe6fe[m fix: Ollama 紐⑤뜽 以묐났 ?ㅼ튂 諛⑹? 濡쒖쭅 媛쒖꽑
+[33me72c9aa[m fix: Ollama 而ㅼ뒪? 紐⑤뜽 ?먮룞 ?앹꽦 濡쒖쭅 異붽?
+[33m8c7bca7[m ollama 모델 적재 부분 수정
+[33me27637b[m 1. Ollama 초기화 스크립트 생성 2. docker-compose.yml 수정
+[33me63fd17[m LLM 모델 자동 설치 추가
+[33m181e9ee[m LLM 호출 경로 수정
+[33m6e6be2d[m 오늘 작업 내용 추가
+[33mec75fd9[m 이미지 경로 수정
+[33mfa93f50[m 이미지 출력 경로 수정
+[33meda75dc[m 이미지 호출 api 라우팅 수정
+[33mc4efe57[m 최종 확인 ✅ 엔드포인트 경로: GET /assets/images ✅ MongoDB에서 이미지 메타데이터 조회 ✅ 빈 리스트 시 404 대신 200 반환 ✅ 에러 시 로깅 및 500 반환 ✅ OpenAPI 문서에 표시됨 (/docs)
+[33m665909f[m Point frontend image/API calls to api.arcanaverse.ai
+[33m1475e05[m Update frontend API base URL to api.arcanaverse.ai
+[33m7208d81[m 이미지 호출 경로 수정
+[33mdc8380a[m 이미지 호출 경로 수정
+[33mc858e98[m nginx 설정 변경
+[33me4d2adb[m 포트 변경
+[33m3da5b14[m[33m ([m[1;31morigin/cursor/document-project-architecture-and-files-fed3[m[33m)[m health check time 조정
+[33m59c33fe[m health check time 개선
+[33meaea75d[m Health Check 수정
+[33ma24254c[m R2 설정 추가
+[33m18e4c9b[m .env 백업 파일 추가
+[33mb2c5639[m .env R2 설정 추가
+[33me16a3fb[m       disable: true  # ollama도 도커 HEALTHCHECK는 사용하지 않음
+[33m2773ae2[m ollama 의 HEALTHCHECK 수정
+[33mf9a9980[m qdrant 의 healthcheck 개선
+[33ma1685d2[m MongoDB 로 전환 처리
+[33m4068193[m Merge branch 'main' into prd
+[33ma86386c[m fix: add qdrant snapshots volume mount
