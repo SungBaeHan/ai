@@ -16,7 +16,8 @@ jobs:
           host: ${{ secrets.ORACLE_HOST }}
           username: ${{ secrets.ORACLE_USER }}
           key: ${{ secrets.ORACLE_SSH_KEY }}
-          port: ${{ secrets.ORACLE_PORT || 22 }}
+          # port는 secrets에 있으면 그대로 쓰고, 아니면 이 줄 자체를 지우면 기본 22 사용
+          port: ${{ secrets.ORACLE_PORT }}
           script: |
-            cd /home/ubuntu/ai/infra
-            ./deploy_from_git.sh dev
+            cd /home/ubuntu/ai
+            bash scripts/deploy_from_git.sh dev
