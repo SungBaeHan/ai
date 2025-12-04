@@ -47,7 +47,7 @@
     <div class="tabs">
       <div class="tab" data-nav="logo">Logo</div>
       <div class="tab" data-nav="search">Search</div>
-      <div class="tab" data-nav="create">Create</div>
+      <a href="/create/index.html" class="tab" data-nav="create">Create</a>
       <div class="tab" data-nav="list">My List</div>
       <div class="tab" data-nav="my">My</div>
     </div>
@@ -186,6 +186,13 @@
             // My 메뉴는 바로 이동
             e.preventDefault();
             window.location.href = '/my.html';
+            return;
+          }
+          
+          if (navType === 'create') {
+            // Create 메뉴는 바로 이동
+            e.preventDefault();
+            window.location.href = '/create/index.html';
             return;
           }
           

@@ -1,0 +1,91 @@
+<!-- =============================================
+create/game.html - 게임 생성 플레이스홀더
+- 서비스 준비중 화면
+- 다크 테마 유지
+============================================= -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>게임 만들기 - Arcanaverse</title>
+  <script src="/js/config.js"></script>
+  <script>
+    window.API_BASE_URL = 'https://api.arcanaverse.ai';
+    window.API_BASE = 'https://api.arcanaverse.ai';
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    body { 
+      margin:0; 
+      font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; 
+      background:#0b0f14; 
+      color:#e5e7eb;
+    }
+
+    /* Top Navigation */
+    .nav { position:sticky; top:0; z-index:30; background:#0b1118; border-bottom:1px solid #18212c; }
+    .navin { max-width:1200px; margin:0 auto; padding:8px 12px; display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; }
+    .tab { text-align:center; padding:10px 8px; border-radius:10px; background:#0f172a; color:#a5b4fc; border:1px solid #1e293b; font-size:12px; cursor:pointer; user-select:none; text-decoration:none; transition:all .15s ease; }
+    .tab:hover { background:#1e293b; }
+    .tab.active { background:#1e3a8a; border-color:#3b82f6; color:#e0e7ff; }
+
+    /* Main Container */
+    .container { max-width:960px; margin:80px auto; padding:0 16px; }
+    
+    h1 {
+      font-size:28px;
+      font-weight:700;
+      margin:0 0 48px 0;
+      color:#f3f4f6;
+      text-align:center;
+    }
+
+    /* Placeholder Card */
+    .placeholder-card {
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:16px;
+      padding:60px 40px;
+      text-align:center;
+      box-shadow:0 6px 18px rgba(0,0,0,.25);
+    }
+
+    .placeholder-card h2 {
+      font-size:24px;
+      font-weight:700;
+      margin:0 0 16px 0;
+      color:#f3f4f6;
+    }
+
+    .placeholder-card p {
+      font-size:16px;
+      color:#94a3b8;
+      line-height:1.6;
+      margin:0;
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Navigation -->
+  <div class="nav">
+    <div class="navin">
+      <a href="/home.html" class="tab" data-nav="logo">Logo</a>
+      <a href="/home.html" class="tab" data-nav="search">Search</a>
+      <a href="/create/index.html" class="tab active" data-nav="create">Create</a>
+      <a href="/home.html" class="tab" data-nav="list">My List</a>
+      <a href="/my.html" class="tab" data-nav="my">My</a>
+    </div>
+  </div>
+
+  <main class="container">
+    <h1>게임 만들기</h1>
+
+    <section class="placeholder-card">
+      <h2>서비스 준비중입니다.</h2>
+      <p>캐릭터와 세계관을 조합해 TRPG 세션을 만드는 기능은 준비 중입니다.</p>
+    </section>
+  </main>
+</body>
+</html>
+

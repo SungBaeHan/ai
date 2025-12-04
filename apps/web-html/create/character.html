@@ -1,0 +1,479 @@
+<!-- =============================================
+create/character.html - 캐릭터 생성 화면
+- STEP 1: 기본 정보 (좌측 컬럼)
+- STEP 2: 상세 설정 (우측 컬럼)
+- 다크 테마 유지
+============================================= -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>캐릭터 만들기 - Arcanaverse</title>
+  <script src="/js/config.js"></script>
+  <script>
+    window.API_BASE_URL = 'https://api.arcanaverse.ai';
+    window.API_BASE = 'https://api.arcanaverse.ai';
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    body { 
+      margin:0; 
+      font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; 
+      background:#0b0f14; 
+      color:#e5e7eb;
+    }
+
+    /* Top Navigation */
+    .nav { position:sticky; top:0; z-index:30; background:#0b1118; border-bottom:1px solid #18212c; }
+    .navin { max-width:1200px; margin:0 auto; padding:8px 12px; display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; }
+    .tab { text-align:center; padding:10px 8px; border-radius:10px; background:#0f172a; color:#a5b4fc; border:1px solid #1e293b; font-size:12px; cursor:pointer; user-select:none; text-decoration:none; transition:all .15s ease; }
+    .tab:hover { background:#1e293b; }
+    .tab.active { background:#1e3a8a; border-color:#3b82f6; color:#e0e7ff; }
+
+    /* Main Container */
+    .container { max-width:1400px; margin:24px auto 40px; padding:0 16px; }
+    
+    h1 {
+      font-size:28px;
+      font-weight:700;
+      margin:0 0 8px 0;
+      color:#f3f4f6;
+    }
+
+    .subtitle {
+      font-size:14px;
+      color:#94a3b8;
+      margin:0 0 32px 0;
+    }
+
+    /* Two Column Layout */
+    .two-column {
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:32px;
+      align-items:start;
+    }
+
+    .column {
+      display:flex;
+      flex-direction:column;
+      gap:20px;
+    }
+
+    .column h2 {
+      font-size:20px;
+      font-weight:700;
+      margin:0 0 16px 0;
+      color:#f3f4f6;
+      padding-bottom:12px;
+      border-bottom:1px solid #1f2937;
+    }
+
+    /* Form Elements */
+    label {
+      display:block;
+      font-size:14px;
+      font-weight:500;
+      color:#e5e7eb;
+      margin-bottom:8px;
+    }
+
+    input[type="text"],
+    textarea,
+    select {
+      width:100%;
+      padding:10px 12px;
+      background:#0f172a;
+      border:1px solid #1f2937;
+      border-radius:8px;
+      color:#e5e7eb;
+      font-size:14px;
+      font-family:inherit;
+      transition:border-color .15s ease;
+      box-sizing:border-box;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus,
+    select:focus {
+      outline:none;
+      border-color:#3b82f6;
+    }
+
+    textarea {
+      resize:vertical;
+      min-height:80px;
+    }
+
+    /* Image Uploader */
+    .image-uploader {
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:12px;
+      padding:20px;
+      text-align:center;
+    }
+
+    .image-uploader p {
+      margin:0 0 16px 0;
+      color:#94a3b8;
+      font-size:14px;
+    }
+
+    .image-uploader input[type="file"] {
+      width:100%;
+      padding:8px;
+      background:#0f172a;
+      border:1px dashed #334155;
+      border-radius:8px;
+      color:#e5e7eb;
+      cursor:pointer;
+      margin-bottom:16px;
+    }
+
+    .image-uploader .preview {
+      width:100%;
+      aspect-ratio:16/10;
+      background:#0b1220;
+      border:1px solid #1f2937;
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#64748b;
+      font-size:14px;
+      margin-top:12px;
+      overflow:hidden;
+    }
+
+    .image-uploader .preview img {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+
+    /* Tag Field */
+    fieldset.tag-field {
+      border:1px solid #1f2937;
+      border-radius:8px;
+      padding:16px;
+      margin:0;
+      background:#0f172a;
+    }
+
+    fieldset.tag-field legend {
+      font-size:14px;
+      font-weight:500;
+      color:#e5e7eb;
+      padding:0 8px;
+    }
+
+    .tag-checkboxes {
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap:12px;
+      margin-top:12px;
+    }
+
+    .tag-checkboxes label {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin:0;
+      font-size:13px;
+      cursor:pointer;
+      padding:6px 10px;
+      border-radius:6px;
+      background:#111827;
+      border:1px solid #1f2937;
+      transition:all .15s ease;
+    }
+
+    .tag-checkboxes label:hover {
+      background:#1f2937;
+      border-color:#334155;
+    }
+
+    .tag-checkboxes input[type="checkbox"] {
+      width:auto;
+      margin:0;
+      cursor:pointer;
+    }
+
+    .tag-checkboxes input[type="checkbox"]:checked + span {
+      color:#3b82f6;
+    }
+
+    /* AI Generation Button */
+    .hint {
+      font-size:13px;
+      color:#94a3b8;
+      margin-bottom:16px;
+      line-height:1.5;
+    }
+
+    .btn-primary {
+      padding:12px 24px;
+      background:#3b82f6;
+      color:#ffffff;
+      border:1px solid #2563eb;
+      border-radius:10px;
+      font-size:14px;
+      font-weight:600;
+      cursor:pointer;
+      transition:all .15s ease;
+      width:100%;
+      margin-bottom:24px;
+    }
+
+    .btn-primary:hover {
+      background:#2563eb;
+      border-color:#1d4ed8;
+    }
+
+    /* Example Dialog */
+    .examples {
+      margin-top:24px;
+    }
+
+    .examples h3 {
+      font-size:16px;
+      font-weight:600;
+      margin:0 0 16px 0;
+      color:#f3f4f6;
+    }
+
+    .example-row {
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin-bottom:16px;
+      padding:16px;
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:8px;
+    }
+
+    .example-row label {
+      margin-bottom:8px;
+    }
+
+    /* Actions */
+    .actions {
+      display:flex;
+      gap:12px;
+      margin-top:32px;
+      padding-top:24px;
+      border-top:1px solid #1f2937;
+    }
+
+    .btn-secondary {
+      flex:1;
+      padding:12px 24px;
+      background:#374151;
+      color:#d1d5db;
+      border:1px solid #4b5563;
+      border-radius:10px;
+      font-size:14px;
+      font-weight:600;
+      cursor:pointer;
+      transition:all .15s ease;
+    }
+
+    .btn-secondary:hover {
+      background:#4b5563;
+      border-color:#6b7280;
+    }
+
+    .actions .btn-primary {
+      flex:1;
+      margin:0;
+    }
+
+    /* 반응형 */
+    @media (max-width: 1200px) {
+      .two-column {
+        grid-template-columns: 1fr;
+        gap:40px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Navigation -->
+  <div class="nav">
+    <div class="navin">
+      <a href="/home.html" class="tab" data-nav="logo">Logo</a>
+      <a href="/home.html" class="tab" data-nav="search">Search</a>
+      <a href="/create/index.html" class="tab active" data-nav="create">Create</a>
+      <a href="/home.html" class="tab" data-nav="list">My List</a>
+      <a href="/my.html" class="tab" data-nav="my">My</a>
+    </div>
+  </div>
+
+  <main class="container">
+    <h1>캐릭터 만들기</h1>
+    <p class="subtitle">STEP 1: 기본 정보 · STEP 2: 상세 설정</p>
+
+    <section class="two-column">
+      <!-- 좌측: 기본 정보 -->
+      <section class="column left">
+        <h2>기본 정보</h2>
+
+        <div class="image-uploader card" data-field="image">
+          <p>대표 이미지를 업로드하세요.</p>
+          <input type="file" accept="image/*" id="image-upload" />
+          <div class="preview" id="image-preview">
+            <span>이미지 미리보기</span>
+          </div>
+        </div>
+
+        <label>
+          캐릭터 이름
+          <input type="text" data-field="name" placeholder="예: 서진" />
+        </label>
+
+        <label>
+          아키타입 / 직업
+          <input type="text" data-field="archetype" placeholder="예: 모험가, 마법사" />
+        </label>
+
+        <label>
+          소속 세계관
+          <input type="text" data-field="world" placeholder="예: 아카디언 대륙" />
+        </label>
+
+        <label>
+          한 줄 요약
+          <textarea data-field="summary" rows="2" placeholder="예: 무뚝뚝하지만 듬직한 궁수 동료"></textarea>
+        </label>
+
+        <fieldset class="tag-field" data-field="tags">
+          <legend>태그 선택</legend>
+          <div class="tag-checkboxes">
+            <label><input type="checkbox" value="모험" data-field="tags" /> <span>모험</span></label>
+            <label><input type="checkbox" value="용병" data-field="tags" /> <span>용병</span></label>
+            <label><input type="checkbox" value="마법" data-field="tags" /> <span>마법</span></label>
+            <label><input type="checkbox" value="치유" data-field="tags" /> <span>치유</span></label>
+            <label><input type="checkbox" value="궁수" data-field="tags" /> <span>궁수</span></label>
+            <label><input type="checkbox" value="검술" data-field="tags" /> <span>검술</span></label>
+            <label><input type="checkbox" value="도시" data-field="tags" /> <span>도시</span></label>
+            <label><input type="checkbox" value="시골" data-field="tags" /> <span>시골</span></label>
+            <label><input type="checkbox" value="귀족" data-field="tags" /> <span>귀족</span></label>
+            <label><input type="checkbox" value="길드" data-field="tags" /> <span>길드</span></label>
+            <label><input type="checkbox" value="냉정" data-field="tags" /> <span>냉정</span></label>
+            <label><input type="checkbox" value="쾌활" data-field="tags" /> <span>쾌활</span></label>
+            <label><input type="checkbox" value="차분" data-field="tags" /> <span>차분</span></label>
+            <label><input type="checkbox" value="낙천" data-field="tags" /> <span>낙천</span></label>
+            <label><input type="checkbox" value="냉소" data-field="tags" /> <span>냉소</span></label>
+            <label><input type="checkbox" value="진중" data-field="tags" /> <span>진중</span></label>
+            <label><input type="checkbox" value="열정" data-field="tags" /> <span>열정</span></label>
+            <label><input type="checkbox" value="신비" data-field="tags" /> <span>신비</span></label>
+            <label><input type="checkbox" value="소심" data-field="tags" /> <span>소심</span></label>
+            <label><input type="checkbox" value="대담" data-field="tags" /> <span>대담</span></label>
+            <label><input type="checkbox" value="동양풍" data-field="tags" /> <span>동양풍</span></label>
+            <label><input type="checkbox" value="서양풍" data-field="tags" /> <span>서양풍</span></label>
+            <label><input type="checkbox" value="미래" data-field="tags" /> <span>미래</span></label>
+            <label><input type="checkbox" value="스팀펑크" data-field="tags" /> <span>스팀펑크</span></label>
+            <label><input type="checkbox" value="사이버" data-field="tags" /> <span>사이버</span></label>
+            <label><input type="checkbox" value="중세" data-field="tags" /> <span>중세</span></label>
+            <label><input type="checkbox" value="현대" data-field="tags" /> <span>현대</span></label>
+            <label><input type="checkbox" value="바닷가" data-field="tags" /> <span>바닷가</span></label>
+            <label><input type="checkbox" value="사막" data-field="tags" /> <span>사막</span></label>
+            <label><input type="checkbox" value="설원" data-field="tags" /> <span>설원</span></label>
+          </div>
+        </fieldset>
+      </section>
+
+      <!-- 우측: 상세 설정 -->
+      <section class="column right">
+        <h2>상세 설정 (AI 자동 생성)</h2>
+        
+        <p class="hint">
+          기본 정보를 바탕으로 캐릭터의 배경, 성격, 말투를 AI가 생성합니다.
+        </p>
+
+        <button type="button" id="btn-generate-character-detail" class="btn-primary">
+          AI로 상세 설정 생성
+        </button>
+
+        <label>
+          배경 스토리
+          <textarea data-field="background" rows="4" placeholder="캐릭터의 과거와 배경 스토리를 입력하세요."></textarea>
+        </label>
+
+        <label>
+          성격 / 디테일 설명
+          <textarea data-field="detail" rows="4" placeholder="캐릭터의 성격과 특징을 입력하세요."></textarea>
+        </label>
+
+        <label>
+          첫 인사 멘트
+          <input type="text" data-field="greeting" placeholder="예: 왔어? 천천히 얘기하자." />
+        </label>
+
+        <label>
+          말투 / 톤 설명
+          <textarea data-field="style" rows="3" placeholder="예: 현장 보고체, 시크하고 간결한 톤"></textarea>
+        </label>
+
+        <label>
+          행동 / 말투 특징 (줄바꿈으로 구분)
+          <textarea data-field="persona_traits" rows="3" placeholder="각 줄에 하나씩 특징을 입력하세요."></textarea>
+        </label>
+
+        <div class="examples" data-field="examples">
+          <h3>예시 대화</h3>
+          <div class="example-row">
+            <label>
+              사용자
+              <input type="text" name="examples[0].user" placeholder="예: 안녕" />
+            </label>
+            <label>
+              캐릭터
+              <textarea name="examples[0].assistant" rows="2" placeholder="예: 응, 뭐?"></textarea>
+            </label>
+          </div>
+          <!-- 추가 예시 대화는 JS로 동적 추가 예정 -->
+        </div>
+
+        <div class="actions">
+          <button type="button" id="btn-character-draft" class="btn-secondary">임시 저장</button>
+          <button type="button" id="btn-character-save" class="btn-primary">저장</button>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script>
+    // 이미지 미리보기 기능
+    document.getElementById('image-upload').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const preview = document.getElementById('image-preview');
+          preview.innerHTML = `<img src="${event.target.result}" alt="Preview" />`;
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // AI 생성 버튼 (플레이스홀더)
+    document.getElementById('btn-generate-character-detail').addEventListener('click', function() {
+      alert('AI 생성 기능은 준비 중입니다.');
+    });
+
+    // 저장 버튼 (플레이스홀더)
+    document.getElementById('btn-character-save').addEventListener('click', function() {
+      alert('저장 기능은 준비 중입니다.');
+    });
+
+    document.getElementById('btn-character-draft').addEventListener('click', function() {
+      alert('임시 저장 기능은 준비 중입니다.');
+    });
+  </script>
+</body>
+</html>
+
