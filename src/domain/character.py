@@ -29,10 +29,15 @@ class Character:
     world: Optional[str] = None
     genre: Optional[str] = None
     style: Optional[str] = None
+    persona_traits: Optional[List[str]] = None
+    examples: Optional[List[dict]] = None
+    src_file: Optional[str] = None
+    img_hash: Optional[str] = None
+    updated_at: Optional[int] = None
     
     def to_dict(self) -> dict:
         """도메인 엔티티를 딕셔너리로 변환"""
-        return {
+        result = {
             "id": self.id,
             "name": self.name,
             "summary": self.summary,
@@ -49,6 +54,18 @@ class Character:
             "genre": self.genre,
             "style": self.style,
         }
+        # None이 아닌 필드만 추가
+        if self.persona_traits is not None:
+            result["persona_traits"] = self.persona_traits
+        if self.examples is not None:
+            result["examples"] = self.examples
+        if self.src_file is not None:
+            result["src_file"] = self.src_file
+        if self.img_hash is not None:
+            result["img_hash"] = self.img_hash
+        if self.updated_at is not None:
+            result["updated_at"] = self.updated_at
+        return result
     
     @classmethod
     def from_dict(cls, data: dict) -> "Character":
@@ -69,4 +86,9 @@ class Character:
             world=data.get("world"),
             genre=data.get("genre"),
             style=data.get("style"),
+            persona_traits=data.get("persona_traits"),
+            examples=data.get("examples"),
+            src_file=data.get("src_file"),
+            img_hash=data.get("img_hash"),
+            updated_at=data.get("updated_at"),
         )
