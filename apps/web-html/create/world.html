@@ -479,13 +479,38 @@ create/world.html - 세계관 생성 화면
 
         const data = await response.json();
 
-        // 필드 채우기
+        // 우측 필드 채우기 (상세 설정)
         if (data.detail) document.querySelector('[data-field="detail"]').value = data.detail;
         if (data.regions) document.querySelector('[data-field="regions"]').value = data.regions.join('\n');
         if (data.factions) document.querySelector('[data-field="factions"]').value = data.factions.join('\n');
         if (data.conflicts) document.querySelector('[data-field="conflicts"]').value = data.conflicts;
         if (data.opening_scene) document.querySelector('[data-field="opening_scene"]').value = data.opening_scene;
         if (data.style) document.querySelector('[data-field="style"]').value = data.style;
+
+        // 왼쪽 필드도 비어있으면 채우기 (입력칸이 비어 있을 때만)
+        const nameEl = document.querySelector('[data-field="name"]');
+        const genreEl = document.querySelector('[data-field="genre"]');
+        const summaryEl = document.querySelector('[data-field="summary"]');
+        const currentName = nameEl?.value?.trim() || '';
+        const currentGenre = genreEl?.value?.trim() || '';
+        const currentSummary = summaryEl?.value?.trim() || '';
+        const currentTags = Array.from(document.querySelectorAll('[data-field="tags"]:checked')).map(cb => cb.value);
+
+        if (!currentName && data.suggested_name && nameEl) {
+          nameEl.value = data.suggested_name;
+        }
+        if (!currentGenre && data.suggested_genre && genreEl) {
+          genreEl.value = data.suggested_genre;
+        }
+        if (!currentSummary && data.suggested_summary && summaryEl) {
+          summaryEl.value = data.suggested_summary;
+        }
+        if (currentTags.length === 0 && Array.isArray(data.suggested_tags) && data.suggested_tags.length > 0) {
+          const tagSet = new Set(data.suggested_tags);
+          document.querySelectorAll('[data-field="tags"] input[type="checkbox"]').forEach(el => {
+            if (tagSet.has(el.value)) el.checked = true;
+          });
+        }
 
         showToast('AI 생성이 완료되었습니다. 내용을 확인하고 수정하세요.', 3000);
       } catch (error) {

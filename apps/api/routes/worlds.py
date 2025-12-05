@@ -201,6 +201,11 @@ class WorldDetailResponse(BaseModel):
     conflicts: str
     opening_scene: str
     style: str
+    # 왼쪽 폼용 추천 값
+    suggested_name: Optional[str] = None
+    suggested_genre: Optional[str] = None
+    suggested_summary: Optional[str] = None
+    suggested_tags: List[str] = Field(default_factory=list)
 
 @router.post("/ai-detail", response_model=WorldDetailResponse, summary="AI로 세계관 상세 생성")
 async def ai_generate_world_detail(payload: WorldBaseInfo):
@@ -208,7 +213,12 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
     세계관 기본 정보를 바탕으로 상세 설정을 AI가 생성합니다.
     """
     try:
-        if not payload.name.strip():
+        has_name = bool(payload.name and payload.name.strip())
+        has_genre = bool(payload.genre and payload.genre.strip())
+        has_summary = bool(payload.summary and payload.summary.strip())
+        has_tags = len(payload.tags) > 0
+        
+        if not has_name:
             raise HTTPException(status_code=400, detail="World name is required")
         
         # 프롬프트 구성
@@ -227,7 +237,11 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
   "factions": ["세력1", "세력2", "세력3"],
   "conflicts": "주요 갈등과 대립 구조 (3-5문장)",
   "opening_scene": "TRPG 시작 장면 설명 (3-5문장)",
-  "style": "세계관의 톤과 분위기 (예: 어둡고 신비로운 분위기, 마법과 기술이 공존하는 세계)"
+  "style": "세계관의 톤과 분위기 (예: 어둡고 신비로운 분위기, 마법과 기술이 공존하는 세계)",
+  "suggested_name": "{payload.name}",
+  "suggested_genre": "{payload.genre or "판타지"}",
+  "suggested_summary": "{payload.summary or "한 줄 요약"}",
+  "suggested_tags": {json.dumps(payload.tags if payload.tags else ["판타지", "모험", "마법"])}
 }}
 
 반드시 유효한 JSON만 반환하고, 다른 설명은 포함하지 마세요."""
@@ -266,6 +280,10 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
                 "conflicts": "주요 갈등 구조입니다.",
                 "opening_scene": "모험이 시작되는 장면입니다.",
                 "style": "판타지 분위기",
+                "suggested_name": payload.name,
+                "suggested_genre": payload.genre or "판타지",
+                "suggested_summary": payload.summary or "한 줄 요약",
+                "suggested_tags": payload.tags if payload.tags else ["판타지", "모험", "마법"],
             }
         
         return WorldDetailResponse(
@@ -275,6 +293,10 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
             conflicts=data.get("conflicts", ""),
             opening_scene=data.get("opening_scene", ""),
             style=data.get("style", ""),
+            suggested_name=data.get("suggested_name") if not has_name else None,
+            suggested_genre=data.get("suggested_genre") if not has_genre else None,
+            suggested_summary=data.get("suggested_summary") if not has_summary else None,
+            suggested_tags=data.get("suggested_tags", []) if not has_tags else [],
         )
     except HTTPException:
         raise
