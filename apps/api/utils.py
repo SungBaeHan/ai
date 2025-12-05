@@ -26,13 +26,14 @@ def mask_mongo_uri(uri: Optional[str]) -> str:
     return re.sub(r'(mongodb\+srv://[^:]+):[^@]+@', r'\1:*****@', uri)
 
 
-def build_public_image_url(src_file: Optional[str]) -> Optional[str]:
+def build_public_image_url(src_file: Optional[str], prefix: str = "char") -> Optional[str]:
     """
     R2 public image URL을 생성합니다.
     
     Args:
         src_file: 소스 파일명 (예: "lily_01.png", "char/lily_01.png", "/assets/char/lily_01.png")
                   기존 접두사는 무시되고 파일명만 추출됩니다.
+        prefix: 이미지 타입 접두사 ("char" 또는 "world", 기본값: "char")
     
     Returns:
         R2 public URL (예: "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev/assets/char/lily_01.png")
@@ -61,8 +62,8 @@ def build_public_image_url(src_file: Optional[str]) -> Optional[str]:
         # 마지막 경로 세그먼트만 추출 (파일명)
         filename = filename.split("/")[-1]
     
-    # R2 URL 생성: 항상 /assets/char/ 접두사 사용
-    return f"{r2_base}/assets/char/{filename}"
+    # R2 URL 생성: prefix에 따라 /assets/char/ 또는 /assets/world/ 접두사 사용
+    return f"{r2_base}/assets/{prefix}/{filename}"
 
 
 # 하위 호환성을 위한 별칭

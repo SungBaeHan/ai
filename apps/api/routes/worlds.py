@@ -9,13 +9,14 @@ import time
 import logging
 import hashlib
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Request, Query
 from pydantic import BaseModel, Field, ConfigDict
 from adapters.persistence.mongo import get_db
 from adapters.file_storage.r2_storage import R2Storage
 from langchain_openai import ChatOpenAI
 from apps.api.core.user_info_token import decode_user_info_token
 from adapters.persistence.mongo.factory import get_mongo_client
+from apps.api.utils import build_public_image_url
 from bson import ObjectId
 from datetime import datetime, timezone
 from fastapi.encoders import jsonable_encoder
@@ -38,6 +39,66 @@ def get_r2_storage() -> R2Storage:
             logger.error(f"Failed to initialize R2Storage: {e}")
             raise HTTPException(status_code=500, detail="R2 storage not configured")
     return _r2_storage
+
+def normalize_world_image(path: str | None) -> str | None:
+    """
+    이미지 경로를 R2 public URL로 변환합니다.
+    
+    - 이미 전체 URL인 경우 그대로 반환
+    - 파일명을 추출하여 /assets/world/ 접두사를 사용한 R2 public URL 생성
+    """
+    return build_public_image_url(path, prefix="world")
+
+# === 세계관 목록 ===
+@router.get("", summary="세계관 목록")
+def get_worlds_list(
+    offset: int = Query(0, ge=0, alias="offset"),
+    limit: int = Query(20, ge=1, le=200, alias="limit"),
+    q: Optional[str] = Query(None, alias="q"),
+    db = Depends(get_db)
+):
+    """
+    세계관 목록 반환 (created_at 기준 최신순 정렬)
+    - offset: 건너뛸 개수
+    - limit: 가져올 개수
+    - q: 검색어 (이름, 요약, 태그에서 검색)
+    """
+    try:
+        # 검색 쿼리 구성
+        filter_query = {}
+        if q:
+            filter_query = {
+                "$or": [
+                    {"name": {"$regex": q, "$options": "i"}},
+                    {"tags": {"$regex": q, "$options": "i"}},
+                    {"summary": {"$regex": q, "$options": "i"}},
+                ]
+            }
+        
+        # MongoDB에서 세계관 목록 조회 (created_at 기준 최신순)
+        cursor = db.worlds.find(filter_query).sort([("created_at", -1)]).skip(offset).limit(limit)
+        items = list(cursor)
+        
+        # 이미지 경로 정규화
+        for item in items:
+            if "image" in item:
+                item["image"] = normalize_world_image(item.get("image"))
+            # ObjectId를 문자열로 변환
+            if "_id" in item:
+                item["_id"] = str(item["_id"])
+        
+        # 전체 개수 조회
+        total = db.worlds.count_documents(filter_query)
+        
+        return {
+            "items": items,
+            "total": total,
+            "offset": offset,
+            "limit": limit
+        }
+    except Exception as e:
+        logger.exception("Failed to get worlds list")
+        raise HTTPException(status_code=500, detail=f"Failed to get worlds list: {str(e)}")
 
 def normalize_image_path(image_url: Optional[str]) -> str:
     """

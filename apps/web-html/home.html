@@ -27,6 +27,13 @@
 
     .wrap { max-width:1200px; margin:24px auto 40px; padding:0 16px;}
     h1 { font-size:20px; font-weight:700; margin:8px 0 20px; color:#d1d5db; }
+    
+    /* 카테고리 탭 */
+    .category-tabs { display:flex; gap:12px; margin-bottom:24px; border-bottom:1px solid #1f2937; }
+    .category-tab { padding:12px 20px; background:transparent; border:none; border-bottom:2px solid transparent; color:#94a3b8; font-size:14px; font-weight:500; cursor:pointer; transition:all .15s ease; }
+    .category-tab:hover { color:#e5e7eb; }
+    .category-tab.active { color:#3b82f6; border-bottom-color:#3b82f6; }
+    
     .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px; }
     .card { display:block; background:#111827; border-radius:14px; overflow:hidden; border:1px solid #1f2937; text-decoration:none; color:inherit; box-shadow:0 6px 18px rgba(0,0,0,.25); transition: transform .15s ease, box-shadow .15s ease; }
     .card:hover { transform:translateY(-2px); box-shadow:0 10px 24px rgba(0,0,0,.35); }
@@ -55,6 +62,10 @@
 
   <div class="wrap">
     <h1>캐릭터 선택</h1>
+    <div class="category-tabs">
+      <button class="category-tab active" data-category="characters">캐릭터 선택</button>
+      <button class="category-tab" data-category="worlds">세계관 선택</button>
+    </div>
     <div id="grid" class="grid"></div>
   </div>
 
@@ -124,7 +135,7 @@
       return '/assets/img/' + p;
     }
     
-        // 카드 DOM을 생성하여 그리드에 추가
+        // 카드 DOM을 생성하여 그리드에 추가 (캐릭터용)
     function card(item) {
       const id = normalizeCharId(item.id || item.pk || item.slug || item.name || 'char_01');
       const a  = document.createElement('a');
@@ -140,7 +151,7 @@
       const body = document.createElement('div'); body.className='body';
       const name = document.createElement('div'); name.className='name'; name.textContent = item.name || id;
       const meta = document.createElement('span'); meta.className='meta';
-      meta.textContent = (item.shortBio || item.oneLiner || item.greeting || '').toString();
+      meta.textContent = (item.shortBio || item.oneLiner || item.greeting || item.summary || '').toString();
 
       body.appendChild(name); body.appendChild(meta);
       // <!-- .meta 밑에 한 줄 추가 -->
@@ -151,6 +162,52 @@
       chips.innerHTML = [item.genre, item.style, item.world].filter(Boolean).map(v=>`<span style="font-size:11px;padding:2px 8px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#a5b4fc">${v}</span>`).join('');
       body.appendChild(chips);      
       a.appendChild(img); a.appendChild(body);
+      return a;
+    }
+    
+    // 세계관 카드 DOM 생성
+    function worldCard(item) {
+      const id = item.id || item._id || 'world_01';
+      const a = document.createElement('a');
+      a.className = 'card';
+      a.href = `#`; // 세계관 상세 페이지는 나중에 구현
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        showToast('세계관 상세 기능은 준비 중입니다.', 2000);
+      });
+
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.alt = item.name || id;
+      // 세계관 이미지 경로 처리
+      let imagePath = item.image || item.cover || '/assets/img/placeholder.jpg';
+      if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/')) {
+        imagePath = '/assets/world/' + imagePath;
+      }
+      img.src = resolvePath(imagePath);
+
+      const body = document.createElement('div');
+      body.className = 'body';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = item.name || id;
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = (item.summary || item.detail || '').toString().substring(0, 60) + (item.summary && item.summary.length > 60 ? '...' : '');
+
+      body.appendChild(name);
+      body.appendChild(meta);
+      
+      // 태그 칩 추가
+      const chips = document.createElement('div');
+      chips.style.marginTop = '6px';
+      chips.style.display = 'flex';
+      chips.style.gap = '6px';
+      chips.innerHTML = [item.genre, item.style].filter(Boolean).map(v => `<span style="font-size:11px;padding:2px 8px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#a5b4fc">${v}</span>`).join('');
+      body.appendChild(chips);
+      
+      a.appendChild(img);
+      a.appendChild(body);
       return a;
     }
 
@@ -172,6 +229,55 @@
       el.classList.add('show');
       clearTimeout(showToast.tid);
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+        // 현재 선택된 카테고리
+    let currentCategory = 'characters';
+    
+    // 카테고리 탭 클릭 핸들러
+    function setupCategoryTabs() {
+      document.querySelectorAll('.category-tab').forEach(tab => {
+        tab.addEventListener('click', async function() {
+          const category = this.getAttribute('data-category');
+          if (category === currentCategory) return;
+          
+          // 탭 활성화 상태 변경
+          document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+          this.classList.add('active');
+          
+          currentCategory = category;
+          
+          // 제목 변경
+          const h1 = document.querySelector('h1');
+          h1.textContent = category === 'characters' ? '캐릭터 선택' : '세계관 선택';
+          
+          // 그리드 초기화 및 데이터 로드
+          const grid = document.getElementById('grid');
+          grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
+          
+          try {
+            let items = [];
+            if (category === 'characters') {
+              items = await loadCharacters();
+            } else {
+              items = await loadWorlds();
+            }
+            
+            grid.innerHTML = items.length ? '' : '<div style="opacity:.7;text-align:center;padding:40px;">표시할 ' + (category === 'characters' ? '캐릭터' : '세계관') + '가 없습니다.</div>';
+            
+            items.forEach(it => {
+              if (category === 'characters') {
+                grid.appendChild(card(it));
+              } else {
+                grid.appendChild(worldCard(it));
+              }
+            });
+          } catch (error) {
+            console.error('Failed to load items:', error);
+            grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">데이터를 불러오는 중 오류가 발생했습니다.</div>';
+          }
+        });
+      });
     }
 
         // 초기화: 네비게이션 바 핸들러+캐릭터 목록 렌더링
@@ -208,6 +314,9 @@
           showToast('준비중입니다.', 1500);
         });
       });
+
+      // 카테고리 탭 설정
+      setupCategoryTabs();
 
       const grid = document.getElementById('grid');
             // 캐릭터 데이터 로드 (API 우선)
