@@ -212,7 +212,7 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
     """
     세계관 기본 정보를 바탕으로 상세 설정을 AI가 생성합니다.
     """
-    # 필드 존재 여부 확인 (try 블록 밖에서 정의)
+    # 필드 존재 여부 확인 (함수 시작 부분에서 정의하여 모든 곳에서 접근 가능)
     has_name = bool(payload.name and payload.name.strip())
     has_genre = bool(payload.genre and payload.genre.strip())
     has_summary = bool(payload.summary and payload.summary.strip())
@@ -222,9 +222,10 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
         raise HTTPException(status_code=400, detail="World name is required")
     
     try:
-        
         # 프롬프트 구성
         tags_str = ", ".join(payload.tags) if payload.tags else "없음"
+        suggested_tags_json = json.dumps(payload.tags if payload.tags else ["판타지", "모험", "마법"])
+        
         prompt = f"""다음 정보를 바탕으로 TRPG 세계관의 상세 설정을 생성해주세요.
 
 세계관 이름: {payload.name}
@@ -243,7 +244,7 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
   "suggested_name": "{payload.name}",
   "suggested_genre": "{payload.genre or "판타지"}",
   "suggested_summary": "{payload.summary or "한 줄 요약"}",
-  "suggested_tags": {json.dumps(payload.tags if payload.tags else ["판타지", "모험", "마법"])}
+  "suggested_tags": {suggested_tags_json}
 }}
 
 반드시 유효한 JSON만 반환하고, 다른 설명은 포함하지 마세요."""
@@ -288,6 +289,7 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
                 "suggested_tags": payload.tags if payload.tags else ["판타지", "모험", "마법"],
             }
         
+        # 응답 생성 (has_name 등 변수는 함수 시작 부분에서 정의되어 있음)
         return WorldDetailResponse(
             detail=data.get("detail", ""),
             regions=data.get("regions", []),
@@ -304,7 +306,9 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
         raise
     except Exception as e:
         logger.exception("AI generation failed")
-        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+        # 에러 메시지에서 변수 참조를 피하기 위해 직접 문자열 사용
+        error_msg = str(e) if e else "Unknown error"
+        raise HTTPException(status_code=500, detail=f"AI generation failed: {error_msg}")
 
 # === 세계관 생성 ===
 class WorldMeta(BaseModel):
