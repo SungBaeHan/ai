@@ -11,6 +11,7 @@ create/character.html - 캐릭터 생성 화면
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>캐릭터 만들기 - Arcanaverse</title>
   <script src="/js/config.js"></script>
+  <script src="/static/js/session.js"></script>
   <script>
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
     window.API_BASE = 'https://api.arcanaverse.ai';
@@ -459,12 +460,8 @@ create/character.html - 캐릭터 생성 화면
   </style>
 
   <script>
-    // API Base URL
-    const API_BASE_URL =
-      window.location.hostname === "arcanaverse.ai" ||
-      window.location.hostname === "www.arcanaverse.ai"
-        ? "https://api.arcanaverse.ai"
-        : "http://localhost:8000";
+    // API Base URL (session.js의 getApiBaseUrl 사용)
+    const API_BASE_URL = getApiBaseUrl();
 
     // Toast 표시
     function showToast(msg, ms = 2000) {
@@ -723,6 +720,19 @@ create/character.html - 캐릭터 생성 화면
         return;
       }
       
+      // 권한 체크 (chat.html과 동일한 방식)
+      const accountStatus = await checkAccountStatus();
+      if (!accountStatus.ok) {
+        if (accountStatus.reason === 'login') {
+          showToast('로그인이 필요합니다.', 2000);
+        } else if (accountStatus.reason === 'lock') {
+          showToast('현재 계정이 차단된 상태입니다.', 2000);
+        } else if (accountStatus.reason === 'use') {
+          showToast('현재 사용이 불가한 상태입니다.', 2000);
+        }
+        return;
+      }
+      
       try {
         btn.disabled = true;
         showToast('저장 중...', 3000);
@@ -742,8 +752,12 @@ create/character.html - 캐릭터 생성 화면
         formData.append('file', characterImageFile);
         formData.append('meta', JSON.stringify(meta));
 
+        // 인증 헤더 추가
+        const headers = getAuthHeaders();
+
         const response = await fetch(`${API_BASE_URL}/v1/characters`, {
           method: 'POST',
+          headers: headers,
           credentials: 'include',
           body: formData,
         });
@@ -784,6 +798,19 @@ create/character.html - 캐릭터 생성 화면
         return;
       }
       
+      // 권한 체크 (chat.html과 동일한 방식)
+      const accountStatus = await checkAccountStatus();
+      if (!accountStatus.ok) {
+        if (accountStatus.reason === 'login') {
+          showToast('로그인이 필요합니다.', 2000);
+        } else if (accountStatus.reason === 'lock') {
+          showToast('현재 계정이 차단된 상태입니다.', 2000);
+        } else if (accountStatus.reason === 'use') {
+          showToast('현재 사용이 불가한 상태입니다.', 2000);
+        }
+        return;
+      }
+      
       try {
         btn.disabled = true;
         showToast('임시 저장 중...', 3000);
@@ -803,8 +830,12 @@ create/character.html - 캐릭터 생성 화면
         formData.append('file', characterImageFile);
         formData.append('meta', JSON.stringify(meta));
 
+        // 인증 헤더 추가
+        const headers = getAuthHeaders();
+
         const response = await fetch(`${API_BASE_URL}/v1/characters`, {
           method: 'POST',
+          headers: headers,
           credentials: 'include',
           body: formData,
         });
