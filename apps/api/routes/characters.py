@@ -21,6 +21,10 @@ from apps.api.utils import build_public_image_url
 from adapters.file_storage.r2_storage import R2Storage
 from langchain_openai import ChatOpenAI
 from apps.api.dependencies.auth import get_optional_user, User
+from apps.api.core.user_info_token import decode_user_info_token
+from adapters.persistence.mongo.factory import get_mongo_client
+from bson import ObjectId
+from datetime import datetime, timezone
 import json
 
 logger = logging.getLogger(__name__)
@@ -102,8 +106,8 @@ class CharacterIn(BaseModel):
     image: str = Field(..., description="이미지 경로 (/assets/char/xxx.png 등)")
 
 @router.get("", summary="캐릭터 목록")
-def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = Query(None)):
-    """캐릭터 목록 반환(서버가 image를 절대경로로 보정)"""
+def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = Query(None), db = Depends(get_db)):
+    """캐릭터 목록 반환(서버가 image를 절대경로로 보정, created_at 기준 최신순 정렬)"""
     # MongoDB 어댑터에만 list_paginated가 있을 수 있으므로 getattr로 안전 호출
     fn = getattr(repo, "list_paginated", None)
     if callable(fn):
@@ -119,24 +123,38 @@ def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = 
                 "limit": limit
             }
         except Exception as e:
-            print(f"[WARN] Repository list_paginated failed: {e}. Falling back to list_all.")
+            print(f"[WARN] Repository list_paginated failed: {e}. Falling back to direct MongoDB query.")
     
-    # Repository 인터페이스의 list_all 사용 (fallback)
-    offset = skip
-    l = max(1, min(120, limit))
-    characters = repo.list_all(offset=offset, limit=l)
+    # MongoDB 직접 쿼리 (created_at 기준 최신순 정렬)
+    filter_query = {}
+    if q:
+        filter_query = {
+            "$or": [
+                {"name": {"$regex": q, "$options": "i"}},
+                {"tags": {"$regex": q, "$options": "i"}},
+                {"summary": {"$regex": q, "$options": "i"}},
+            ]
+        }
+    
+    cursor = db.characters.find(filter_query).sort([
+        ("created_at", -1),
+        ("id", -1),
+    ]).skip(skip).limit(limit)
+    
     items = []
-    for char in characters:
-        char_dict = char.to_dict()
-        char_dict["image"] = normalize_image(char_dict.get("image"))
+    for doc in cursor:
+        doc.pop("_id", None)  # _id 제거
+        doc["image"] = normalize_image(doc.get("image"))
         # 프론트엔드 호환성을 위해 summary를 shortBio로도 매핑
-        if "summary" in char_dict and "shortBio" not in char_dict:
-            char_dict["shortBio"] = char_dict["summary"]
+        if "summary" in doc and "shortBio" not in doc:
+            doc["shortBio"] = doc["summary"]
         # detail을 longBio로도 매핑
-        if "detail" in char_dict and "longBio" not in char_dict:
-            char_dict["longBio"] = char_dict["detail"]
-        items.append(char_dict)
-    return {"items": items, "total": len(items), "skip": skip, "limit": l}
+        if "detail" in doc and "longBio" not in doc:
+            doc["longBio"] = doc["detail"]
+        items.append(doc)
+    
+    total = db.characters.count_documents(filter_query)
+    return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 @router.get("/{character_id}", summary="캐릭터 단일 조회")
 def get_one(character_id: str):
@@ -264,6 +282,7 @@ class CharacterMeta(BaseModel):
     src_file: Optional[str] = None
     created_at: Optional[int] = None
     updated_at: Optional[int] = None
+    reg_user: Optional[str] = Field(default=None, description="등록한 사용자의 google_id 또는 email")
 
 @router.post("/ai-detail", response_model=CharacterDetailResponse, summary="AI로 캐릭터 상세 생성")
 async def ai_generate_character_detail(payload: CharacterBaseInfo):
@@ -390,8 +409,72 @@ async def ai_generate_character_detail(payload: CharacterBaseInfo):
         raise HTTPException(status_code=500, detail="캐릭터 상세 설정 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
 
 # === 캐릭터 생성 (전체 필드) ===
+def get_current_user_v2(request: Request):
+    """
+    Request에서 user_info_v2 토큰을 읽어서 사용자 정보를 반환하는 의존성 함수.
+    validate-session과 동일한 로직을 사용.
+    """
+    # Authorization 헤더 또는 X-User-Info-Token 헤더에서 토큰 추출
+    token = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        # Bearer 토큰이 user_info_v2 형식일 수 있음
+        token = auth_header.split(" ")[1]
+    else:
+        # 별도 헤더에서 토큰 읽기 시도
+        token = request.headers.get("X-User-Info-Token")
+    
+    if not token:
+        return None
+    
+    try:
+        info = decode_user_info_token(token)
+    except ValueError:
+        return None
+    
+    now = datetime.now(timezone.utc)
+    if info.expired_at < now:
+        return None
+    
+    db = get_mongo_client()
+    users = db.users
+    
+    try:
+        user = users.find_one({"_id": ObjectId(info.user_id)})
+    except Exception:
+        return None
+    
+    if not user:
+        return None
+    
+    # last_login_at 검증
+    db_last_login = user.get("last_login_at")
+    if db_last_login is None:
+        return None
+    
+    if isinstance(db_last_login, datetime):
+        if db_last_login.tzinfo is None:
+            db_last_login = db_last_login.replace(tzinfo=timezone.utc)
+    else:
+        return None
+    
+    if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
+        return None
+    
+    # 사용자 정보 반환 (dict 형태)
+    return {
+        "user_id": str(user["_id"]),
+        "email": user.get("email", info.email),
+        "display_name": user.get("display_name", info.display_name),
+        "google_id": user.get("google_id"),  # user 문서에서 직접 가져오기
+        "sub": user.get("google_id"),  # sub도 google_id와 동일하게
+        "is_use": user.get("is_use", "Y"),
+        "is_lock": user.get("is_lock", "N"),
+    }
+
 @router.post("", summary="캐릭터 생성")
 async def create_character(
+    request: Request,
     file: UploadFile = File(...),
     meta: str = Form(...),
     db = Depends(get_db),
@@ -400,8 +483,24 @@ async def create_character(
     캐릭터 이미지와 메타데이터를 함께 받아 R2 업로드 + Mongo 저장.
     - file: 캐릭터 이미지 파일
     - meta: JSON 문자열 (CharacterMeta 구조)
+    - 로그인 필수, is_use/is_lock 정책 적용
     """
     try:
+        # --- 로그인 및 사용 가능 여부 체크 (채팅과 동일 정책) ---
+        current_user = get_current_user_v2(request)
+        
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+        
+        is_use = current_user.get("is_use", "Y")
+        is_lock = current_user.get("is_lock", "N")
+        
+        if is_use != "Y":
+            raise HTTPException(status_code=403, detail="현재 사용이 불가한 상태입니다.")
+        
+        if is_lock == "Y":
+            raise HTTPException(status_code=403, detail="현재 계정이 차단된 상태입니다.")
+        
         # 1) meta 파싱
         try:
             payload = CharacterMeta.model_validate_json(meta)
@@ -446,6 +545,17 @@ async def create_character(
             # 3) 타임스탬프 설정 (초 단위 UNIX time)
             now = int(time.time())
             
+            # --- 등록자(reg_user) 정보 세팅 ---
+            # google_id 우선, 없으면 email
+            google_id = current_user.get("google_id") or current_user.get("sub")
+            email = current_user.get("email")
+            if google_id:
+                reg_user = str(google_id)
+            elif email:
+                reg_user = email
+            else:
+                reg_user = None
+            
             # 예시 대화를 Dict 형태로 변환
             examples_dict = [
                 {"user": ex.user, "assistant": ex.assistant}
@@ -472,6 +582,7 @@ async def create_character(
                 "scenario": payload.scenario or "",
                 "system_prompt": payload.system_prompt or "",
                 "status": payload.status or "active",
+                "reg_user": reg_user,  # 등록자 식별자
                 "created_at": now,
                 "updated_at": now,
                 # 기존 캐릭터 문서에 쓰던 필드 기본값들
