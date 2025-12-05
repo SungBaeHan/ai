@@ -308,6 +308,7 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
         logger.exception("AI generation failed")
         # 에러 메시지에서 변수 참조를 피하기 위해 직접 문자열 사용
         error_msg = str(e) if e else "Unknown error"
+        logger.error(f"AI generation error details: {error_msg}")
         raise HTTPException(status_code=500, detail=f"AI generation failed: {error_msg}")
 
 # === 세계관 생성 ===
