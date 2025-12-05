@@ -537,6 +537,9 @@ create/character.html - 캐릭터 생성 화면
     btnAi.addEventListener('click', async function() {
       const btn = this;
       const originalText = btn.textContent;
+
+      // AI로 상세 설정 중 저장 버튼 비활성화
+      btnSave.disabled = true;
       
       // 이름 필수 체크
       if (!requireNameOrAlert()) {
@@ -652,6 +655,9 @@ create/character.html - 캐릭터 생성 화면
         btn.disabled = false;
         btn.textContent = originalText;
       }
+
+      // AI로 상세 설정이 성공하든 실패하든 저장 버튼 활성화
+      btnSave.disabled = false;
     });
 
     // 메타데이터 수집 함수
