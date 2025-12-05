@@ -190,7 +190,7 @@ APP_MODULE=apps.api.main:app
 UVICORN_WORKERS=2
 
 # === MongoDB(Atlas) ===
-MONGODB_URI=mongodb+srv://<USER>:<PASS>@<CLUSTER_HOST>/<DB_NAME>?retryWrites=true&w=majority
+MONGO_URI=mongodb+srv://<USER>:<PASS>@<CLUSTER_HOST>/<DB_NAME>?retryWrites=true&w=majority
 DB_NAME=arcanaverse
 
 # === Optional: Qdrant 내부접속용 ===

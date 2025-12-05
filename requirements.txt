@@ -5,6 +5,7 @@ fastapi
 uvicorn[standard]
 pydantic==2.*
 pydantic[email]
+python-multipart==0.0.9
 
 # --- 벡터DB / 임베딩 ---
 qdrant-client

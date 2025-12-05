@@ -12,7 +12,7 @@
 import time
 import logging
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Query, HTTPException, UploadFile, File
+from fastapi import APIRouter, Query, HTTPException, UploadFile, File, Form, Depends, Request
 from pydantic import BaseModel, Field
 from adapters.persistence.factory import get_character_repo
 from adapters.persistence.mongo import get_db
@@ -20,6 +20,7 @@ from src.domain.character import Character
 from apps.api.utils import build_public_image_url
 from adapters.file_storage.r2_storage import R2Storage
 from langchain_openai import ChatOpenAI
+from apps.api.dependencies.auth import get_optional_user, User
 import json
 
 logger = logging.getLogger(__name__)
@@ -170,7 +171,7 @@ async def upload_character_image(file: UploadFile = File(...)):
 # === AI 상세 생성 ===
 class CharacterBaseInfo(BaseModel):
     """캐릭터 기본 정보 (AI 생성용)"""
-    name: str
+    name: Optional[str] = None
     archetype: Optional[str] = None
     world: Optional[str] = None
     summary: Optional[str] = None
@@ -186,21 +187,50 @@ class CharacterDetailResponse(BaseModel):
     examples: List[Dict[str, str]]
     scenario: str
     system_prompt: str
+    # 왼쪽 폼용 추천 값
+    suggested_name: Optional[str] = None
+    suggested_archetype: Optional[str] = None
+    suggested_world: Optional[str] = None
+    suggested_summary: Optional[str] = None
+    suggested_tags: List[str] = []
 
 @router.post("/ai-detail", response_model=CharacterDetailResponse, summary="AI로 캐릭터 상세 생성")
 async def ai_generate_character_detail(payload: CharacterBaseInfo):
     """
     캐릭터 기본 정보를 바탕으로 상세 설정을 AI가 생성합니다.
+    이름이 없어도 AI가 추천 이름을 생성합니다.
     """
     try:
-        if not payload.name.strip():
-            raise HTTPException(status_code=400, detail="Character name is required")
-        
         # 프롬프트 구성
         tags_str = ", ".join(payload.tags) if payload.tags else "없음"
+        has_name = bool(payload.name and payload.name.strip())
+        has_archetype = bool(payload.archetype and payload.archetype.strip())
+        has_world = bool(payload.world and payload.world.strip())
+        has_summary = bool(payload.summary and payload.summary.strip())
+        has_tags = len(payload.tags) > 0
+        
+        # 표시용 이름 (없으면 "이 캐릭터" 사용)
+        display_name = payload.name.strip() if has_name else "이 캐릭터"
+        
+        # suggested_* 필드 JSON 스키마 생성
+        suggested_fields = []
+        if not has_name:
+            suggested_fields.append('  "suggested_name": "적절한 캐릭터 이름"')
+        if not has_archetype:
+            suggested_fields.append('  "suggested_archetype": "적절한 아키타입/직업"')
+        if not has_world:
+            suggested_fields.append('  "suggested_world": "적절한 세계관 이름"')
+        if not has_summary:
+            suggested_fields.append('  "suggested_summary": "한 줄 요약"')
+        if not has_tags:
+            suggested_fields.append('  "suggested_tags": ["태그1", "태그2"]')
+        
+        suggested_fields_str = ",\n".join(suggested_fields) if suggested_fields else ""
+        comma_before_suggested = ",\n" if suggested_fields_str else ""
+        
         prompt = f"""다음 정보를 바탕으로 TRPG 캐릭터의 상세 설정을 생성해주세요.
 
-캐릭터 이름: {payload.name}
+캐릭터 이름: {display_name}
 아키타입/직업: {payload.archetype or "미정"}
 소속 세계관: {payload.world or "미정"}
 한 줄 요약: {payload.summary or "없음"}
@@ -218,10 +248,14 @@ async def ai_generate_character_detail(payload: CharacterBaseInfo):
     {{"user": "사용자 대사 예시2", "assistant": "캐릭터 응답 예시2"}}
   ],
   "scenario": "TRPG 시작 장면 설명 (2-3문장)",
-  "system_prompt": "캐릭터의 행동과 말투를 지시하는 시스템 프롬프트 (2-3문장)"
+  "system_prompt": "캐릭터의 행동과 말투를 지시하는 시스템 프롬프트 (2-3문장)"{comma_before_suggested}
+{suggested_fields_str}
 }}
 
-반드시 유효한 JSON만 반환하고, 다른 설명은 포함하지 마세요."""
+중요:
+- 이미 입력된 값(name, archetype, world, summary, tags)이 있으면 해당 suggested_* 필드는 null 또는 빈 문자열로 설정하세요.
+- 비어있는 필드에 대해서만 suggested_* 값을 제안해주세요.
+- 반드시 유효한 JSON만 반환하고, 다른 설명은 포함하지 마세요."""
         
         # OpenAI 호출
         llm = ChatOpenAI(
@@ -272,85 +306,101 @@ async def ai_generate_character_detail(payload: CharacterBaseInfo):
             examples=data.get("examples", []),
             scenario=data.get("scenario", ""),
             system_prompt=data.get("system_prompt", ""),
+            suggested_name=data.get("suggested_name") if not has_name else None,
+            suggested_archetype=data.get("suggested_archetype") if not has_archetype else None,
+            suggested_world=data.get("suggested_world") if not has_world else None,
+            suggested_summary=data.get("suggested_summary") if not has_summary else None,
+            suggested_tags=data.get("suggested_tags", []) if not has_tags else [],
         )
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("AI generation failed")
-        raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="캐릭터 상세 설정 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
 
 # === 캐릭터 생성 (전체 필드) ===
-class CharacterCreatePayload(BaseModel):
-    """캐릭터 생성 전체 필드"""
-    name: str
-    archetype: Optional[str] = None
-    world: Optional[str] = None
-    summary: Optional[str] = None
-    tags: List[str] = []
-    image: str
-    src_file: Optional[str] = None
-    img_hash: Optional[str] = None
-    background: Optional[str] = None
-    detail: Optional[str] = None
-    greeting: Optional[str] = None
-    style: Optional[str] = None
-    persona_traits: Optional[List[str]] = None
-    examples: Optional[List[Dict[str, str]]] = None
-    scenario: Optional[str] = None
-    system_prompt: Optional[str] = None
-
-@router.post("", summary="캐릭터 생성 (전체 필드)")
-def create_character(payload: CharacterCreatePayload):
+@router.post("", summary="캐릭터 생성")
+async def create_character(
+    request: Request,
+    name: str = Form(...),
+    archetype: str = Form(...),
+    background: str = Form(...),
+    genre: str = Form(""),
+    greeting: str = Form(""),
+    detail: str = Form(""),
+    summary: str = Form(""),
+    scenario: str = Form(""),
+    world: str = Form("기본"),
+    tags: str = Form(""),
+    src_file: UploadFile | None = File(None),
+    image_file: UploadFile | None = File(None),
+    current_user: User | None = Depends(get_optional_user),
+):
     """
-    캐릭터 생성 화면에서 모든 값을 모아 MongoDB characters 컬렉션에 새 문서로 저장
+    새 캐릭터 생성:
+    - 이미지 파일이 있으면 R2에 업로드하고, 90번 문서와 같은 포맷으로 image / image_path / src_file 저장
+    - MongoDB에 insert 후, ObjectId를 문자열로 변환해서 응답 (ObjectId 직렬화 에러 방지)
     """
-    try:
-        if not payload.name.strip():
-            raise HTTPException(status_code=400, detail="Character name is required")
-        if not payload.image.strip():
-            raise HTTPException(status_code=400, detail="Image is required")
-        
-        # MongoDB에서 최대 id 찾기
-        db = get_db()
-        col = db["characters"]
-        max_doc = col.find_one(sort=[("id", -1)])
-        next_id = (max_doc["id"] if max_doc and "id" in max_doc else 0) + 1
-        
-        now = int(time.time())
-        
-        # Character 도메인 엔티티 생성
-        character = Character(
-            id=next_id,
-            name=payload.name.strip(),
-            summary=payload.summary or "",
-            detail=payload.detail or "",
-            tags=payload.tags or [],
-            image=payload.image.strip(),
-            created_at=now,
-            updated_at=now,
-            archetype=payload.archetype,
-            background=payload.background,
-            scenario=payload.scenario,
-            system_prompt=payload.system_prompt,
-            greeting=payload.greeting,
-            world=payload.world,
-            style=payload.style,
-            persona_traits=payload.persona_traits,
-            examples=payload.examples,
-            src_file=payload.src_file,
-            img_hash=payload.img_hash,
+    import hashlib
+    from adapters.file_storage.r2_storage import R2Storage
+    from adapters.persistence.mongo.characters import characters_collection
+    from adapters.persistence.mongo.seq import get_next_sequence
+    from fastapi.encoders import jsonable_encoder
+    
+    # 1) 이미지 업로드 (옵션)
+    image_url: str | None = None
+    image_path: str | None = None
+    image_hash: str | None = None
+    if image_file is not None:
+        content = await image_file.read()
+        # 해시 저장 (이미지 중복 체크용)
+        image_hash = hashlib.md5(content).hexdigest()
+        r2 = R2Storage()
+        image_meta = r2.upload_image(
+            content,
+            prefix="assets/char/",
+            content_type=image_file.content_type or "image/png",
         )
-        
-        # Repository를 통한 저장
-        repo.create(character)
-        
-        return {
-            "ok": True,
-            "id": next_id,
-            "character": character.to_dict()
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("Character creation failed")
-        raise HTTPException(status_code=500, detail=f"Creation failed: {str(e)}")
+        # 90번 문서 포맷과 동일하게 매핑
+        image_url = image_meta["url"]   # image
+        image_path = image_meta["path"] # image_path / src_file
+    
+    # 2) 태그 파싱
+    tag_list: list[str] = []
+    if tags:
+        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    
+    # 3) 새 캐릭터 문서 구성
+    new_id = await get_next_sequence("characters")
+    doc = {
+        "id": new_id,
+        "name": name,
+        "archetype": archetype,
+        "background": background,
+        "genre": genre,
+        "greeting": greeting,
+        "detail": detail,
+        "summary": summary,
+        "scenario": scenario,
+        "world": world,
+        "tags": tag_list,
+        "image": image_url,
+        "image_hash": image_hash,
+        "image_path": image_path,
+        "src_file": image_path,
+        "status": "active",
+    }
+    
+    # 4) DB 저장
+    result = characters_collection().insert_one(doc)
+    inserted_id = str(result.inserted_id)
+    
+    # 5) 응답용으로 ObjectId를 문자열로 변환
+    resp = {
+        "_id": inserted_id,
+        "id": new_id,
+        "name": name,
+    }
+    
+    # jsonable_encoder 를 한 번 태워서 ObjectId / datetime 등 직렬화 보장
+    return jsonable_encoder(resp)

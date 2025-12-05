@@ -15,7 +15,7 @@ class Settings:
     db_backend: str = os.getenv("DB_BACKEND", "mongo").lower()
     
     # MongoDB 설정
-    mongodb_uri: str = os.getenv("MONGODB_URI") or os.getenv("MONGO_URI", "")
+    MONGO_URI: str = os.getenv("MONGO_URI") or os.getenv("MONGO_URI", "")
     mongo_db_name: str = os.getenv("MONGO_DB_NAME") or os.getenv("MONGO_DB", "arcanaverse")
     
     # SQLite 설정 (레거시 지원용, 기본적으로 사용 안 함)
