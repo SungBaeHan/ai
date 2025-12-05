@@ -52,6 +52,47 @@ def normalize_image(path: str | None) -> str | None:
     """
     return build_public_image_url(path)
 
+def normalize_image_path(image_url: Optional[str]) -> str:
+    """
+    R2 공개 URL을 내부 저장 경로('/assets/...')로 변환한다.
+    
+    - 예: 'https://pub-xxxx.r2.dev/assets/char/abcd.png'
+      → '/assets/char/abcd.png'
+    - 이미 '/assets/...' 형태면 그대로 반환
+    """
+    if not image_url:
+        return ""
+    
+    # 이미 내부 경로 형태인 경우
+    if image_url.startswith("/assets/"):
+        return image_url
+    
+    parts = image_url.split("/")
+    # "assets"가 있는 위치부터 끝까지 이어 붙여서 내부 경로로 사용
+    try:
+        idx = parts.index("assets")
+        return "/" + "/".join(parts[idx:])
+    except ValueError:
+        # "assets"가 없으면 원본 그대로 반환 (방어 코드)
+        return image_url
+
+def get_next_character_id(db):
+    """
+    characters 컬렉션에서 가장 큰 id 값을 찾아 +1 해서 반환한다.
+    
+    - 문서가 없다면 1부터 시작한다.
+    """
+    # id 내림차순으로 하나만 가져오기
+    # pymongo는 동기 함수이므로 await 없이 사용
+    doc = db.characters.find_one({}, sort=[("id", -1)])
+    if doc and "id" in doc:
+        try:
+            return int(doc["id"]) + 1
+        except (TypeError, ValueError):
+            # id가 이상한 값이어도 최소한 1부터 시작하도록
+            pass
+    return 1
+
 class CharacterIn(BaseModel):
     """캐릭터 생성 입력 모델"""
     name: str = Field(..., description="캐릭터 이름")
@@ -203,6 +244,7 @@ class CharacterMeta(BaseModel):
     """캐릭터 생성 메타데이터 모델"""
     model_config = ConfigDict(extra='ignore')
     
+    id: Optional[int] = None
     name: str
     archetype: Optional[str] = None
     world: Optional[str] = None
@@ -217,6 +259,11 @@ class CharacterMeta(BaseModel):
     scenario: Optional[str] = None
     system_prompt: Optional[str] = None
     status: Optional[str] = "active"
+    image: Optional[str] = None
+    image_path: Optional[str] = None
+    src_file: Optional[str] = None
+    created_at: Optional[int] = None
+    updated_at: Optional[int] = None
 
 @router.post("/ai-detail", response_model=CharacterDetailResponse, summary="AI로 캐릭터 상세 생성")
 async def ai_generate_character_detail(payload: CharacterBaseInfo):
@@ -347,6 +394,7 @@ async def ai_generate_character_detail(payload: CharacterBaseInfo):
 async def create_character(
     file: UploadFile = File(...),
     meta: str = Form(...),
+    db = Depends(get_db),
 ):
     """
     캐릭터 이미지와 메타데이터를 함께 받아 R2 업로드 + Mongo 저장.
@@ -386,14 +434,16 @@ async def create_character(
         
         # 5) MongoDB 저장
         try:
-            from adapters.persistence.mongo.characters import characters_collection
-            from adapters.persistence.mongo.seq import get_next_sequence
             from fastapi.encoders import jsonable_encoder
             import hashlib
             
-            col = characters_collection()
-            new_id = await get_next_sequence("characters")
+            # 1) id 자동 증가: 가장 큰 id + 1
+            new_id = get_next_character_id(db)
             
+            # 2) image URL → 내부 경로('/assets/...')로 정규화
+            normalized_path = normalize_image_path(image_meta["url"])
+            
+            # 3) 타임스탬프 설정 (초 단위 UNIX time)
             now = int(time.time())
             
             # 예시 대화를 Dict 형태로 변환
@@ -409,9 +459,9 @@ async def create_character(
                 "world": payload.world,
                 "summary": payload.summary or "",
                 "tags": payload.tags or [],
-                "image": image_meta["url"],
-                "image_path": image_meta["path"],
-                "src_file": image_meta["path"],
+                "image": normalized_path,  # 내부 경로로 저장
+                "image_path": normalized_path,  # 내부 경로로 저장
+                "src_file": normalized_path,  # 내부 경로로 저장
                 "image_hash": hashlib.md5(content).hexdigest(),
                 "background": payload.background,
                 "detail": payload.detail or "",
@@ -431,14 +481,14 @@ async def create_character(
                 "meta_version": 2,
             }
             
-            result = col.insert_one(doc)
+            result = await db.characters.insert_one(doc)
             inserted_id = str(result.inserted_id)
             
             # 응답용으로 ObjectId를 문자열로 변환
             resp = {
-                "_id": inserted_id,
                 "id": new_id,
-                "name": payload.name,
+                "mongo_id": inserted_id,
+                "status": "ok",
             }
             
             return jsonable_encoder(resp)
