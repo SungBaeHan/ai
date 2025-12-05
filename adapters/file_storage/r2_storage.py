@@ -61,7 +61,7 @@ class R2Storage:
           "key": "assets/char/1764844999_abcdef123456.png",
           "path": "/assets/char/1764844999_abcdef123456.png",
           "url": "https://pub-....r2.dev/assets/char/1764844999_abcdef123456.png"
-        }
+            }
         """
         # R2 내부 키
         key = f"{prefix}{uuid4().hex}{filename_suffix}"
