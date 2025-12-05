@@ -127,6 +127,13 @@
       p = String(p).replace(/\\/g, '/').trim();
       if (p.startsWith('/')) return p;
       if (p.startsWith('assets/')) return '/' + p;
+      // 세계관 이미지 처리
+      if (p.includes('/world/') || p.startsWith('world/') || p.startsWith('assets/world/')) {
+        p = p.replace(/^assets\/?/, '');
+        p = p.replace(/^world\//, 'world/');
+        return '/assets/' + p;
+      }
+      // 캐릭터 이미지 처리
       if (p.includes('/char/') || p.startsWith('char/') || /^char_\d+/i.test(p) || p.startsWith('assets/char/')) {
         p = p.replace(/^assets\/?/, '');
         p = p.replace(/^char\//, 'char/');
