@@ -481,7 +481,7 @@ async def create_character(
                 "meta_version": 2,
             }
             
-            result = await db.characters.insert_one(doc)
+            result = db.characters.insert_one(doc)
             inserted_id = str(result.inserted_id)
             
             # 응답용으로 ObjectId를 문자열로 변환
