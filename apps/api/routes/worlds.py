@@ -212,14 +212,16 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
     """
     세계관 기본 정보를 바탕으로 상세 설정을 AI가 생성합니다.
     """
+    # 필드 존재 여부 확인 (try 블록 밖에서 정의)
+    has_name = bool(payload.name and payload.name.strip())
+    has_genre = bool(payload.genre and payload.genre.strip())
+    has_summary = bool(payload.summary and payload.summary.strip())
+    has_tags = len(payload.tags) > 0
+    
+    if not has_name:
+        raise HTTPException(status_code=400, detail="World name is required")
+    
     try:
-        has_name = bool(payload.name and payload.name.strip())
-        has_genre = bool(payload.genre and payload.genre.strip())
-        has_summary = bool(payload.summary and payload.summary.strip())
-        has_tags = len(payload.tags) > 0
-        
-        if not has_name:
-            raise HTTPException(status_code=400, detail="World name is required")
         
         # 프롬프트 구성
         tags_str = ", ".join(payload.tags) if payload.tags else "없음"
