@@ -11,6 +11,7 @@ create/world.html - 세계관 생성 화면
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>세계관 만들기 - Arcanaverse</title>
   <script src="/js/config.js"></script>
+  <script src="/static/js/session.js"></script>
   <script>
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
     window.API_BASE = 'https://api.arcanaverse.ai';
@@ -411,12 +412,8 @@ create/world.html - 세계관 생성 화면
   </style>
 
   <script>
-    // API Base URL
-    const API_BASE_URL =
-      window.location.hostname === "arcanaverse.ai" ||
-      window.location.hostname === "www.arcanaverse.ai"
-        ? "https://api.arcanaverse.ai"
-        : "http://localhost:8000";
+    // API Base URL (session.js의 getApiBaseUrl 사용)
+    const API_BASE_URL = getApiBaseUrl();
 
     // Toast 표시
     function showToast(msg, ms = 2000) {
@@ -427,49 +424,23 @@ create/world.html - 세계관 생성 화면
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
     }
 
-    // 전역 상태: 이미지 메타데이터
-    window.worldDraft = {
-      imageMeta: null,
-    };
+    // 전역 상태: 선택된 이미지 파일 (캐릭터 생성과 동일)
+    let worldImageFile = null;
 
-    // 이미지 업로드
-    document.getElementById('image-upload').addEventListener('change', async function(e) {
+    // 이미지 선택 (미리보기만, 업로드는 저장 시)
+    document.getElementById('image-upload').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
 
-      // 로컬 미리보기
+      worldImageFile = file;
+
+      // 로컬 미리보기만
       const reader = new FileReader();
       reader.onload = function(event) {
         const preview = document.getElementById('image-preview');
         preview.innerHTML = `<img src="${event.target.result}" alt="Preview" />`;
       };
       reader.readAsDataURL(file);
-
-      // 서버 업로드
-      try {
-        showToast('이미지 업로드 중...', 3000);
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await fetch(`${API_BASE_URL}/v1/worlds/upload-image`, {
-          method: 'POST',
-          credentials: 'include',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || '업로드 실패');
-        }
-
-        const data = await response.json();
-        window.worldDraft.imageMeta = data;
-
-        showToast('이미지 업로드 완료!', 2000);
-      } catch (error) {
-        console.error('Upload error:', error);
-        showToast(`업로드 실패: ${error.message}`, 3000);
-      }
     });
 
     // AI로 상세 설정 생성
@@ -526,89 +497,164 @@ create/world.html - 세계관 생성 화면
       }
     });
 
+    // 폼 데이터 수집 헬퍼 함수
+    function collectWorldMetaFromForm(overrides = {}) {
+      const name = document.querySelector('[data-field="name"]')?.value?.trim() || '';
+      const genre = document.querySelector('[data-field="genre"]')?.value || '';
+      const summary = document.querySelector('[data-field="summary"]')?.value?.trim() || '';
+      const tags = Array.from(document.querySelectorAll('[data-field="tags"]:checked')).map(cb => cb.value);
+      const detail = document.querySelector('[data-field="detail"]')?.value?.trim() || '';
+      const regions = (document.querySelector('[data-field="regions"]')?.value || '')
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s);
+      const factions = (document.querySelector('[data-field="factions"]')?.value || '')
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s);
+      const conflicts = document.querySelector('[data-field="conflicts"]')?.value?.trim() || '';
+      const opening_scene = document.querySelector('[data-field="opening_scene"]')?.value?.trim() || '';
+      const style = document.querySelector('[data-field="style"]')?.value?.trim() || '';
+
+      const meta = {
+        name,
+        genre: genre || null,
+        summary: summary || null,
+        tags,
+        detail: detail || null,
+        regions: regions.length > 0 ? regions : null,
+        factions: factions.length > 0 ? factions : null,
+        conflicts: conflicts || null,
+        opening_scene: opening_scene || null,
+        style: style || null,
+        status: 'active',
+      };
+
+      return Object.assign(meta, overrides);
+    }
+
     // 저장 버튼
     document.getElementById('btn-world-save').addEventListener('click', async function() {
       const btn = this;
+      
+      // 이름 필수 체크
+      const name = document.querySelector('[data-field="name"]')?.value?.trim();
+      if (!name) {
+        showToast('세계관 이름을 입력해주세요.', 2000);
+        return;
+      }
+
+      // 권한 체크 (chat.html과 동일한 방식)
+      const accountStatus = await checkAccountStatus();
+      if (!accountStatus.ok) {
+        if (accountStatus.reason === 'login') {
+          showToast('로그인이 필요합니다.', 2000);
+        } else if (accountStatus.reason === 'lock') {
+          showToast('현재 계정이 차단된 상태입니다.', 2000);
+        } else if (accountStatus.reason === 'use') {
+          showToast('현재 사용이 불가한 상태입니다.', 2000);
+        }
+        return;
+      }
       
       try {
         btn.disabled = true;
         showToast('저장 중...', 3000);
 
-        const payload = {
-          name: document.querySelector('[data-field="name"]')?.value || '',
-          genre: document.querySelector('[data-field="genre"]')?.value || '',
-          summary: document.querySelector('[data-field="summary"]')?.value || '',
-          tags: Array.from(document.querySelectorAll('[data-field="tags"]:checked')).map(cb => cb.value),
-          image: window.worldDraft.imageMeta?.image || '',
-          src_file: window.worldDraft.imageMeta?.src_file || '',
-          img_hash: window.worldDraft.imageMeta?.img_hash || '',
-          detail: document.querySelector('[data-field="detail"]')?.value || '',
-          regions: (document.querySelector('[data-field="regions"]')?.value || '')
-            .split('\n')
-            .map(s => s.trim())
-            .filter(s => s),
-          factions: (document.querySelector('[data-field="factions"]')?.value || '')
-            .split('\n')
-            .map(s => s.trim())
-            .filter(s => s),
-          conflicts: document.querySelector('[data-field="conflicts"]')?.value || '',
-          opening_scene: document.querySelector('[data-field="opening_scene"]')?.value || '',
-          style: document.querySelector('[data-field="style"]')?.value || '',
-        };
-
-        if (!payload.name.trim()) {
-          showToast('세계관 이름을 입력해주세요.', 2000);
+        // 이미지 파일 확인
+        if (!worldImageFile) {
+          showToast('대표 이미지를 선택해주세요.', 2000);
+          btn.disabled = false;
           return;
         }
 
-        if (!payload.image) {
-          showToast('대표 이미지를 업로드해주세요.', 2000);
-          return;
-        }
+        // 메타데이터 수집 (status: "active")
+        const meta = collectWorldMetaFromForm({ status: 'active' });
+
+        // FormData로 이미지 + 메타 전송
+        const formData = new FormData();
+        formData.append('file', worldImageFile);
+        formData.append('meta', JSON.stringify(meta));
+
+        // 인증 헤더 추가 (FormData는 Content-Type을 자동으로 설정하므로 제외)
+        const headers = getAuthHeaders();
+        // FormData를 사용할 때는 Content-Type을 명시하지 않음 (브라우저가 자동으로 boundary 설정)
+        delete headers['Content-Type'];
 
         const response = await fetch(`${API_BASE_URL}/v1/worlds`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: headers,
           credentials: 'include',
-          body: JSON.stringify(payload),
+          body: formData,
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.detail || '저장 실패');
+          let errorDetail = '세계관 저장 중 오류가 발생했습니다.';
+          try {
+            const error = await response.json();
+            if (error && error.detail) {
+              errorDetail = error.detail;
+            }
+          } catch (e) {
+            // JSON 파싱 실패 시 기본 메시지 사용
+          }
+          showToast(errorDetail, 2000);
+          btn.disabled = false;
+          return;
         }
 
         const result = await response.json();
         showToast('세계관이 성공적으로 저장되었습니다!', 2000);
         
+        // 2초 후 홈으로 이동
         setTimeout(() => {
-          window.location.href = '/create/index.html';
+          window.location.href = '/home.html';
         }, 2000);
       } catch (error) {
         console.error('Save error:', error);
-        showToast(`저장 실패: ${error.message}`, 3000);
-      } finally {
+        const errorMessage = error.message || '저장 중 오류가 발생했습니다.';
+        showToast(`저장 실패: ${errorMessage}`, 3000);
         btn.disabled = false;
       }
     });
 
     // 임시 저장
-    document.getElementById('btn-world-draft').addEventListener('click', function() {
-      const payload = {
-        name: document.querySelector('[data-field="name"]')?.value || '',
-        genre: document.querySelector('[data-field="genre"]')?.value || '',
-        summary: document.querySelector('[data-field="summary"]')?.value || '',
-        tags: Array.from(document.querySelectorAll('[data-field="tags"]:checked')).map(cb => cb.value),
-        imageMeta: window.worldDraft.imageMeta,
-        detail: document.querySelector('[data-field="detail"]')?.value || '',
-        regions: document.querySelector('[data-field="regions"]')?.value || '',
-        factions: document.querySelector('[data-field="factions"]')?.value || '',
-        conflicts: document.querySelector('[data-field="conflicts"]')?.value || '',
-        opening_scene: document.querySelector('[data-field="opening_scene"]')?.value || '',
-        style: document.querySelector('[data-field="style"]')?.value || '',
-      };
+    document.getElementById('btn-world-draft').addEventListener('click', async function() {
+      // 이름 필수 체크
+      const name = document.querySelector('[data-field="name"]')?.value?.trim();
+      if (!name) {
+        showToast('세계관 이름을 입력해주세요.', 2000);
+        return;
+      }
+
+      // 권한 체크 (chat.html과 동일한 방식)
+      const accountStatus = await checkAccountStatus();
+      if (!accountStatus.ok) {
+        if (accountStatus.reason === 'login') {
+          showToast('로그인이 필요합니다.', 2000);
+        } else if (accountStatus.reason === 'lock') {
+          showToast('현재 계정이 차단된 상태입니다.', 2000);
+        } else if (accountStatus.reason === 'use') {
+          showToast('현재 사용이 불가한 상태입니다.', 2000);
+        }
+        return;
+      }
 
       try {
+        const payload = {
+          name: document.querySelector('[data-field="name"]')?.value || '',
+          genre: document.querySelector('[data-field="genre"]')?.value || '',
+          summary: document.querySelector('[data-field="summary"]')?.value || '',
+          tags: Array.from(document.querySelectorAll('[data-field="tags"]:checked')).map(cb => cb.value),
+          hasImage: !!worldImageFile,  // 이미지 파일 존재 여부만 저장
+          detail: document.querySelector('[data-field="detail"]')?.value || '',
+          regions: document.querySelector('[data-field="regions"]')?.value || '',
+          factions: document.querySelector('[data-field="factions"]')?.value || '',
+          conflicts: document.querySelector('[data-field="conflicts"]')?.value || '',
+          opening_scene: document.querySelector('[data-field="opening_scene"]')?.value || '',
+          style: document.querySelector('[data-field="style"]')?.value || '',
+        };
+
         localStorage.setItem('world_draft', JSON.stringify(payload));
         showToast('임시 저장되었습니다.', 2000);
       } catch (error) {
