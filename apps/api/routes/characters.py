@@ -13,7 +13,7 @@ import time
 import logging
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, Query, HTTPException, UploadFile, File, Form, Depends, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from adapters.persistence.factory import get_character_repo
 from adapters.persistence.mongo import get_db
 from src.domain.character import Character
@@ -177,6 +177,11 @@ class CharacterBaseInfo(BaseModel):
     summary: Optional[str] = None
     tags: List[str] = []
 
+class CharacterExample(BaseModel):
+    """예시 대화 모델"""
+    user: str
+    assistant: str
+
 class CharacterDetailResponse(BaseModel):
     """AI 생성된 캐릭터 상세 정보"""
     background: str
@@ -192,7 +197,26 @@ class CharacterDetailResponse(BaseModel):
     suggested_archetype: Optional[str] = None
     suggested_world: Optional[str] = None
     suggested_summary: Optional[str] = None
-    suggested_tags: List[str] = []
+    suggested_tags: List[str] = Field(default_factory=list)
+
+class CharacterMeta(BaseModel):
+    """캐릭터 생성 메타데이터 모델"""
+    model_config = ConfigDict(extra='ignore')
+    
+    name: str
+    archetype: Optional[str] = None
+    world: Optional[str] = None
+    summary: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    background: Optional[str] = None
+    detail: Optional[str] = None
+    greeting: Optional[str] = None
+    style: Optional[str] = None
+    persona_traits: List[str] = Field(default_factory=list)
+    examples: List[CharacterExample] = Field(default_factory=list)
+    scenario: Optional[str] = None
+    system_prompt: Optional[str] = None
+    status: Optional[str] = "active"
 
 @router.post("/ai-detail", response_model=CharacterDetailResponse, summary="AI로 캐릭터 상세 생성")
 async def ai_generate_character_detail(payload: CharacterBaseInfo):
@@ -321,86 +345,108 @@ async def ai_generate_character_detail(payload: CharacterBaseInfo):
 # === 캐릭터 생성 (전체 필드) ===
 @router.post("", summary="캐릭터 생성")
 async def create_character(
-    request: Request,
-    name: str = Form(...),
-    archetype: str = Form(...),
-    background: str = Form(...),
-    genre: str = Form(""),
-    greeting: str = Form(""),
-    detail: str = Form(""),
-    summary: str = Form(""),
-    scenario: str = Form(""),
-    world: str = Form("기본"),
-    tags: str = Form(""),
-    src_file: UploadFile | None = File(None),
-    image_file: UploadFile | None = File(None),
-    current_user: User | None = Depends(get_optional_user),
+    file: UploadFile = File(...),
+    meta: str = Form(...),
 ):
     """
-    새 캐릭터 생성:
-    - 이미지 파일이 있으면 R2에 업로드하고, 90번 문서와 같은 포맷으로 image / image_path / src_file 저장
-    - MongoDB에 insert 후, ObjectId를 문자열로 변환해서 응답 (ObjectId 직렬화 에러 방지)
+    캐릭터 이미지와 메타데이터를 함께 받아 R2 업로드 + Mongo 저장.
+    - file: 캐릭터 이미지 파일
+    - meta: JSON 문자열 (CharacterMeta 구조)
     """
-    import hashlib
-    from adapters.file_storage.r2_storage import R2Storage
-    from adapters.persistence.mongo.characters import characters_collection
-    from adapters.persistence.mongo.seq import get_next_sequence
-    from fastapi.encoders import jsonable_encoder
-    
-    # 1) 이미지 업로드 (옵션)
-    image_url: str | None = None
-    image_path: str | None = None
-    image_hash: str | None = None
-    if image_file is not None:
-        content = await image_file.read()
-        # 해시 저장 (이미지 중복 체크용)
-        image_hash = hashlib.md5(content).hexdigest()
-        r2 = R2Storage()
-        image_meta = r2.upload_image(
-            content,
-            prefix="assets/char/",
-            content_type=image_file.content_type or "image/png",
-        )
-        # 90번 문서 포맷과 동일하게 매핑
-        image_url = image_meta["url"]   # image
-        image_path = image_meta["path"] # image_path / src_file
-    
-    # 2) 태그 파싱
-    tag_list: list[str] = []
-    if tags:
-        tag_list = [t.strip() for t in tags.split(",") if t.strip()]
-    
-    # 3) 새 캐릭터 문서 구성
-    new_id = await get_next_sequence("characters")
-    doc = {
-        "id": new_id,
-        "name": name,
-        "archetype": archetype,
-        "background": background,
-        "genre": genre,
-        "greeting": greeting,
-        "detail": detail,
-        "summary": summary,
-        "scenario": scenario,
-        "world": world,
-        "tags": tag_list,
-        "image": image_url,
-        "image_hash": image_hash,
-        "image_path": image_path,
-        "src_file": image_path,
-        "status": "active",
-    }
-    
-    # 4) DB 저장
-    result = characters_collection().insert_one(doc)
-    inserted_id = str(result.inserted_id)
-    
-    # 5) 응답용으로 ObjectId를 문자열로 변환
-    resp = {
-        "_id": inserted_id,
-        "id": new_id,
-        "name": name,
-    }
-    
-    # jsonable_encoder 를 한 번 태워서 ObjectId / datetime 등 직렬화 보장
-    return jsonable_encoder(resp)
+    try:
+        # 1) meta 파싱
+        try:
+            payload = CharacterMeta.model_validate_json(meta)
+        except Exception as e:
+            logger.error(f"Failed to parse meta JSON: {e}")
+            raise HTTPException(status_code=400, detail="캐릭터 정보(meta)가 올바르지 않습니다.")
+        
+        if not payload.name or not payload.name.strip():
+            raise HTTPException(status_code=400, detail="캐릭터 이름을 입력해주세요.")
+        
+        # 2) 이미지 읽기
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="대표 이미지 파일이 전송되지 않았습니다.")
+        
+        # 3) Content-Type 확인
+        content_type = file.content_type or "image/png"
+        if not content_type.startswith("image/"):
+            content_type = "image/png"
+        
+        # 4) R2 업로드
+        try:
+            r2 = get_r2_storage()
+            image_meta = r2.upload_image(content, prefix="assets/char/", content_type=content_type)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"[R2_UPLOAD_ERROR] {e}")
+            raise HTTPException(status_code=502, detail="이미지 업로드 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+        
+        # 5) MongoDB 저장
+        try:
+            from adapters.persistence.mongo.characters import characters_collection
+            from adapters.persistence.mongo.seq import get_next_sequence
+            from fastapi.encoders import jsonable_encoder
+            import hashlib
+            
+            col = characters_collection()
+            new_id = await get_next_sequence("characters")
+            
+            now = int(time.time())
+            
+            # 예시 대화를 Dict 형태로 변환
+            examples_dict = [
+                {"user": ex.user, "assistant": ex.assistant}
+                for ex in payload.examples
+            ]
+            
+            doc = {
+                "id": new_id,
+                "name": payload.name.strip(),
+                "archetype": payload.archetype,
+                "world": payload.world,
+                "summary": payload.summary or "",
+                "tags": payload.tags or [],
+                "image": image_meta["url"],
+                "image_path": image_meta["path"],
+                "src_file": image_meta["path"],
+                "image_hash": hashlib.md5(content).hexdigest(),
+                "background": payload.background,
+                "detail": payload.detail or "",
+                "greeting": payload.greeting,
+                "style": payload.style,
+                "persona_traits": payload.persona_traits or [],
+                "examples": examples_dict,
+                "scenario": payload.scenario or "",
+                "system_prompt": payload.system_prompt or "",
+                "status": payload.status or "active",
+                "created_at": now,
+                "updated_at": now,
+                # 기존 캐릭터 문서에 쓰던 필드 기본값들
+                "polish_model": "gpt-4o-mini",
+                "polish_status": "done",
+                "vision_model": "moondream",
+                "meta_version": 2,
+            }
+            
+            result = col.insert_one(doc)
+            inserted_id = str(result.inserted_id)
+            
+            # 응답용으로 ObjectId를 문자열로 변환
+            resp = {
+                "_id": inserted_id,
+                "id": new_id,
+                "name": payload.name,
+            }
+            
+            return jsonable_encoder(resp)
+        except Exception as e:
+            logger.exception(f"[MONGO_INSERT_ERROR] {e}")
+            raise HTTPException(status_code=500, detail="캐릭터 정보를 저장하는 중 서버 오류가 발생했습니다.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Character creation failed")
+        raise HTTPException(status_code=500, detail="캐릭터 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
