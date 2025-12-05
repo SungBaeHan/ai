@@ -662,6 +662,29 @@ create/character.html - 캐릭터 생성 화면
       const summary = getInputValue('[data-field="summary"]');
       const tags = getCheckedTagValues('[data-field="tags"] input[type="checkbox"]');
       
+      // 예시 대화 수집: { user: string, assistant: string } 구조
+      // 비어 있는 예시(user와 assistant가 모두 비어있음)는 제외
+      const examples = Array.from(document.querySelectorAll('.example-row'))
+        .map(row => {
+          const user = getInputValue('input[name*="user"]', row)?.trim() || '';
+          const assistant = getInputValue('textarea[name*="assistant"]', row)?.trim() || '';
+          return { user, assistant };
+        })
+        .filter(ex => ex.user.trim() || ex.assistant.trim());
+      
+      // 예시:
+      // examples 입력:
+      //  - user: "이곳에서 무엇을 찾고 있나요?"
+      //    assistant: "저는 새로운 모험을 찾고 있어요."
+      //  - user: "과거에 대해 이야기해줄 수 있나요?"
+      //    assistant: "그것은 아픈 이야기예요..."
+      //
+      // 전송되는 meta.examples:
+      // [
+      //   { "user": "...", "assistant": "..." },
+      //   { "user": "...", "assistant": "..." }
+      // ]
+      
       const meta = {
         name,
         archetype,
@@ -676,10 +699,7 @@ create/character.html - 캐릭터 생성 화면
           .split('\n')
           .map(s => s.trim())
           .filter(s => s),
-        examples: Array.from(document.querySelectorAll('.example-row')).map(row => ({
-          user: getInputValue('input[name*="user"]', row) || '',
-          assistant: getInputValue('textarea[name*="assistant"]', row) || '',
-        })).filter(ex => ex.user || ex.assistant),
+        examples,
         scenario: '',
         system_prompt: '',
         status: 'active',
