@@ -408,7 +408,59 @@ async def ai_generate_character_detail(payload: CharacterBaseInfo):
         logger.exception("AI generation failed")
         raise HTTPException(status_code=500, detail="캐릭터 상세 설정 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
 
-# === 캐릭터 생성 (전체 필드) ===
+# === 사용자 인증 의존성 (validate-session과 동일한 로직) ===
+def get_current_user_from_token(token: str):
+    """
+    user_info_v2 토큰을 검증하고 사용자 정보를 반환하는 함수.
+    validate-session 엔드포인트와 완전히 동일한 로직을 사용.
+    """
+    try:
+        info = decode_user_info_token(token)
+    except ValueError:
+        return None
+
+    now = datetime.now(timezone.utc)
+    if info.expired_at < now:
+        return None
+
+    db = get_mongo_client()
+    users = db.users
+
+    try:
+        user = users.find_one({"_id": ObjectId(info.user_id)})
+    except Exception:
+        return None
+
+    if not user:
+        return None
+
+    # last_login_at 이 DB 값과 다르면, 이전 세션 토큰 → 무효
+    db_last_login = user.get("last_login_at")
+    if db_last_login is None:
+        return None
+
+    # timezone 정보가 없으면 UTC로 가정
+    if isinstance(db_last_login, datetime):
+        if db_last_login.tzinfo is None:
+            db_last_login = db_last_login.replace(tzinfo=timezone.utc)
+    else:
+        return None
+
+    # last_login_at 비교 (마이크로초 단위 차이 무시)
+    if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
+        return None
+
+    # 사용자 정보 반환 (dict 형태, validate-session과 동일한 구조)
+    return {
+        "user_id": str(user["_id"]),
+        "email": user.get("email", info.email),
+        "display_name": user.get("display_name", info.display_name),
+        "google_id": user.get("google_id"),
+        "sub": user.get("google_id"),
+        "is_use": user.get("is_use", "Y"),
+        "is_lock": user.get("is_lock", "N"),
+    }
+
 def get_current_user_v2(request: Request):
     """
     Request에서 user_info_v2 토큰을 읽어서 사용자 정보를 반환하는 의존성 함수.
@@ -418,7 +470,6 @@ def get_current_user_v2(request: Request):
     token = None
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
-        # Bearer 토큰이 user_info_v2 형식일 수 있음
         token = auth_header.split(" ")[1]
     else:
         # 별도 헤더에서 토큰 읽기 시도
@@ -427,57 +478,14 @@ def get_current_user_v2(request: Request):
     if not token:
         return None
     
-    try:
-        info = decode_user_info_token(token)
-    except ValueError:
-        return None
-    
-    now = datetime.now(timezone.utc)
-    if info.expired_at < now:
-        return None
-    
-    db = get_mongo_client()
-    users = db.users
-    
-    try:
-        user = users.find_one({"_id": ObjectId(info.user_id)})
-    except Exception:
-        return None
-    
-    if not user:
-        return None
-    
-    # last_login_at 검증
-    db_last_login = user.get("last_login_at")
-    if db_last_login is None:
-        return None
-    
-    if isinstance(db_last_login, datetime):
-        if db_last_login.tzinfo is None:
-            db_last_login = db_last_login.replace(tzinfo=timezone.utc)
-    else:
-        return None
-    
-    if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
-        return None
-    
-    # 사용자 정보 반환 (dict 형태)
-    return {
-        "user_id": str(user["_id"]),
-        "email": user.get("email", info.email),
-        "display_name": user.get("display_name", info.display_name),
-        "google_id": user.get("google_id"),  # user 문서에서 직접 가져오기
-        "sub": user.get("google_id"),  # sub도 google_id와 동일하게
-        "is_use": user.get("is_use", "Y"),
-        "is_lock": user.get("is_lock", "N"),
-    }
+    return get_current_user_from_token(token)
 
 @router.post("", summary="캐릭터 생성")
 async def create_character(
-    request: Request,
     file: UploadFile = File(...),
     meta: str = Form(...),
     db = Depends(get_db),
+    current_user = Depends(get_current_user_v2),
 ):
     """
     캐릭터 이미지와 메타데이터를 함께 받아 R2 업로드 + Mongo 저장.
@@ -486,19 +494,23 @@ async def create_character(
     - 로그인 필수, is_use/is_lock 정책 적용
     """
     try:
-        # --- 로그인 및 사용 가능 여부 체크 (채팅과 동일 정책) ---
-        current_user = get_current_user_v2(request)
+        # --- 로그인 및 사용 가능 여부 체크 ---
         
         if current_user is None:
+            # dependency가 None을 반환하는 형태라면 여기서 401
             raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
         
-        is_use = current_user.get("is_use", "Y")
-        is_lock = current_user.get("is_lock", "N")
+        # 필드 이름: users 컬렉션 구조에 맞게
+        # 예: isUse / isLock 을 쓰는 경우가 많음
+        is_use = current_user.get("is_use") or current_user.get("isUse")
+        is_lock = current_user.get("is_lock") or current_user.get("isLock")
         
-        if is_use != "Y":
+        # 사용 불가
+        if is_use is not None and is_use != "Y":
             raise HTTPException(status_code=403, detail="현재 사용이 불가한 상태입니다.")
         
-        if is_lock == "Y":
+        # 계정 잠금
+        if is_lock is not None and is_lock == "Y":
             raise HTTPException(status_code=403, detail="현재 계정이 차단된 상태입니다.")
         
         # 1) meta 파싱
@@ -547,7 +559,11 @@ async def create_character(
             
             # --- 등록자(reg_user) 정보 세팅 ---
             # google_id 우선, 없으면 email
-            google_id = current_user.get("google_id") or current_user.get("sub")
+            google_id = (
+                current_user.get("google_id")
+                or current_user.get("googleId")
+                or current_user.get("sub")
+            )
             email = current_user.get("email")
             if google_id:
                 reg_user = str(google_id)
