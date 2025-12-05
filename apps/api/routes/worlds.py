@@ -7,12 +7,18 @@
 
 import time
 import logging
+import hashlib
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, UploadFile, File
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Request
+from pydantic import BaseModel, Field, ConfigDict
 from adapters.persistence.mongo import get_db
 from adapters.file_storage.r2_storage import R2Storage
 from langchain_openai import ChatOpenAI
+from apps.api.core.user_info_token import decode_user_info_token
+from adapters.persistence.mongo.factory import get_mongo_client
+from bson import ObjectId
+from datetime import datetime, timezone
+from fastapi.encoders import jsonable_encoder
 import json
 
 logger = logging.getLogger(__name__)
@@ -32,6 +38,119 @@ def get_r2_storage() -> R2Storage:
             logger.error(f"Failed to initialize R2Storage: {e}")
             raise HTTPException(status_code=500, detail="R2 storage not configured")
     return _r2_storage
+
+def normalize_image_path(image_url: Optional[str]) -> str:
+    """
+    R2 공개 URL을 내부 저장 경로('/assets/...')로 변환한다.
+    
+    - 예: 'https://pub-xxxx.r2.dev/assets/world/abcd.png'
+      → '/assets/world/abcd.png'
+    - 이미 '/assets/...' 형태면 그대로 반환
+    """
+    if not image_url:
+        return ""
+    
+    # 이미 내부 경로 형태인 경우
+    if image_url.startswith("/assets/"):
+        return image_url
+    
+    parts = image_url.split("/")
+    # "assets"가 있는 위치부터 끝까지 이어 붙여서 내부 경로로 사용
+    try:
+        idx = parts.index("assets")
+        return "/" + "/".join(parts[idx:])
+    except ValueError:
+        # "assets"가 없으면 원본 그대로 반환 (방어 코드)
+        return image_url
+
+def get_next_world_id(db):
+    """
+    worlds 컬렉션에서 가장 큰 id 값을 찾아 +1 해서 반환한다.
+    
+    - 문서가 없다면 1부터 시작한다.
+    """
+    # id 내림차순으로 하나만 가져오기
+    # pymongo는 동기 함수이므로 await 없이 사용
+    doc = db.worlds.find_one({}, sort=[("id", -1)])
+    if doc and "id" in doc:
+        try:
+            return int(doc["id"]) + 1
+        except (TypeError, ValueError):
+            # id가 이상한 값이어도 최소한 1부터 시작하도록
+            pass
+    return 1
+
+# === 사용자 인증 의존성 (validate-session과 동일한 로직) ===
+def get_current_user_from_token(token: str):
+    """
+    user_info_v2 토큰을 검증하고 사용자 정보를 반환하는 함수.
+    validate-session 엔드포인트와 완전히 동일한 로직을 사용.
+    """
+    try:
+        info = decode_user_info_token(token)
+    except ValueError:
+        return None
+
+    now = datetime.now(timezone.utc)
+    if info.expired_at < now:
+        return None
+
+    db = get_mongo_client()
+    users = db.users
+
+    try:
+        user = users.find_one({"_id": ObjectId(info.user_id)})
+    except Exception:
+        return None
+
+    if not user:
+        return None
+
+    # last_login_at 이 DB 값과 다르면, 이전 세션 토큰 → 무효
+    db_last_login = user.get("last_login_at")
+    if db_last_login is None:
+        return None
+
+    # timezone 정보가 없으면 UTC로 가정
+    if isinstance(db_last_login, datetime):
+        if db_last_login.tzinfo is None:
+            db_last_login = db_last_login.replace(tzinfo=timezone.utc)
+    else:
+        return None
+
+    # last_login_at 비교 (마이크로초 단위 차이 무시)
+    if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
+        return None
+
+    # 사용자 정보 반환 (dict 형태, validate-session과 동일한 구조)
+    return {
+        "user_id": str(user["_id"]),
+        "email": user.get("email", info.email),
+        "display_name": user.get("display_name", info.display_name),
+        "google_id": user.get("google_id"),
+        "sub": user.get("google_id"),
+        "is_use": user.get("is_use", "Y"),
+        "is_lock": user.get("is_lock", "N"),
+    }
+
+def get_current_user_v2(request: Request):
+    """
+    Request에서 user_info_v2 토큰을 읽어서 사용자 정보를 반환하는 의존성 함수.
+    validate-session과 동일한 로직을 사용.
+    """
+    # Authorization 헤더 또는 X-User-Info-Token 헤더에서 토큰 추출
+    token = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+    else:
+        # 별도 헤더에서 토큰 읽기 시도
+        token = request.headers.get("X-User-Info-Token")
+    
+    if not token:
+        return None
+    
+    return get_current_user_from_token(token)
 
 # === 이미지 업로드 ===
 @router.post("/upload-image", summary="세계관 이미지 업로드")
@@ -55,8 +174,9 @@ async def upload_world_image(file: UploadFile = File(...)):
         
         return {
             "image": meta["url"],
-            "src_file": meta["src_file"],
-            "img_hash": meta["img_hash"],
+            "image_path": meta["path"],
+            "src_file": meta["path"],
+            "img_hash": hashlib.md5(content).hexdigest(),
             "key": meta["key"],
         }
     except HTTPException:
@@ -163,13 +283,17 @@ async def ai_generate_world_detail(payload: WorldBaseInfo):
         raise HTTPException(status_code=500, detail=f"AI generation failed: {str(e)}")
 
 # === 세계관 생성 ===
-class WorldCreatePayload(BaseModel):
-    """세계관 생성 전체 필드"""
+class WorldMeta(BaseModel):
+    """세계관 생성 메타데이터 모델"""
+    model_config = ConfigDict(extra='ignore')
+    
+    id: Optional[int] = None
     name: str
     genre: Optional[str] = None
     summary: Optional[str] = None
-    tags: List[str] = []
-    image: str
+    tags: List[str] = Field(default_factory=list)
+    image: Optional[str] = None
+    image_path: Optional[str] = None
     src_file: Optional[str] = None
     img_hash: Optional[str] = None
     detail: Optional[str] = None
@@ -178,56 +302,145 @@ class WorldCreatePayload(BaseModel):
     conflicts: Optional[str] = None
     opening_scene: Optional[str] = None
     style: Optional[str] = None
+    status: Optional[str] = "active"
+    created_at: Optional[int] = None
+    updated_at: Optional[int] = None
+    reg_user: Optional[str] = Field(default=None, description="등록한 사용자의 google_id 또는 email")
 
 @router.post("", summary="세계관 생성")
-def create_world(payload: WorldCreatePayload):
+async def create_world(
+    file: UploadFile = File(...),
+    meta: str = Form(...),
+    db = Depends(get_db),
+    current_user = Depends(get_current_user_v2),
+):
     """
-    세계관 생성 화면에서 모든 값을 모아 MongoDB worlds 컬렉션에 새 문서로 저장
+    세계관 이미지와 메타데이터를 함께 받아 R2 업로드 + Mongo 저장.
+    - file: 세계관 이미지 파일
+    - meta: JSON 문자열 (WorldMeta 구조)
+    - 로그인 필수, is_use/is_lock 정책 적용
     """
     try:
-        if not payload.name.strip():
-            raise HTTPException(status_code=400, detail="World name is required")
-        if not payload.image.strip():
-            raise HTTPException(status_code=400, detail="Image is required")
+        # --- 로그인 및 사용 가능 여부 체크 ---
         
-        # MongoDB에서 최대 id 찾기
-        db = get_db()
-        col = db["worlds"]
-        max_doc = col.find_one(sort=[("id", -1)])
-        next_id = (max_doc["id"] if max_doc and "id" in max_doc else 0) + 1
+        if current_user is None:
+            # dependency가 None을 반환하는 형태라면 여기서 401
+            raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
         
-        now = int(time.time())
+        # 필드 이름: users 컬렉션 구조에 맞게
+        # 예: isUse / isLock 을 쓰는 경우가 많음
+        is_use = current_user.get("is_use") or current_user.get("isUse")
+        is_lock = current_user.get("is_lock") or current_user.get("isLock")
         
-        # 문서 생성
-        doc = {
-            "id": next_id,
-            "name": payload.name.strip(),
-            "genre": payload.genre,
-            "summary": payload.summary or "",
-            "tags": payload.tags or [],
-            "image": payload.image.strip(),
-            "src_file": payload.src_file,
-            "img_hash": payload.img_hash,
-            "detail": payload.detail or "",
-            "regions": payload.regions or [],
-            "factions": payload.factions or [],
-            "conflicts": payload.conflicts or "",
-            "opening_scene": payload.opening_scene or "",
-            "style": payload.style or "",
-            "created_at": now,
-            "updated_at": now,
-        }
+        # boolean을 문자열로 변환 (DB에서 "Y"/"N" 또는 True/False로 올 수 있음)
+        if isinstance(is_use, bool):
+            is_use = "Y" if is_use else "N"
+        if isinstance(is_lock, bool):
+            is_lock = "Y" if is_lock else "N"
         
-        col.insert_one(doc)
+        # 사용 불가
+        if is_use is not None and is_use != "Y":
+            raise HTTPException(status_code=403, detail="현재 사용이 불가한 상태입니다.")
         
-        return {
-            "ok": True,
-            "id": next_id,
-            "world": doc
-        }
+        # 계정 잠금
+        if is_lock is not None and is_lock == "Y":
+            raise HTTPException(status_code=403, detail="현재 계정이 차단된 상태입니다.")
+        
+        # 1) meta 파싱
+        try:
+            payload = WorldMeta.model_validate_json(meta)
+        except Exception as e:
+            logger.error(f"Failed to parse meta JSON: {e}")
+            raise HTTPException(status_code=400, detail="세계관 정보(meta)가 올바르지 않습니다.")
+        
+        if not payload.name or not payload.name.strip():
+            raise HTTPException(status_code=400, detail="세계관 이름을 입력해주세요.")
+        
+        # 2) 이미지 읽기
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="대표 이미지 파일이 전송되지 않았습니다.")
+        
+        # 3) Content-Type 확인
+        content_type = file.content_type or "image/png"
+        if not content_type.startswith("image/"):
+            content_type = "image/png"
+        
+        # 4) R2 업로드
+        try:
+            r2 = get_r2_storage()
+            image_meta = r2.upload_image(content, prefix="assets/world/", content_type=content_type)
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.exception(f"[R2_UPLOAD_ERROR] {e}")
+            raise HTTPException(status_code=502, detail="이미지 업로드 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+        
+        # 5) MongoDB 저장
+        try:
+            # 1) id 자동 증가: 가장 큰 id + 1
+            new_id = get_next_world_id(db)
+            
+            # 2) image URL → 내부 경로('/assets/...')로 정규화
+            normalized_path = normalize_image_path(image_meta["url"])
+            
+            # 3) 타임스탬프 설정 (초 단위 UNIX time)
+            now = int(time.time())
+            
+            # --- 등록자(reg_user) 정보 세팅 ---
+            # google_id 우선, 없으면 email
+            google_id = (
+                current_user.get("google_id")
+                or current_user.get("googleId")
+                or current_user.get("sub")
+            )
+            email = current_user.get("email")
+            if google_id:
+                reg_user = str(google_id)
+            elif email:
+                reg_user = email
+            else:
+                reg_user = None
+            
+            doc = {
+                "id": new_id,
+                "name": payload.name.strip(),
+                "genre": payload.genre,
+                "summary": payload.summary or "",
+                "tags": payload.tags or [],
+                "image": normalized_path,  # 내부 경로로 저장
+                "image_path": normalized_path,  # 내부 경로로 저장
+                "src_file": normalized_path,  # 내부 경로로 저장
+                "img_hash": hashlib.md5(content).hexdigest(),
+                "detail": payload.detail or "",
+                "regions": payload.regions or [],
+                "factions": payload.factions or [],
+                "conflicts": payload.conflicts or "",
+                "opening_scene": payload.opening_scene or "",
+                "style": payload.style or "",
+                "status": payload.status or "active",
+                "reg_user": reg_user,  # 등록자 식별자
+                "created_at": now,
+                "updated_at": now,
+            }
+            
+            result = db.worlds.insert_one(doc)
+            inserted_id = str(result.inserted_id)
+            
+            # 응답용으로 ObjectId를 문자열로 변환
+            resp = {
+                "id": new_id,
+                "mongo_id": inserted_id,
+                "status": "ok",
+            }
+            
+            return jsonable_encoder(resp)
+        except Exception as e:
+            logger.exception(f"[MONGO_INSERT_ERROR] {e}")
+            raise HTTPException(status_code=500, detail="세계관 정보를 저장하는 중 서버 오류가 발생했습니다.")
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("World creation failed")
-        raise HTTPException(status_code=500, detail=f"Creation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail="세계관 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
 

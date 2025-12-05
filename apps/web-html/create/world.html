@@ -581,6 +581,10 @@ create/world.html - 세계관 생성 화면
         // FormData를 사용할 때는 Content-Type을 명시하지 않음 (브라우저가 자동으로 boundary 설정)
         delete headers['Content-Type'];
 
+        console.log('[WORLD_SAVE] Sending request to:', `${API_BASE_URL}/v1/worlds`);
+        console.log('[WORLD_SAVE] Meta:', meta);
+        console.log('[WORLD_SAVE] Has file:', !!worldImageFile);
+
         const response = await fetch(`${API_BASE_URL}/v1/worlds`, {
           method: 'POST',
           headers: headers,
@@ -588,17 +592,25 @@ create/world.html - 세계관 생성 화면
           body: formData,
         });
 
+        console.log('[WORLD_SAVE] Response status:', response.status);
+        console.log('[WORLD_SAVE] Response ok:', response.ok);
+
         if (!response.ok) {
           let errorDetail = '세계관 저장 중 오류가 발생했습니다.';
           try {
             const error = await response.json();
+            console.error('[WORLD_SAVE] Error response:', error);
             if (error && error.detail) {
               errorDetail = error.detail;
+            } else if (error && typeof error === 'string') {
+              errorDetail = error;
             }
           } catch (e) {
-            // JSON 파싱 실패 시 기본 메시지 사용
+            console.error('[WORLD_SAVE] Failed to parse error response:', e);
+            const text = await response.text();
+            console.error('[WORLD_SAVE] Response text:', text);
           }
-          showToast(errorDetail, 2000);
+          showToast(errorDetail, 3000);
           btn.disabled = false;
           return;
         }
