@@ -125,9 +125,17 @@
         credentials: "include",
         headers: { "Content-Type": "application/json" },
       });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) {
+        const errorText = await r.text();
+        console.error('[loadWorldsFromApi] HTTP error:', r.status, errorText);
+        throw new Error('HTTP ' + r.status + ': ' + errorText);
+      }
       const j = await r.json();
-      return j.items || [];
+      console.log('[loadWorldsFromApi] Response:', j);
+      // API 응답 구조: { items: [...], total: number, ... }
+      const items = j.items || [];
+      console.log('[loadWorldsFromApi] Items count:', items.length);
+      return items;
     }
     
         // 로컬 정적 JSON에서 캐릭터 목록 로드 (개발/오프라인용)
@@ -148,8 +156,12 @@
     
     // 세계관 목록 로드
     async function loadWorlds() {
-      try { return await loadWorldsFromApi(); }
-      catch(_) {
+      try { 
+        const items = await loadWorldsFromApi();
+        console.log('[loadWorlds] Success, items:', items.length);
+        return items;
+      } catch(error) {
+        console.error('[loadWorlds] Error:', error);
         return [];
       }
     }
@@ -216,7 +228,8 @@
     
     // 세계관 카드 DOM 생성
     function worldCard(item) {
-      const id = item.id || item._id || 'world_01';
+      console.log('[worldCard] Creating card for item:', item);
+      const id = item.id || item._id || item.mongo_id || 'world_01';
       const a = document.createElement('a');
       a.className = 'card';
       a.href = `#`; // 세계관 상세 페이지는 나중에 구현
@@ -229,11 +242,18 @@
       img.className = 'thumb';
       img.alt = item.name || id;
       // 세계관 이미지 경로 처리
-      let imagePath = item.image || item.cover || '/assets/img/placeholder.jpg';
+      let imagePath = item.image || item.image_path || item.cover || '/assets/img/placeholder.jpg';
+      console.log('[worldCard] Original image path:', imagePath);
       if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/')) {
         imagePath = '/assets/world/' + imagePath;
       }
-      img.src = resolvePath(imagePath);
+      const resolvedPath = resolvePath(imagePath);
+      console.log('[worldCard] Resolved image path:', resolvedPath);
+      img.src = resolvedPath;
+      img.onerror = function() {
+        console.error('[worldCard] Image load failed:', resolvedPath);
+        this.src = '/assets/img/placeholder.jpg';
+      };
 
       const body = document.createElement('div');
       body.className = 'body';
@@ -242,7 +262,8 @@
       name.textContent = item.name || id;
       const meta = document.createElement('span');
       meta.className = 'meta';
-      meta.textContent = (item.summary || item.detail || '').toString().substring(0, 60) + (item.summary && item.summary.length > 60 ? '...' : '');
+      const summaryText = (item.summary || item.detail || '').toString();
+      meta.textContent = summaryText.length > 60 ? summaryText.substring(0, 60) + '...' : summaryText;
 
       body.appendChild(name);
       body.appendChild(meta);
@@ -252,11 +273,14 @@
       chips.style.marginTop = '6px';
       chips.style.display = 'flex';
       chips.style.gap = '6px';
-      chips.innerHTML = [item.genre, item.style].filter(Boolean).map(v => `<span style="font-size:11px;padding:2px 8px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#a5b4fc">${v}</span>`).join('');
+      chips.style.flexWrap = 'wrap';
+      const chipValues = [item.genre, item.style, ...(item.tags || [])].filter(Boolean);
+      chips.innerHTML = chipValues.map(v => `<span style="font-size:11px;padding:2px 8px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#a5b4fc">${v}</span>`).join('');
       body.appendChild(chips);
       
       a.appendChild(img);
       a.appendChild(body);
+      console.log('[worldCard] Card created successfully');
       return a;
     }
 
@@ -312,18 +336,35 @@
               items = await loadWorlds();
             }
             
-            grid.innerHTML = items.length ? '' : '<div style="opacity:.7;text-align:center;padding:40px;">표시할 ' + (category === 'characters' ? '캐릭터' : '세계관') + '가 없습니다.</div>';
+            console.log('[Category tab click] Category:', category, 'Items:', items.length, items);
             
-            items.forEach(it => {
-              if (category === 'characters') {
-                grid.appendChild(card(it));
-              } else {
-                grid.appendChild(worldCard(it));
-              }
-            });
+            // 그리드 초기화
+            grid.innerHTML = '';
+            
+            if (items.length === 0) {
+              grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">표시할 ' + (category === 'characters' ? '캐릭터' : '세계관') + '가 없습니다.</div>';
+            } else {
+              // 각 아이템을 카드로 변환하여 그리드에 추가
+              items.forEach((it, index) => {
+                try {
+                  console.log('[Rendering] Item', index, ':', it);
+                  let cardElement;
+                  if (category === 'characters') {
+                    cardElement = card(it);
+                  } else {
+                    cardElement = worldCard(it);
+                  }
+                  if (cardElement) {
+                    grid.appendChild(cardElement);
+                  }
+                } catch (cardError) {
+                  console.error('[Rendering] Error creating card for item', index, ':', cardError, it);
+                }
+              });
+            }
           } catch (error) {
-            console.error('Failed to load items:', error);
-            grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">데이터를 불러오는 중 오류가 발생했습니다.</div>';
+            console.error('[Category tab click] Failed to load items:', error);
+            grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">데이터를 불러오는 중 오류가 발생했습니다: ' + error.message + '</div>';
           }
         });
       });
