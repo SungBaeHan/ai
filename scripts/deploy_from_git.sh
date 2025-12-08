@@ -3,28 +3,33 @@ set -euo pipefail
 
 BRANCH="${1:-dev}"
 
-PROJECT_ROOT="/home/ubuntu/ai"
-INFRA_DIR="$PROJECT_ROOT/infra"
-
 echo "===== [deploy_from_git] branch: ${BRANCH} ====="
 
-cd "$PROJECT_ROOT"
+cd /home/ubuntu/ai
 
-echo "[git] fetch & checkout ${BRANCH}"
-git fetch origin
-git checkout "${BRANCH}"
-git pull --ff-only origin "${BRANCH}"
+echo "[git] fetch & hard reset to origin/${BRANCH}"
 
-echo "[deploy] move to infra dir: ${INFRA_DIR}"
-cd "$INFRA_DIR"
+# 원격 최신 가져오기
+git fetch origin "${BRANCH}"
 
-echo "[docker] compose down"
-docker compose down
+# 브랜치 체크아웃 (없으면 생성)
+if git rev-parse --verify "${BRANCH}" >/dev/null 2>&1; then
+  git checkout "${BRANCH}"
+else
+  git checkout -b "${BRANCH}" "origin/${BRANCH}"
+fi
 
-echo "[docker] compose pull"
+# 로컬 변경사항 전부 버리고 원격 상태로 맞추기
+git reset --hard "origin/${BRANCH}"
+
+echo "[docker] docker compose pull & up"
+
+cd infra
+
+# 필요하면 이미지 pull
 docker compose pull
 
-echo "[docker] compose up -d"
-docker compose up -d
+# 컨테이너 재시작 (없으면 새로 생성)
+docker compose up -d --build
 
 echo "===== [deploy_from_git] done ====="
