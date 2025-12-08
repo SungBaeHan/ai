@@ -241,19 +241,8 @@
       const img = document.createElement('img');
       img.className = 'thumb';
       img.alt = item.name || id;
-      // 세계관 이미지 경로 처리
-      let imagePath = item.image || item.image_path || item.cover || '/assets/img/placeholder.jpg';
-      console.log('[worldCard] Original image path:', imagePath);
-      if (imagePath && !imagePath.startsWith('http') && !imagePath.startsWith('/')) {
-        imagePath = '/assets/world/' + imagePath;
-      }
-      const resolvedPath = resolvePath(imagePath);
-      console.log('[worldCard] Resolved image path:', resolvedPath);
-      img.src = resolvedPath;
-      img.onerror = function() {
-        console.error('[worldCard] Image load failed:', resolvedPath);
-        this.src = '/assets/img/placeholder.jpg';
-      };
+      // 캐릭터 카드처럼 단순하게 resolvePath만 사용
+      img.src = resolvePath(item.image || item.image_path || item.cover || '/assets/img/placeholder.jpg');
 
       const body = document.createElement('div');
       body.className = 'body';
