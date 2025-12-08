@@ -8,6 +8,7 @@
 import time
 import logging
 import hashlib
+import os
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Request, Query
 from pydantic import BaseModel, Field, ConfigDict
@@ -21,6 +22,7 @@ from bson import ObjectId
 from datetime import datetime, timezone
 from fastapi.encoders import jsonable_encoder
 import json
+from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = logging.getLogger(__name__)
 
@@ -535,26 +537,66 @@ async def create_world(
         logger.exception("World creation failed")
         raise HTTPException(status_code=500, detail="세계관 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
 
-# -----------------------------------------
-# 세계관 목록 조회 (임시 Stub 버전)
-# 프론트에서 home/world 탭 진입 시 호출하는 API:
-#   GET /v1/worlds?offset=0&limit=200
+# ===== MongoDB 연결 (간단 버전) =====
+_MONGO_CLIENT: AsyncIOMotorClient | None = None
 
-@router.get("")
+def get_mongo_db():
+    """
+    기존 프로젝트에 전용 Mongo 헬퍼가 있으면 그걸 써도 되는데,
+    여기서는 worlds 목록용으로만 쓰는 간단 헬퍼를 둔다.
+    """
+    global _MONGO_CLIENT
+    mongo_uri = os.getenv("MONGO_URI")
+    db_name = os.getenv("MONGO_DB", "arcanaverse")
+    if not mongo_uri:
+        # 환경변수 설정이 안돼 있으면 바로 에러 내버리기
+        raise RuntimeError("MONGO_URI env var is not set")
+    if _MONGO_CLIENT is None:
+        _MONGO_CLIENT = AsyncIOMotorClient(mongo_uri)
+    return _MONGO_CLIENT[db_name]
+
+# ===== Pydantic 모델 =====
+class World(BaseModel):
+    """
+    world 컬렉션 한 개 문서.
+    실제 필드는 Mongo 에 있는 그대로 extra 허용해서 받는다.
+    (id, name, genre, image, image_path, status, ... 등)
+    """
+    model_config = ConfigDict(extra="allow")
+    # Mongo 문서 안에 이미 id(숫자) 필드를 쓰고 있으니 그걸 그대로 씀
+    id: int | str = Field(..., description="세계관 ID")
+    name: str = Field(..., description="세계관 이름")
+
+class WorldListResponse(BaseModel):
+    total: int
+    items: list[World]
+
+# ===== 라우터 =====
+@router.get("", response_model=WorldListResponse)
 async def list_worlds(
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=200),
 ):
     """
-    세계관 목록 조회용 간이 Stub API.
-
-    - 일단은 빈 리스트만 돌려줘서 405 에러를 없애고
-      프론트에서 정상적으로 '세계관 없음' UI가 뜨게 하는 용도.
-    - 나중에 MongoDB에서 실제 world 컬렉션을 조회하도록
-      이 함수 내부만 교체하면 된다.
+    세계관 목록 조회.
+    프론트에서는 /v1/worlds?offset=0&limit=200 으로 호출하고,
+    응답은 { total: number, items: World[] } 형태를 기대하고 있음.
     """
-    return {
-        "total": 0,
-        "items": [],
-    }
+    db = get_mongo_db()
+    coll = db["worlds"]
+    # 필요하면 status="active" 조건만 주기
+    query = {}  # 예: {"status": "active"}
+    total = await coll.count_documents(query)
+    cursor = (
+        coll.find(query)
+        .sort("created_at", -1)  # 최신순
+        .skip(offset)
+        .limit(limit)
+    )
+    items: list[World] = []
+    async for doc in cursor:
+        # _id(ObjectId)는 프론트에서 쓰지 않으니 제거
+        doc.pop("_id", None)
+        items.append(World(**doc))
+    return WorldListResponse(total=total, items=items)
 
