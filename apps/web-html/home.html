@@ -232,11 +232,8 @@
       const id = item.id || item._id || item.mongo_id || 'world_01';
       const a = document.createElement('a');
       a.className = 'card';
-      a.href = `#`; // 세계관 상세 페이지는 나중에 구현
-      a.addEventListener('click', (e) => {
-        e.preventDefault();
-        showToast('세계관 상세 기능은 준비 중입니다.', 2000);
-      });
+      a.href = `/world.html?world=${id}`;
+      a.addEventListener('click', () => { try { sessionStorage.setItem('lastWorld', id); } catch(_){ } });
 
       const img = document.createElement('img');
       img.className = 'thumb';

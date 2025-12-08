@@ -607,3 +607,42 @@ async def list_worlds(
         items.append(World(**doc))
     return WorldListResponse(total=total, items=items)
 
+@router.get("/{world_id}", response_model=World)
+async def get_world(world_id: str):
+    """
+    단일 세계관 조회
+    - 숫자 ID 또는 world_XX 형태 모두 허용
+    """
+    try:
+        # world_id를 숫자로 변환 시도
+        wid = world_id
+        if isinstance(wid, str) and wid.startswith("world_"):
+            try:
+                wid = int(wid.split("_", 1)[1])
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid world id")
+        wid = int(wid)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid world id")
+    
+    db = get_mongo_db()
+    coll = db["worlds"]
+    
+    # id로 조회 시도
+    doc = await coll.find_one({"id": wid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="World not found")
+    
+    # _id 제거
+    doc.pop("_id", None)
+    
+    # 이미지 경로를 R2 public URL로 정규화
+    if "image" in doc:
+        doc["image"] = normalize_world_image(doc.get("image"))
+    if "image_path" in doc:
+        doc["image_path"] = normalize_world_image(doc.get("image_path"))
+    if "src_file" in doc:
+        doc["src_file"] = normalize_world_image(doc.get("src_file"))
+    
+    return World(**doc)
+
