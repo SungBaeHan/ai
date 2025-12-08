@@ -60,6 +60,9 @@ docker-compose down -v
 
 ### 2025-12
 
+- 12/04: World API 구현 (GET /v1/worlds 목록 조회, GET /v1/worlds/{id} 상세 조회)
+- 12/04: World 이미지 경로 정규화 (R2 public URL로 자동 변환)
+- 12/04: World 상세 페이지 구현 (world.html, 인사말 없이 자유롭게 채팅 시작)
 - 12/03: 암호화된 user_info_v2 토큰 시스템 구현 (Fernet 암호화, 세션 검증 API, 세션 만료 처리)
 - 12/03: 세션 검증 응답에 email 필드 추가, 프론트엔드 세션 관리 개선
 
@@ -101,6 +104,10 @@ docker-compose down -v
 - `GET /v1/characters/{id}` - 캐릭터 상세
 - `GET /v1/characters/count` - 캐릭터 개수
 - `POST /v1/characters` - 캐릭터 생성
+
+### 세계관 API
+- `GET /v1/worlds` - 세계관 목록
+- `GET /v1/worlds/{id}` - 세계관 상세
 
 ### 채팅 API
 - `POST /v1/chat/` - TRPG 채팅
