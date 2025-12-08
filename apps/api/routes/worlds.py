@@ -597,6 +597,13 @@ async def list_worlds(
     async for doc in cursor:
         # _id(ObjectId)는 프론트에서 쓰지 않으니 제거
         doc.pop("_id", None)
+        # 이미지 경로를 R2 public URL로 정규화 (캐릭터 API와 동일하게)
+        if "image" in doc:
+            doc["image"] = normalize_world_image(doc.get("image"))
+        if "image_path" in doc:
+            doc["image_path"] = normalize_world_image(doc.get("image_path"))
+        if "src_file" in doc:
+            doc["src_file"] = normalize_world_image(doc.get("src_file"))
         items.append(World(**doc))
     return WorldListResponse(total=total, items=items)
 
