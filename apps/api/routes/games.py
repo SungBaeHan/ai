@@ -86,6 +86,36 @@ def get_next_game_id(db: Database) -> int:
             pass
     return 1
 
+def _normalize_tags(raw: Any) -> List[str]:
+    """
+    CharacterSnapshot.tags 에 들어갈 값을 항상 List[str] 로 맞춰준다.
+    
+    - None -> []
+    - list -> 각 요소를 str 로 캐스팅
+    - JSON 문자열 '["a","b"]' -> 파싱 후 리스트
+    - 그 외 str/기타 타입 -> [str(raw)]
+    """
+    if raw is None:
+        return []
+    
+    if isinstance(raw, list):
+        return [str(item) for item in raw]
+    
+    if isinstance(raw, str):
+        # JSON 배열 문자열인 경우 우선 파싱 시도
+        try:
+            loaded = json.loads(raw)
+            if isinstance(loaded, list):
+                return [str(item) for item in loaded]
+        except Exception:
+            # 파싱 실패하면 그냥 하나짜리 리스트로
+            return [raw]
+        # loaded 가 리스트가 아니면 역시 하나짜리 리스트
+        return [str(loaded)]
+    
+    # 나머지 타입은 전부 문자열로 감싸서 단일 리스트로
+    return [str(raw)]
+
 @router.post("", response_model=GameResponse, status_code=status.HTTP_201_CREATED, summary="게임 생성")
 async def create_game(
     file: Optional[UploadFile] = File(None),
@@ -177,7 +207,7 @@ async def create_game(
                 id=doc.get("id"),
                 name=doc.get("name"),
                 summary=doc.get("summary"),
-                tags=doc.get("tags", []),
+                tags=_normalize_tags(doc.get("tags")),
                 image_url=char_image_url,
                 archetype=doc.get("archetype"),
                 attributes_base=doc.get("attributes_base"),
