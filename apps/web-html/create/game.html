@@ -250,29 +250,30 @@ create/game.html - 게임 생성 화면
     /* Select Display (button-like field) */
     .select-display {
       width:100%;
-      padding:10px 12px;
-      background:#0f172a;
-      border:1px solid #1f2937;
+      padding:12px 16px;
+      background:#3b82f6;
+      border:none;
       border-radius:8px;
-      color:#e5e7eb;
+      color:#fff;
       font-size:14px;
+      font-weight:500;
       cursor:pointer;
       transition:all .15s ease;
       display:flex;
       align-items:center;
-      justify-content:space-between;
+      justify-content:center;
+      text-align:center;
     }
 
     .select-display:hover {
-      border-color:#3b82f6;
-      background:#1e293b;
+      background:#2563eb;
+      transform:translateY(-1px);
+      box-shadow:0 4px 12px rgba(59, 130, 246, 0.3);
     }
 
-    .select-display::after {
-      content:"▼";
-      font-size:10px;
-      color:#94a3b8;
-      margin-left:8px;
+    .select-display:active {
+      transform:translateY(0);
+      box-shadow:0 2px 6px rgba(59, 130, 246, 0.2);
     }
 
     /* Chip Container for selected characters */
@@ -1338,6 +1339,15 @@ create/game.html - 게임 생성 화면
       }
     }
 
+    // 캐릭터 검색 실행
+    function executeCharacterSearch() {
+      const searchInput = document.getElementById('character-search-input');
+      if (searchInput) {
+        characterSearchText = searchInput.value.trim();
+        renderCharacterModalList();
+      }
+    }
+    
     // 캐릭터 모달 닫기
     function closeCharacterModal() {
       showCharacterModal = false;
