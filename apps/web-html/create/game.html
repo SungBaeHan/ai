@@ -1,6 +1,7 @@
 <!-- =============================================
-create/game.html - 게임 생성 플레이스홀더
-- 서비스 준비중 화면
+create/game.html - 게임 생성 화면
+- 좌측: 배경 이미지 미리보기, 세계관 정보
+- 우측: 게임 설정 폼
 - 다크 테마 유지
 ============================================= -->
 <!doctype html>
@@ -10,6 +11,7 @@ create/game.html - 게임 생성 플레이스홀더
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>게임 만들기 - Arcanaverse</title>
   <script src="/js/config.js"></script>
+  <script src="/static/js/session.js"></script>
   <script>
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
     window.API_BASE = 'https://api.arcanaverse.ai';
@@ -31,38 +33,432 @@ create/game.html - 게임 생성 플레이스홀더
     .tab.active { background:#1e3a8a; border-color:#3b82f6; color:#e0e7ff; }
 
     /* Main Container */
-    .container { max-width:960px; margin:80px auto; padding:0 16px; }
+    .container { max-width:1400px; margin:24px auto 40px; padding:0 16px; }
     
     h1 {
       font-size:28px;
       font-weight:700;
-      margin:0 0 48px 0;
+      margin:0 0 8px 0;
       color:#f3f4f6;
-      text-align:center;
     }
 
-    /* Placeholder Card */
-    .placeholder-card {
-      background:#111827;
-      border:1px solid #1f2937;
-      border-radius:16px;
-      padding:60px 40px;
-      text-align:center;
-      box-shadow:0 6px 18px rgba(0,0,0,.25);
+    .subtitle {
+      font-size:14px;
+      color:#94a3b8;
+      margin:0 0 32px 0;
     }
 
-    .placeholder-card h2 {
-      font-size:24px;
+    /* Two Column Layout */
+    .two-column {
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:32px;
+      align-items:start;
+    }
+
+    .column {
+      display:flex;
+      flex-direction:column;
+      gap:20px;
+    }
+
+    .column h2 {
+      font-size:20px;
       font-weight:700;
       margin:0 0 16px 0;
       color:#f3f4f6;
+      padding-bottom:12px;
+      border-bottom:1px solid #1f2937;
     }
 
-    .placeholder-card p {
-      font-size:16px;
+    /* Form Elements */
+    label {
+      display:block;
+      font-size:14px;
+      font-weight:500;
+      color:#e5e7eb;
+      margin-bottom:8px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      width:100%;
+      padding:10px 12px;
+      background:#0f172a;
+      border:1px solid #1f2937;
+      border-radius:8px;
+      color:#e5e7eb;
+      font-size:14px;
+      font-family:inherit;
+      transition:border-color .15s ease;
+      box-sizing:border-box;
+    }
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    textarea:focus,
+    select:focus {
+      outline:none;
+      border-color:#3b82f6;
+    }
+
+    textarea {
+      resize:vertical;
+      min-height:80px;
+    }
+
+    /* Image Uploader */
+    .image-uploader {
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:12px;
+      padding:20px;
+      text-align:center;
+    }
+
+    .image-uploader p {
+      margin:0 0 16px 0;
       color:#94a3b8;
-      line-height:1.6;
+      font-size:14px;
+    }
+
+    .image-uploader input[type="file"] {
+      width:100%;
+      padding:8px;
+      background:#0f172a;
+      border:1px dashed #334155;
+      border-radius:8px;
+      color:#e5e7eb;
+      cursor:pointer;
+      margin-bottom:16px;
+    }
+
+    .image-uploader .preview {
+      width:100%;
+      aspect-ratio:16/10;
+      background:#0b1220;
+      border:1px solid #1f2937;
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#64748b;
+      font-size:14px;
+      margin-top:12px;
+      overflow:hidden;
+    }
+
+    .image-uploader .preview img {
+      width:100%;
+      height:100%;
+      object-fit:cover;
+    }
+
+    /* Tag Field */
+    fieldset.tag-field {
+      border:1px solid #1f2937;
+      border-radius:8px;
+      padding:16px;
       margin:0;
+      background:#0f172a;
+    }
+
+    fieldset.tag-field legend {
+      font-size:14px;
+      font-weight:500;
+      color:#e5e7eb;
+      padding:0 8px;
+    }
+
+    .tag-checkboxes {
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      gap:12px;
+      margin-top:12px;
+    }
+
+    .tag-checkboxes label {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin:0;
+      font-size:13px;
+      cursor:pointer;
+      padding:6px 10px;
+      border-radius:6px;
+      background:#111827;
+      border:1px solid #1f2937;
+      transition:all .15s ease;
+    }
+
+    .tag-checkboxes label:hover {
+      background:#1f2937;
+      border-color:#334155;
+    }
+
+    .tag-checkboxes input[type="checkbox"] {
+      width:auto;
+      margin:0;
+      cursor:pointer;
+    }
+
+    .tag-checkboxes input[type="checkbox"]:checked + span {
+      color:#3b82f6;
+    }
+
+    /* World Preview Card */
+    .world-preview {
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:12px;
+      padding:16px;
+      margin-top:16px;
+    }
+
+    .world-preview h3 {
+      font-size:16px;
+      font-weight:600;
+      margin:0 0 12px 0;
+      color:#f3f4f6;
+    }
+
+    .world-preview p {
+      font-size:13px;
+      color:#94a3b8;
+      margin:8px 0;
+      line-height:1.5;
+    }
+
+    .world-preview .tags {
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin-top:12px;
+    }
+
+    .world-preview .tag-chip {
+      font-size:11px;
+      padding:4px 8px;
+      border:1px solid #334155;
+      border-radius:999px;
+      background:#0b1220;
+      color:#a5b4fc;
+    }
+
+    /* Character Selection */
+    .character-list {
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      margin-top:12px;
+    }
+
+    .character-item {
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:8px;
+      padding:12px;
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+
+    .character-item img {
+      width:48px;
+      height:48px;
+      border-radius:6px;
+      object-fit:cover;
+    }
+
+    .character-item .info {
+      flex:1;
+    }
+
+    .character-item .name {
+      font-size:14px;
+      font-weight:600;
+      color:#f3f4f6;
+      margin-bottom:4px;
+    }
+
+    .character-item .role-select {
+      width:auto;
+      min-width:120px;
+      padding:6px 8px;
+      font-size:12px;
+    }
+
+    .character-item .remove-btn {
+      padding:6px 12px;
+      background:#dc2626;
+      color:#ffffff;
+      border:none;
+      border-radius:6px;
+      font-size:12px;
+      cursor:pointer;
+    }
+
+    .character-item .remove-btn:hover {
+      background:#b91c1c;
+    }
+
+    /* Attribute Settings */
+    .attribute-list {
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      margin-top:12px;
+    }
+
+    .attribute-item {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      padding:12px;
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:8px;
+    }
+
+    .attribute-item input[type="checkbox"] {
+      width:auto;
+      margin:0;
+      cursor:pointer;
+    }
+
+    .attribute-item label {
+      flex:1;
+      margin:0;
+      font-size:14px;
+    }
+
+    .attribute-item input[type="number"] {
+      width:80px;
+      padding:6px 8px;
+    }
+
+    /* Rule Settings */
+    .rule-section {
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:8px;
+      padding:16px;
+      margin-top:12px;
+    }
+
+    .rule-section h4 {
+      font-size:14px;
+      font-weight:600;
+      margin:0 0 12px 0;
+      color:#f3f4f6;
+    }
+
+    .rule-row {
+      display:flex;
+      align-items:center;
+      gap:12px;
+      margin-bottom:12px;
+    }
+
+    .rule-row label {
+      flex:1;
+      margin:0;
+      font-size:13px;
+    }
+
+    .rule-row input[type="number"] {
+      width:100px;
+      padding:6px 8px;
+    }
+
+    .rule-row input[type="checkbox"] {
+      width:auto;
+      margin:0;
+      cursor:pointer;
+    }
+
+    /* Actions */
+    .actions {
+      display:flex;
+      gap:12px;
+      margin-top:32px;
+      padding-top:24px;
+      border-top:1px solid #1f2937;
+    }
+
+    .btn-primary {
+      flex:1;
+      padding:12px 24px;
+      background:#3b82f6;
+      color:#ffffff;
+      border:1px solid #2563eb;
+      border-radius:10px;
+      font-size:14px;
+      font-weight:600;
+      cursor:pointer;
+      transition:all .15s ease;
+    }
+
+    .btn-primary:hover {
+      background:#2563eb;
+      border-color:#1d4ed8;
+    }
+
+    .btn-primary:disabled {
+      opacity:0.5;
+      cursor:not-allowed;
+    }
+
+    /* Select Dropdown for World/Character */
+    .select-dropdown {
+      width:100%;
+      padding:10px 12px;
+      background:#0f172a;
+      border:1px solid #1f2937;
+      border-radius:8px;
+      color:#e5e7eb;
+      font-size:14px;
+      cursor:pointer;
+    }
+
+    .select-dropdown:focus {
+      outline:none;
+      border-color:#3b82f6;
+    }
+
+    /* Character Selection Button */
+    .btn-select-character {
+      padding:10px 16px;
+      background:#374151;
+      color:#d1d5db;
+      border:1px solid #4b5563;
+      border-radius:8px;
+      font-size:14px;
+      font-weight:500;
+      cursor:pointer;
+      transition:all .15s ease;
+      width:100%;
+      margin-top:12px;
+    }
+
+    .btn-select-character:hover {
+      background:#4b5563;
+      border-color:#6b7280;
+    }
+
+    /* Toast Layer */
+    .toast { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .18s ease; z-index:50; }
+    .toast.show { opacity:1; pointer-events:auto; }
+    .toast .box { pointer-events:auto; min-width:200px; max-width:80vw; background:#0f172a; border:1px solid #1f2937; color:#e5e7eb; padding:14px 18px; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.45); text-align:center; }
+
+    /* 반응형 */
+    @media (max-width: 1200px) {
+      .two-column {
+        grid-template-columns: 1fr;
+        gap:40px;
+      }
     }
   </style>
 </head>
@@ -79,14 +475,641 @@ create/game.html - 게임 생성 플레이스홀더
   </div>
 
   <main class="container">
-    <h1>게임 만들기</h1>
+    <h1>게임 생성</h1>
+    <p class="subtitle">세계관, 캐릭터, 룰을 선택해서 TRPG 세션을 생성합니다.</p>
 
-    <section class="placeholder-card">
-      <h2>서비스 준비중입니다.</h2>
-      <p>캐릭터와 세계관을 조합해 TRPG 세션을 만드는 기능은 준비 중입니다.</p>
+    <section class="two-column">
+      <!-- 좌측: 미리보기 -->
+      <section class="column left">
+        <h2>미리보기</h2>
+
+        <div class="image-uploader" data-field="background_image">
+          <p>게임 배경 이미지를 업로드하세요.</p>
+          <input type="file" accept="image/*" id="background-image-upload" />
+          <div class="preview" id="background-image-preview">
+            <span>이미지 미리보기</span>
+          </div>
+        </div>
+
+        <div id="world-preview-container" style="display:none;">
+          <div class="world-preview">
+            <h3 id="world-preview-name">세계관 이름</h3>
+            <p id="world-preview-summary">세계관 설명이 여기에 표시됩니다.</p>
+            <div class="tags" id="world-preview-tags"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 우측: 게임 설정 폼 -->
+      <section class="column right">
+        <h2>게임 설정</h2>
+
+        <!-- 게임 기본 정보 -->
+        <div>
+          <h3 style="font-size:16px; font-weight:600; margin:0 0 16px 0; color:#f3f4f6;">게임 기본 정보</h3>
+          
+          <label>
+            <font color="red">*</font> 게임명
+            <input type="text" id="game-title" placeholder="잿빛 대지 생존전" required />
+          </label>
+
+          <fieldset class="tag-field" data-field="tags">
+            <legend>게임 유형 태그</legend>
+            <div class="tag-checkboxes">
+              <label><input type="checkbox" value="전투 중심" data-field="tags" /> <span>전투 중심</span></label>
+              <label><input type="checkbox" value="협상 중심" data-field="tags" /> <span>협상 중심</span></label>
+              <label><input type="checkbox" value="던전 탐험" data-field="tags" /> <span>던전 탐험</span></label>
+              <label><input type="checkbox" value="미스터리" data-field="tags" /> <span>미스터리</span></label>
+              <label><input type="checkbox" value="생존" data-field="tags" /> <span>생존</span></label>
+              <label><input type="checkbox" value="현대" data-field="tags" /> <span>현대</span></label>
+              <label><input type="checkbox" value="판타지" data-field="tags" /> <span>판타지</span></label>
+              <label><input type="checkbox" value="스팀펑크" data-field="tags" /> <span>스팀펑크</span></label>
+              <label><input type="checkbox" value="하드코어" data-field="tags" /> <span>하드코어</span></label>
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- 세계관 선택 -->
+        <div>
+          <h3 style="font-size:16px; font-weight:600; margin:0 0 16px 0; color:#f3f4f6;">세계관 선택</h3>
+          
+          <label>
+            <font color="red">*</font> 세계관
+            <select id="world-select" class="select-dropdown">
+              <option value="">선택하세요</option>
+            </select>
+          </label>
+        </div>
+
+        <!-- 시나리오 정보 -->
+        <div>
+          <h3 style="font-size:16px; font-weight:600; margin:0 0 16px 0; color:#f3f4f6;">시나리오 정보</h3>
+          
+          <label>
+            시나리오 요약
+            <textarea id="scenario-summary" rows="2" placeholder="잿빛 대지에서 생존자 길드의 일원이 되어 폐허가 된 도시를 탐험합니다."></textarea>
+          </label>
+
+          <label>
+            시나리오 상세 (LLM 프롬프트용)
+            <textarea id="scenario-detail" rows="6" placeholder="이 게임은 '잿빛 대지'라는 황폐화된 대륙에서 진행된다. 플레이어들은 생존자 길드의 일원으로서..."></textarea>
+          </label>
+        </div>
+
+        <!-- 캐릭터 선택 및 역할 설정 -->
+        <div>
+          <h3 style="font-size:16px; font-weight:600; margin:0 0 16px 0; color:#f3f4f6;">캐릭터 선택 및 역할 설정</h3>
+          
+          <label>
+            캐릭터 선택 (최대 5명)
+            <select id="character-select" class="select-dropdown">
+              <option value="">캐릭터를 선택하세요</option>
+            </select>
+          </label>
+
+          <button type="button" id="btn-add-character" class="btn-select-character">캐릭터 추가</button>
+
+          <div id="character-list" class="character-list"></div>
+        </div>
+
+        <!-- 속성 설정 -->
+        <div>
+          <h3 style="font-size:16px; font-weight:600; margin:0 0 16px 0; color:#f3f4f6;">속성 설정</h3>
+          
+          <div id="attribute-list" class="attribute-list"></div>
+        </div>
+
+        <!-- 주사위 및 룰 설정 -->
+        <div>
+          <h3 style="font-size:16px; font-weight:600; margin:0 0 16px 0; color:#f3f4f6;">주사위 및 룰 설정</h3>
+          
+          <div class="rule-section">
+            <h4>주사위 설정</h4>
+            <div class="rule-row">
+              <label>주사위 개수</label>
+              <input type="number" id="dice-count" min="1" max="5" value="5" />
+            </div>
+            <div class="rule-row">
+              <label>주사위 면수</label>
+              <input type="number" id="dice-faces" min="4" value="20" />
+            </div>
+            <div class="rule-row">
+              <label>최대값</label>
+              <input type="number" id="dice-max" readonly value="100" style="background:#1f2937; color:#94a3b8;" />
+            </div>
+          </div>
+
+          <div class="rule-section">
+            <h4>성공 기준 / 난이도</h4>
+            <div class="rule-row">
+              <label>기본 성공 기준</label>
+              <input type="number" id="success-base" value="60" />
+            </div>
+            <div class="rule-row">
+              <label>쉬움 (easy)</label>
+              <input type="number" id="difficulty-easy" value="-10" />
+            </div>
+            <div class="rule-row">
+              <label>보통 (normal)</label>
+              <input type="number" id="difficulty-normal" value="0" />
+            </div>
+            <div class="rule-row">
+              <label>어려움 (hard)</label>
+              <input type="number" id="difficulty-hard" value="10" />
+            </div>
+            <div class="rule-row">
+              <label>매우 어려움 (very_hard)</label>
+              <input type="number" id="difficulty-very-hard" value="20" />
+            </div>
+            <div class="rule-row">
+              <label>능력치 보정 (ability_scale)</label>
+              <input type="number" id="ability-scale" step="0.1" value="1.0" />
+            </div>
+          </div>
+
+          <div class="rule-section">
+            <h4>데미지 설정</h4>
+            <div class="rule-row">
+              <label>STR 배수 (str_multiplier)</label>
+              <input type="number" id="str-multiplier" step="0.1" value="1.0" />
+            </div>
+            <div class="rule-row">
+              <label>고정 보너스 (flat_bonus)</label>
+              <input type="number" id="flat-bonus" value="0" />
+            </div>
+            <div class="rule-row">
+              <label>성공 보너스 배수 (success_bonus_scale)</label>
+              <input type="number" id="success-bonus-scale" step="0.1" value="1.0" />
+            </div>
+            <div class="rule-row">
+              <label>
+                <input type="checkbox" id="on-fail-zero" checked />
+                실패 시 데미지 0 (on_fail_zero)
+              </label>
+            </div>
+          </div>
+
+          <div class="rule-section">
+            <h4>크리티컬 설정</h4>
+            <div class="rule-row">
+              <label>임계값 비율 (threshold_ratio, 0~1)</label>
+              <input type="number" id="critical-threshold" step="0.01" min="0" max="1" value="0.95" />
+            </div>
+            <div class="rule-row">
+              <label>크리티컬 배수 (multiplier)</label>
+              <input type="number" id="critical-multiplier" step="0.1" value="2.0" />
+            </div>
+            <div class="rule-row">
+              <label>기본 보너스 배수 (base_bonus_multiplier)</label>
+              <input type="number" id="critical-base-bonus" step="0.1" value="1.5" />
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" id="btn-game-save" class="btn-primary">게임 생성</button>
+        </div>
+      </section>
     </section>
   </main>
+
+  <!-- Toast Layer -->
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true">
+    <div class="box">준비중입니다</div>
+  </div>
+
+  <script>
+    // API Base URL
+    const API_BASE_URL = getApiBaseUrl();
+
+    // Toast 표시
+    function showToast(msg, ms = 2000) {
+      const el = document.getElementById('toast');
+      el.querySelector('.box').textContent = msg;
+      el.classList.add('show');
+      clearTimeout(showToast.tid);
+      showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+    // 전역 상태
+    let backgroundImageFile = null;
+    let backgroundImageUrl = null;
+    let selectedWorld = null;
+    let selectedCharacters = [];
+    let worldsList = [];
+    let charactersList = [];
+
+    // 속성 정의
+    const attributes = [
+      { key: 'hp', label: '체력 (HP)', enabled: true, max: 100, base: 80 },
+      { key: 'mp', label: '마력 (MP)', enabled: true, max: 80, base: 30 },
+      { key: 'sp', label: '기력 (SP)', enabled: true, max: 60, base: 20 },
+      { key: 'str', label: '무력 (STR)', enabled: true, max: 20, base: 10 },
+      { key: 'int', label: '지력 (INT)', enabled: true, max: 20, base: 10 },
+      { key: 'pol', label: '정치 (POL)', enabled: false, max: 20, base: 10 },
+      { key: 'cha', label: '매력 (CHA)', enabled: true, max: 20, base: 10 },
+      { key: 'agi', label: '민첩 (AGI)', enabled: true, max: 20, base: 10 },
+      { key: 'log', label: '지능 (LOG)', enabled: false, max: 20, base: 10 },
+      { key: 'wis', label: '지혜 (WIS)', enabled: true, max: 20, base: 10 },
+      { key: 'luck', label: '행운 (LUCK)', enabled: true, max: 20, base: 10 },
+    ];
+
+    // 역할 목록
+    const roles = [
+      { value: 'random', label: '랜덤' },
+      { value: 'warrior', label: '전사' },
+      { value: 'mage', label: '마법사' },
+      { value: 'rogue', label: '로그' },
+      { value: 'hunter', label: '사냥꾼' },
+      { value: 'healer', label: '힐러' },
+      { value: 'diplomat', label: '외교관' },
+      { value: 'merchant', label: '상인' },
+      { value: 'engineer', label: '기술자' },
+    ];
+
+    // 속성 리스트 렌더링
+    function renderAttributes() {
+      const container = document.getElementById('attribute-list');
+      container.innerHTML = '';
+      
+      attributes.forEach(attr => {
+        const item = document.createElement('div');
+        item.className = 'attribute-item';
+        item.innerHTML = `
+          <input type="checkbox" id="attr-${attr.key}" ${attr.enabled ? 'checked' : ''} />
+          <label for="attr-${attr.key}" style="flex:1; margin:0;">${attr.label}</label>
+          <label style="margin:0; font-size:12px; color:#94a3b8;">max:</label>
+          <input type="number" id="attr-${attr.key}-max" value="${attr.max}" min="1" />
+          <label style="margin:0; font-size:12px; color:#94a3b8;">base:</label>
+          <input type="number" id="attr-${attr.key}-base" value="${attr.base}" min="0" />
+        `;
+        container.appendChild(item);
+      });
+    }
+
+    // 배경 이미지 업로드 처리
+    document.getElementById('background-image-upload').addEventListener('change', async function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      backgroundImageFile = file;
+
+      // 로컬 미리보기
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        const preview = document.getElementById('background-image-preview');
+        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" />`;
+      };
+      reader.readAsDataURL(file);
+
+      // R2 업로드 (캐릭터 생성과 동일한 방식)
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const headers = getAuthHeaders();
+        delete headers['Content-Type']; // FormData는 자동으로 설정
+
+        const response = await fetch(`${API_BASE_URL}/v1/characters/upload-image`, {
+          method: 'POST',
+          headers: headers,
+          credentials: 'include',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error('이미지 업로드 실패');
+        }
+
+        const data = await response.json();
+        backgroundImageUrl = data.image || data.url;
+        showToast('배경 이미지가 업로드되었습니다.', 2000);
+      } catch (error) {
+        console.error('Image upload error:', error);
+        showToast('이미지 업로드 중 오류가 발생했습니다.', 2000);
+      }
+    });
+
+    // 세계관 목록 로드
+    async function loadWorlds() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/v1/worlds?offset=0&limit=200`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+          throw new Error('세계관 목록 로드 실패');
+        }
+
+        const data = await response.json();
+        worldsList = data.items || [];
+
+        const select = document.getElementById('world-select');
+        select.innerHTML = '<option value="">선택하세요</option>';
+        
+        worldsList.forEach(world => {
+          const option = document.createElement('option');
+          option.value = world.id || world._id || world.mongo_id;
+          option.textContent = world.name;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Load worlds error:', error);
+        showToast('세계관 목록을 불러오는 중 오류가 발생했습니다.', 2000);
+      }
+    }
+
+    // 세계관 선택 처리
+    document.getElementById('world-select').addEventListener('change', function(e) {
+      const worldId = e.target.value;
+      if (!worldId) {
+        selectedWorld = null;
+        document.getElementById('world-preview-container').style.display = 'none';
+        return;
+      }
+
+      const world = worldsList.find(w => (w.id || w._id || w.mongo_id) == worldId);
+      if (!world) return;
+
+      selectedWorld = world;
+
+      // 미리보기 업데이트
+      document.getElementById('world-preview-name').textContent = world.name;
+      document.getElementById('world-preview-summary').textContent = world.summary || '설명 없음';
+      
+      const tagsContainer = document.getElementById('world-preview-tags');
+      tagsContainer.innerHTML = '';
+      (world.tags || []).forEach(tag => {
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.textContent = tag;
+        tagsContainer.appendChild(chip);
+      });
+
+      document.getElementById('world-preview-container').style.display = 'block';
+    });
+
+    // 캐릭터 목록 로드
+    async function loadCharacters() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/v1/characters?offset=0&limit=200`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!response.ok) {
+          throw new Error('캐릭터 목록 로드 실패');
+        }
+
+        const data = await response.json();
+        charactersList = data.items || [];
+
+        const select = document.getElementById('character-select');
+        select.innerHTML = '<option value="">캐릭터를 선택하세요</option>';
+        
+        charactersList.forEach(char => {
+          const option = document.createElement('option');
+          option.value = char.id || char.pk || char.slug;
+          option.textContent = char.name;
+          select.appendChild(option);
+        });
+      } catch (error) {
+        console.error('Load characters error:', error);
+        showToast('캐릭터 목록을 불러오는 중 오류가 발생했습니다.', 2000);
+      }
+    }
+
+    // 캐릭터 추가
+    document.getElementById('btn-add-character').addEventListener('click', function() {
+      const select = document.getElementById('character-select');
+      const charId = select.value;
+      if (!charId) {
+        showToast('캐릭터를 선택해주세요.', 2000);
+        return;
+      }
+
+      if (selectedCharacters.length >= 5) {
+        showToast('최대 5명까지 선택할 수 있습니다.', 2000);
+        return;
+      }
+
+      const char = charactersList.find(c => (c.id || c.pk || c.slug) == charId);
+      if (!char) return;
+
+      if (selectedCharacters.find(c => c.char_ref_id == charId)) {
+        showToast('이미 추가된 캐릭터입니다.', 2000);
+        return;
+      }
+
+      selectedCharacters.push({
+        char_ref_id: charId,
+        name: char.name,
+        image_url: char.image || char.cover || '/assets/img/placeholder.jpg',
+        role: 'random',
+      });
+
+      renderCharacterList();
+      select.value = '';
+    });
+
+    // 캐릭터 리스트 렌더링
+    function renderCharacterList() {
+      const container = document.getElementById('character-list');
+      container.innerHTML = '';
+
+      selectedCharacters.forEach((char, index) => {
+        const item = document.createElement('div');
+        item.className = 'character-item';
+        item.innerHTML = `
+          <img src="${char.image_url}" alt="${char.name}" />
+          <div class="info">
+            <div class="name">${char.name}</div>
+          </div>
+          <select class="role-select" data-index="${index}">
+            ${roles.map(r => `<option value="${r.value}" ${char.role === r.value ? 'selected' : ''}>${r.label}</option>`).join('')}
+          </select>
+          <button type="button" class="remove-btn" data-index="${index}">제거</button>
+        `;
+        container.appendChild(item);
+      });
+
+      // 역할 변경
+      container.querySelectorAll('.role-select').forEach(select => {
+        select.addEventListener('change', function() {
+          const index = parseInt(this.getAttribute('data-index'));
+          selectedCharacters[index].role = this.value;
+        });
+      });
+
+      // 제거 버튼
+      container.querySelectorAll('.remove-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+          const index = parseInt(this.getAttribute('data-index'));
+          selectedCharacters.splice(index, 1);
+          renderCharacterList();
+        });
+      });
+    }
+
+    // 주사위 최대값 계산
+    function updateDiceMax() {
+      const count = parseInt(document.getElementById('dice-count').value) || 5;
+      const faces = parseInt(document.getElementById('dice-faces').value) || 20;
+      document.getElementById('dice-max').value = count * faces;
+    }
+
+    document.getElementById('dice-count').addEventListener('input', updateDiceMax);
+    document.getElementById('dice-faces').addEventListener('input', updateDiceMax);
+
+    // 게임 저장
+    document.getElementById('btn-game-save').addEventListener('click', async function() {
+      const btn = this;
+
+      // 필수 필드 체크
+      const title = document.getElementById('game-title').value.trim();
+      if (!title) {
+        showToast('게임명을 입력해주세요.', 2000);
+        return;
+      }
+
+      if (!selectedWorld) {
+        showToast('세계관을 선택해주세요.', 2000);
+        return;
+      }
+
+      // 권한 체크
+      const accountStatus = await checkAccountStatus();
+      if (!accountStatus.ok) {
+        if (accountStatus.reason === 'login') {
+          showToast('로그인이 필요합니다.', 2000);
+        } else if (accountStatus.reason === 'lock') {
+          showToast('현재 계정이 차단된 상태입니다.', 2000);
+        } else if (accountStatus.reason === 'use') {
+          showToast('현재 사용이 불가한 상태입니다.', 2000);
+        }
+        return;
+      }
+
+      try {
+        btn.disabled = true;
+        showToast('게임 생성 중...', 3000);
+
+        // 태그 수집
+        const tags = Array.from(document.querySelectorAll('[data-field="tags"] input[type="checkbox"]:checked'))
+          .map(cb => cb.value);
+
+        // 속성 수집
+        const attributesData = {};
+        attributes.forEach(attr => {
+          const enabled = document.getElementById(`attr-${attr.key}`).checked;
+          const max = parseInt(document.getElementById(`attr-${attr.key}-max`).value) || attr.max;
+          const base = parseInt(document.getElementById(`attr-${attr.key}-base`).value) || attr.base;
+          attributesData[attr.key] = { enabled, max, base };
+        });
+
+        // 룰 수집
+        const rules = {
+          success_base: parseInt(document.getElementById('success-base').value) || 60,
+          difficulty_mod: {
+            easy: parseInt(document.getElementById('difficulty-easy').value) || -10,
+            normal: parseInt(document.getElementById('difficulty-normal').value) || 0,
+            hard: parseInt(document.getElementById('difficulty-hard').value) || 10,
+            very_hard: parseInt(document.getElementById('difficulty-very-hard').value) || 20,
+          },
+          ability_scale: parseFloat(document.getElementById('ability-scale').value) || 1.0,
+          attributes: attributesData,
+          dice: {
+            count: parseInt(document.getElementById('dice-count').value) || 5,
+            faces: parseInt(document.getElementById('dice-faces').value) || 20,
+          },
+          damage: {
+            str_multiplier: parseFloat(document.getElementById('str-multiplier').value) || 1.0,
+            flat_bonus: parseInt(document.getElementById('flat-bonus').value) || 0,
+            success_bonus_scale: parseFloat(document.getElementById('success-bonus-scale').value) || 1.0,
+            on_fail_zero: document.getElementById('on-fail-zero').checked,
+          },
+          critical: {
+            threshold_ratio: parseFloat(document.getElementById('critical-threshold').value) || 0.95,
+            multiplier: parseFloat(document.getElementById('critical-multiplier').value) || 2.0,
+            base_bonus_multiplier: parseFloat(document.getElementById('critical-base-bonus').value) || 1.5,
+          },
+        };
+
+        // 세계관 스냅샷
+        const worldSnapshot = {
+          name: selectedWorld.name,
+          summary: selectedWorld.summary || '',
+          tags: selectedWorld.tags || [],
+          image_url: selectedWorld.image || selectedWorld.image_path || '',
+        };
+
+        // 캐릭터 배열 (char_ref_id와 role만)
+        const characters = selectedCharacters.map(char => ({
+          char_ref_id: char.char_ref_id,
+          role: char.role,
+        }));
+
+        // 요청 데이터
+        const payload = {
+          title: title,
+          background_image_url: backgroundImageUrl || '',
+          world_ref_id: selectedWorld.id || selectedWorld._id || selectedWorld.mongo_id,
+          world_snapshot: worldSnapshot,
+          scenario_summary: document.getElementById('scenario-summary').value.trim(),
+          scenario_detail: document.getElementById('scenario-detail').value.trim(),
+          tags: tags,
+          characters: characters,
+          rules: rules,
+        };
+
+        // API 호출
+        const headers = getAuthHeaders();
+        headers['Content-Type'] = 'application/json';
+
+        const response = await fetch(`${API_BASE_URL}/v1/games`, {
+          method: 'POST',
+          headers: headers,
+          credentials: 'include',
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          let errorDetail = '게임 생성 중 오류가 발생했습니다.';
+          try {
+            const error = await response.json();
+            errorDetail = error.detail || errorDetail;
+          } catch (e) {
+            // JSON 파싱 실패 시 기본 메시지 사용
+          }
+          showToast(errorDetail, 3000);
+          btn.disabled = false;
+          return;
+        }
+
+        const result = await response.json();
+        showToast('게임이 성공적으로 생성되었습니다!', 2000);
+        
+        // 2초 후 홈으로 이동 (또는 게임 상세 페이지로)
+        setTimeout(() => {
+          window.location.href = '/home.html';
+        }, 2000);
+      } catch (error) {
+        console.error('Save error:', error);
+        showToast('게임 생성 요청 중 네트워크 오류가 발생했습니다.', 3000);
+        btn.disabled = false;
+      }
+    });
+
+    // 초기화
+    (async function() {
+      renderAttributes();
+      await loadWorlds();
+      await loadCharacters();
+      updateDiceMax();
+    })();
+  </script>
 </body>
 </html>
-
-
