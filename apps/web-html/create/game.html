@@ -411,41 +411,135 @@ create/game.html - 게임 생성 화면
       cursor:not-allowed;
     }
 
-    /* Select Dropdown for World/Character */
-    .select-dropdown {
-      width:100%;
-      padding:10px 12px;
-      background:#0f172a;
+    /* World Select List */
+    .world-select-list {
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap:12px;
+    }
+
+    .world-card {
+      background:#111827;
       border:1px solid #1f2937;
       border-radius:8px;
-      color:#e5e7eb;
-      font-size:14px;
-      cursor:pointer;
-    }
-
-    .select-dropdown:focus {
-      outline:none;
-      border-color:#3b82f6;
-    }
-
-    /* Character Selection Button */
-    .btn-select-character {
-      padding:10px 16px;
-      background:#374151;
-      color:#d1d5db;
-      border:1px solid #4b5563;
-      border-radius:8px;
-      font-size:14px;
-      font-weight:500;
+      padding:12px;
       cursor:pointer;
       transition:all .15s ease;
-      width:100%;
-      margin-top:12px;
     }
 
-    .btn-select-character:hover {
-      background:#4b5563;
-      border-color:#6b7280;
+    .world-card:hover {
+      border-color:#3b82f6;
+      background:#1e293b;
+      transform:translateY(-2px);
+    }
+
+    /* Modal Styles */
+    .modal-backdrop {
+      position:fixed;
+      top:0;
+      left:0;
+      right:0;
+      bottom:0;
+      background:rgba(0,0,0,0.75);
+      z-index:1000;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:20px;
+    }
+
+    .modal-dialog {
+      background:#0f172a;
+      border:1px solid #1f2937;
+      border-radius:12px;
+      width:100%;
+      max-width:900px;
+      max-height:90vh;
+      display:flex;
+      flex-direction:column;
+      box-shadow:0 20px 60px rgba(0,0,0,0.5);
+    }
+
+    .modal-header {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:20px;
+      border-bottom:1px solid #1f2937;
+    }
+
+    .modal-header h3 {
+      margin:0;
+      font-size:18px;
+      font-weight:600;
+      color:#f3f4f6;
+    }
+
+    .modal-search {
+      padding:16px 20px;
+      border-bottom:1px solid #1f2937;
+    }
+
+    .modal-body {
+      flex:1;
+      overflow-y:auto;
+    }
+
+    .modal-footer {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:16px 20px;
+      border-top:1px solid #1f2937;
+    }
+
+    /* World Modal List */
+    .world-modal .modal-body {
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap:12px;
+    }
+
+    .world-modal .world-card {
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:8px;
+      padding:12px;
+      cursor:pointer;
+      transition:all .15s ease;
+    }
+
+    .world-modal .world-card:hover {
+      border-color:#3b82f6;
+      background:#1e293b;
+      transform:translateY(-2px);
+    }
+
+    /* Character Modal List */
+    .char-modal .modal-body {
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap:12px;
+    }
+
+    .char-modal .char-card {
+      background:#111827;
+      border:1px solid #1f2937;
+      border-radius:8px;
+      padding:12px;
+      cursor:pointer;
+      transition:all .15s ease;
+    }
+
+    .char-modal .char-card:hover {
+      border-color:#3b82f6;
+      background:#1e293b;
+      transform:translateY(-2px);
+    }
+
+    .char-modal .char-card.selected {
+      border-color:#3b82f6;
+      background:#1e3a8a;
     }
 
     /* Toast Layer */
@@ -493,6 +587,7 @@ create/game.html - 게임 생성 화면
 
         <div id="world-preview-container" style="display:none;">
           <div class="world-preview">
+            <img id="world-preview-image" src="" alt="세계관 이미지" style="width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:8px; margin-bottom:12px;" />
             <h3 id="world-preview-name">세계관 이름</h3>
             <p id="world-preview-summary">세계관 설명이 여기에 표시됩니다.</p>
             <div class="tags" id="world-preview-tags"></div>
@@ -535,9 +630,12 @@ create/game.html - 게임 생성 화면
           
           <label>
             <font color="red">*</font> 세계관
-            <select id="world-select" class="select-dropdown">
-              <option value="">선택하세요</option>
-            </select>
+            <!-- Hidden select for form submission -->
+            <select id="world-select" name="world_ref_id" style="display:none;"></select>
+            <!-- Display field that looks like a select -->
+            <div id="world-select-display" class="select-display">
+              <span id="world-select-text">세계관을 선택하세요</span>
+            </div>
           </label>
         </div>
 
@@ -562,14 +660,19 @@ create/game.html - 게임 생성 화면
           
           <label>
             캐릭터 선택 (최대 5명)
-            <select id="character-select" class="select-dropdown">
-              <option value="">캐릭터를 선택하세요</option>
-            </select>
+            <!-- Hidden select for form submission -->
+            <select id="character-select" name="character_ids" multiple style="display:none;"></select>
+            <!-- Display field that looks like a select -->
+            <div id="character-select-display" class="select-display">
+              <span id="character-select-text">캐릭터를 선택하세요 (최대 5명)</span>
+            </div>
           </label>
+          
+          <!-- 선택된 캐릭터를 태그/칩 형태로 보여줄 컨테이너 -->
+          <div id="character-selected-chips" class="chip-container" style="margin-top:12px;"></div>
 
-          <button type="button" id="btn-add-character" class="btn-select-character">캐릭터 추가</button>
-
-          <div id="character-list" class="character-list"></div>
+          <!-- 선택된 캐릭터 리스트 (역할 설정용) -->
+          <div id="character-list" class="character-list" style="margin-top:16px;"></div>
         </div>
 
         <!-- 속성 설정 -->
@@ -685,15 +788,47 @@ create/game.html - 게임 생성 화면
     // Toast 표시
     function showToast(msg, ms = 2000) {
       const el = document.getElementById('toast');
-      el.querySelector('.box').textContent = msg;
+      if (!el) {
+        console.warn('Toast element not found');
+        return;
+      }
+      const box = el.querySelector('.box');
+      if (box) {
+        box.textContent = msg;
+      }
       el.classList.add('show');
       clearTimeout(showToast.tid);
-      showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
+      showToast.tid = setTimeout(() => {
+        if (el) {
+          el.classList.remove('show');
+        }
+      }, ms);
+    }
+
+    // 이미지 경로 해결 함수
+    function resolvePath(p) {
+      if (!p) return '/assets/img/placeholder.jpg';
+      if (/^https?:\/\//i.test(p)) return p;
+      p = String(p).replace(/\\/g, '/').trim();
+      if (p.startsWith('/')) return p;
+      if (p.startsWith('assets/')) return '/' + p;
+      // 세계관 이미지 처리
+      if (p.includes('/world/') || p.startsWith('world/') || p.startsWith('assets/world/')) {
+        p = p.replace(/^assets\/?/, '');
+        p = p.replace(/^world\//, 'world/');
+        return '/assets/' + p;
+      }
+      // 캐릭터 이미지 처리
+      if (p.includes('/char/') || p.startsWith('char/') || /^char_\d+/i.test(p) || p.startsWith('assets/char/')) {
+        p = p.replace(/^assets\/?/, '');
+        p = p.replace(/^char\//, 'char/');
+        return '/assets/' + p;
+      }
+      return '/assets/img/' + p;
     }
 
     // 전역 상태
     let backgroundImageFile = null;
-    let backgroundImageUrl = null;
     let selectedWorld = null;
     let selectedCharacters = [];
     let worldsList = [];
@@ -730,6 +865,10 @@ create/game.html - 게임 생성 화면
     // 속성 리스트 렌더링
     function renderAttributes() {
       const container = document.getElementById('attribute-list');
+      if (!container) {
+        console.warn('Attribute list container not found');
+        return;
+      }
       container.innerHTML = '';
       
       attributes.forEach(attr => {
@@ -747,50 +886,28 @@ create/game.html - 게임 생성 화면
       });
     }
 
-    // 배경 이미지 업로드 처리
-    document.getElementById('background-image-upload').addEventListener('change', async function(e) {
-      const file = e.target.files[0];
-      if (!file) return;
+    // 배경 이미지 선택 처리 (미리보기만, 업로드는 저장 시)
+    const bgImageUpload = document.getElementById('background-image-upload');
+    if (bgImageUpload) {
+      bgImageUpload.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
 
-      backgroundImageFile = file;
+        backgroundImageFile = file;
 
-      // 로컬 미리보기
-      const reader = new FileReader();
-      reader.onload = function(event) {
-        const preview = document.getElementById('background-image-preview');
-        preview.innerHTML = `<img src="${event.target.result}" alt="Preview" />`;
-      };
-      reader.readAsDataURL(file);
+        // 로컬 미리보기만
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const preview = document.getElementById('background-image-preview');
+          if (preview) {
+            preview.innerHTML = `<img src="${event.target.result}" alt="Preview" />`;
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
 
-      // R2 업로드 (캐릭터 생성과 동일한 방식)
-      try {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const headers = getAuthHeaders();
-        delete headers['Content-Type']; // FormData는 자동으로 설정
-
-        const response = await fetch(`${API_BASE_URL}/v1/characters/upload-image`, {
-          method: 'POST',
-          headers: headers,
-          credentials: 'include',
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error('이미지 업로드 실패');
-        }
-
-        const data = await response.json();
-        backgroundImageUrl = data.image || data.url;
-        showToast('배경 이미지가 업로드되었습니다.', 2000);
-      } catch (error) {
-        console.error('Image upload error:', error);
-        showToast('이미지 업로드 중 오류가 발생했습니다.', 2000);
-      }
-    });
-
-    // 세계관 목록 로드
+    // 세계관 목록 로드 및 카드 렌더링
     async function loadWorlds() {
       try {
         const response = await fetch(`${API_BASE_URL}/v1/worlds?offset=0&limit=200`, {
@@ -806,50 +923,201 @@ create/game.html - 게임 생성 화면
         const data = await response.json();
         worldsList = data.items || [];
 
-        const select = document.getElementById('world-select');
-        select.innerHTML = '<option value="">선택하세요</option>';
-        
-        worldsList.forEach(world => {
-          const option = document.createElement('option');
-          option.value = world.id || world._id || world.mongo_id;
-          option.textContent = world.name;
-          select.appendChild(option);
-        });
+        renderWorldList();
       } catch (error) {
         console.error('Load worlds error:', error);
         showToast('세계관 목록을 불러오는 중 오류가 발생했습니다.', 2000);
       }
     }
 
-    // 세계관 선택 처리
-    document.getElementById('world-select').addEventListener('change', function(e) {
-      const worldId = e.target.value;
-      if (!worldId) {
-        selectedWorld = null;
-        document.getElementById('world-preview-container').style.display = 'none';
-        return;
-      }
+    // 태그를 안전하게 배열로 변환하는 헬퍼 함수
+    function safeTags(tags) {
+      if (Array.isArray(tags)) return tags;
+      if (typeof tags === 'string') return [tags];
+      return [];
+    }
 
-      const world = worldsList.find(w => (w.id || w._id || w.mongo_id) == worldId);
-      if (!world) return;
-
-      selectedWorld = world;
-
-      // 미리보기 업데이트
-      document.getElementById('world-preview-name').textContent = world.name;
-      document.getElementById('world-preview-summary').textContent = world.summary || '설명 없음';
+    // 세계관 모달 카드 리스트 렌더링
+    function renderWorldModalList() {
+      const container = document.getElementById('world-modal-list');
+      container.innerHTML = '';
       
-      const tagsContainer = document.getElementById('world-preview-tags');
-      tagsContainer.innerHTML = '';
-      (world.tags || []).forEach(tag => {
-        const chip = document.createElement('span');
-        chip.className = 'tag-chip';
-        chip.textContent = tag;
-        tagsContainer.appendChild(chip);
+      // 검색 필터링
+      const filtered = worldsList.filter(world => {
+        if (!worldSearchText) return true;
+        const search = worldSearchText.toLowerCase();
+        const name = (world.name || '').toLowerCase();
+        const summary = (world.summary || '').toLowerCase();
+        const tags = safeTags(world.tags).join(' ').toLowerCase();
+        return name.includes(search) || summary.includes(search) || tags.includes(search);
       });
+      
+      filtered.forEach(world => {
+        const card = document.createElement('div');
+        card.className = 'world-card';
+        card.addEventListener('click', () => selectWorldFromModal(world));
+        
+        const imageUrl = resolvePath(world.image || world.image_path || '/assets/img/placeholder.jpg');
+        const tags = safeTags(world.tags);
+        card.innerHTML = `
+          <img src="${imageUrl}" alt="${world.name}" style="width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:6px; margin-bottom:8px;" />
+          <div style="font-weight:600; color:#f3f4f6; margin-bottom:4px; font-size:14px;">${world.name || '이름 없음'}</div>
+          <div style="font-size:11px; color:#94a3b8; margin-bottom:8px; display:flex; flex-wrap:wrap; gap:4px;">
+            ${tags.slice(0, 3).map(tag => `<span style="padding:2px 6px; background:#0b1220; border-radius:4px;">${tag}</span>`).join('')}
+          </div>
+          <div style="font-size:12px; color:#64748b; line-height:1.4; height:32px; overflow:hidden;">${(world.summary || '').substring(0, 50)}${(world.summary || '').length > 50 ? '...' : ''}</div>
+        `;
+        
+        container.appendChild(card);
+      });
+    }
 
-      document.getElementById('world-preview-container').style.display = 'block';
-    });
+    // 선택된 세계관 카드 렌더링
+    function renderSelectedWorld() {
+      const cardEl = document.getElementById('selected-world-card');
+      const placeholderEl = document.getElementById('selected-world-placeholder');
+      
+      if (!cardEl || !placeholderEl) return;
+      
+      if (selectedWorld) {
+        cardEl.style.display = 'block';
+        placeholderEl.style.display = 'none';
+        
+        const imageUrl = resolvePath(selectedWorld.image || selectedWorld.image_path || '/assets/img/placeholder.jpg');
+        const tags = safeTags(selectedWorld.tags);
+        
+        const imgEl = document.getElementById('selected-world-image');
+        if (imgEl) imgEl.src = imageUrl;
+        
+        const nameEl = document.getElementById('selected-world-name');
+        if (nameEl) nameEl.textContent = selectedWorld.name || '이름 없음';
+        
+        const summaryEl = document.getElementById('selected-world-summary');
+        if (summaryEl) summaryEl.textContent = selectedWorld.summary || '설명 없음';
+        
+        const tagsContainer = document.getElementById('selected-world-tags');
+        if (tagsContainer) {
+          tagsContainer.innerHTML = '';
+          tags.forEach(tag => {
+            const span = document.createElement('span');
+            span.style.cssText = 'padding:2px 6px; background:#0b1220; border-radius:4px; font-size:11px;';
+            span.textContent = tag;
+            tagsContainer.appendChild(span);
+          });
+        }
+      } else {
+        cardEl.style.display = 'none';
+        placeholderEl.style.display = 'block';
+      }
+    }
+
+    // 세계관 모달 열기
+    function openWorldModal() {
+      showWorldModal = true;
+      const modal = document.getElementById('world-modal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+      worldSearchText = '';
+      const searchInput = document.getElementById('world-search-input');
+      if (searchInput) {
+        searchInput.value = '';
+      }
+      
+      if (worldsList.length === 0) {
+        loadWorlds();
+      } else {
+        renderWorldModalList();
+      }
+    }
+
+    // 세계관 모달 닫기
+    function closeWorldModal() {
+      showWorldModal = false;
+      const modal = document.getElementById('world-modal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+
+    // 모달에서 세계관 선택
+    function selectWorldFromModal(world) {
+      selectedWorld = world;
+      
+      // 오른쪽 display 필드 업데이트
+      if (worldSelectText) {
+        worldSelectText.textContent = world.name || '세계관을 선택하세요';
+      }
+      
+      // hidden select에 값 설정
+      syncWorldHiddenField();
+      
+      // 왼쪽 미리보기 업데이트 (배경 이미지가 없을 때만)
+      if (!backgroundImageFile) {
+        const imageUrl = resolvePath(world.image || world.image_path || '/assets/img/placeholder.jpg');
+        
+        const previewName = document.getElementById('world-preview-name');
+        if (previewName) previewName.textContent = world.name || '이름 없음';
+        
+        const previewSummary = document.getElementById('world-preview-summary');
+        if (previewSummary) previewSummary.textContent = world.summary || '설명 없음';
+        
+        const previewImage = document.getElementById('world-preview-image');
+        if (previewImage) previewImage.src = imageUrl;
+        
+        const tagsContainer = document.getElementById('world-preview-tags');
+        if (tagsContainer) {
+          tagsContainer.innerHTML = '';
+          safeTags(world.tags).forEach(tag => {
+            const chip = document.createElement('span');
+            chip.className = 'tag-chip';
+            chip.textContent = tag;
+            tagsContainer.appendChild(chip);
+          });
+        }
+
+        const previewContainer = document.getElementById('world-preview-container');
+        if (previewContainer) {
+          previewContainer.style.display = 'block';
+        }
+      }
+      
+      closeWorldModal();
+    }
+
+    // 세계관 hidden select 동기화
+    function syncWorldHiddenField() {
+      if (!worldSelectHidden || !selectedWorld) return;
+      
+      const worldId = selectedWorld.id || selectedWorld._id || selectedWorld.mongo_id;
+      const idStr = String(worldId);
+      
+      // option 없으면 새로 만든다
+      let opt = Array.from(worldSelectHidden.options).find(o => o.value === idStr);
+      if (!opt) {
+        opt = document.createElement('option');
+        opt.value = idStr;
+        opt.textContent = selectedWorld.name || idStr;
+        worldSelectHidden.appendChild(opt);
+      }
+      
+      worldSelectHidden.value = idStr;
+    }
+
+    // 세계관 제거 (필요시 사용)
+    function removeWorld() {
+      selectedWorld = null;
+      if (worldSelectText) {
+        worldSelectText.textContent = '세계관을 선택하세요';
+      }
+      if (worldSelectHidden) {
+        worldSelectHidden.value = '';
+      }
+      const previewContainer = document.getElementById('world-preview-container');
+      if (previewContainer) {
+        previewContainer.style.display = 'none';
+      }
+    }
 
     // 캐릭터 목록 로드
     async function loadCharacters() {
@@ -867,69 +1135,241 @@ create/game.html - 게임 생성 화면
         const data = await response.json();
         charactersList = data.items || [];
 
-        const select = document.getElementById('character-select');
-        select.innerHTML = '<option value="">캐릭터를 선택하세요</option>';
-        
-        charactersList.forEach(char => {
-          const option = document.createElement('option');
-          option.value = char.id || char.pk || char.slug;
-          option.textContent = char.name;
-          select.appendChild(option);
-        });
+        renderCharacterModalList();
       } catch (error) {
         console.error('Load characters error:', error);
         showToast('캐릭터 목록을 불러오는 중 오류가 발생했습니다.', 2000);
       }
     }
 
-    // 캐릭터 추가
-    document.getElementById('btn-add-character').addEventListener('click', function() {
-      const select = document.getElementById('character-select');
-      const charId = select.value;
-      if (!charId) {
-        showToast('캐릭터를 선택해주세요.', 2000);
-        return;
-      }
-
-      if (selectedCharacters.length >= 5) {
-        showToast('최대 5명까지 선택할 수 있습니다.', 2000);
-        return;
-      }
-
-      const char = charactersList.find(c => (c.id || c.pk || c.slug) == charId);
-      if (!char) return;
-
-      if (selectedCharacters.find(c => c.char_ref_id == charId)) {
-        showToast('이미 추가된 캐릭터입니다.', 2000);
-        return;
-      }
-
-      selectedCharacters.push({
-        char_ref_id: charId,
-        name: char.name,
-        image_url: char.image || char.cover || '/assets/img/placeholder.jpg',
-        role: 'random',
+    // 캐릭터 찾기 헬퍼 함수
+    function findCharacter(charRefId) {
+      return charactersList.find(c => {
+        const cid = c.id || c.pk || c.slug;
+        return String(cid) == String(charRefId);
       });
+    }
 
+    // 캐릭터 모달 열기
+    function openCharacterModal() {
+      showCharacterModal = true;
+      const modal = document.getElementById('character-modal');
+      if (modal) {
+        modal.style.display = 'flex';
+      }
+      characterSearchText = '';
+      const searchInput = document.getElementById('character-search-input');
+      if (searchInput) {
+        searchInput.value = '';
+      }
+      
+      // 현재 선택된 캐릭터 ID로 임시 선택 초기화
+      tempSelectedCharIds = selectedCharacters.map(c => c.char_ref_id);
+      updateTempSelectedCount();
+      
+      if (charactersList.length === 0) {
+        loadCharacters();
+      } else {
+        renderCharacterModalList();
+      }
+    }
+
+    // 캐릭터 모달 닫기
+    function closeCharacterModal() {
+      showCharacterModal = false;
+      const modal = document.getElementById('character-modal');
+      if (modal) {
+        modal.style.display = 'none';
+      }
+    }
+
+    // 캐릭터 모달 카드 리스트 렌더링
+    function renderCharacterModalList() {
+      const container = document.getElementById('character-modal-list');
+      if (!container) return;
+      
+      container.innerHTML = '';
+      
+      // 검색 필터링
+      const filtered = charactersList.filter(char => {
+        if (!characterSearchText) return true;
+        const search = characterSearchText.toLowerCase();
+        const name = (char.name || '').toLowerCase();
+        const summary = (char.summary || '').toLowerCase();
+        const tags = safeTags(char.tags).join(' ').toLowerCase();
+        return name.includes(search) || summary.includes(search) || tags.includes(search);
+      });
+      
+      filtered.forEach(char => {
+        const charId = char.id || char.pk || char.slug;
+        const isSelected = tempSelectedCharIds.includes(parseInt(charId)) || tempSelectedCharIds.includes(String(charId));
+        
+        const card = document.createElement('div');
+        card.className = 'char-card';
+        if (isSelected) {
+          card.classList.add('selected');
+        }
+        card.addEventListener('click', () => toggleTempCharacter(charId));
+        
+        const imageUrl = resolvePath(char.image || char.cover || '/assets/img/placeholder.jpg');
+        const tags = safeTags(char.tags);
+        card.innerHTML = `
+          <img src="${imageUrl}" alt="${char.name || '캐릭터'}" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:6px; margin-bottom:8px;" />
+          <div style="font-weight:600; color:#f3f4f6; margin-bottom:4px; font-size:14px;">${char.name || '이름 없음'}</div>
+          <div style="font-size:11px; color:#94a3b8; margin-bottom:4px; display:flex; flex-wrap:wrap; gap:4px;">
+            ${tags.slice(0, 2).map(tag => `<span style="padding:2px 6px; background:#0b1220; border-radius:4px;">${tag}</span>`).join('')}
+          </div>
+          <div style="font-size:11px; color:#64748b; line-height:1.3; height:28px; overflow:hidden;">${(char.summary || '').substring(0, 40)}${(char.summary || '').length > 40 ? '...' : ''}</div>
+        `;
+        
+        container.appendChild(card);
+      });
+    }
+
+    // 임시 선택된 캐릭터 토글
+    function toggleTempCharacter(charId) {
+      const numId = parseInt(charId) || charId;
+      const strId = String(charId);
+      const index = tempSelectedCharIds.findIndex(id => id === numId || id === strId);
+      
+      if (index >= 0) {
+        // 이미 선택됨 → 제거
+        tempSelectedCharIds.splice(index, 1);
+      } else {
+        // 선택 안 됨 → 추가 (최대 5명)
+        if (tempSelectedCharIds.length >= 5) {
+          showToast('최대 5명까지 선택할 수 있습니다.', 2000);
+          return;
+        }
+        tempSelectedCharIds.push(numId);
+      }
+      
+      updateTempSelectedCount();
+      renderCharacterModalList();
+    }
+
+    // 임시 선택 개수 업데이트
+    function updateTempSelectedCount() {
+      const countEl = document.getElementById('temp-selected-count');
+      if (countEl) {
+        countEl.textContent = tempSelectedCharIds.length;
+      }
+    }
+
+    // 캐릭터 선택 적용
+    function applyCharacterSelection() {
+      // 기존 역할 유지
+      const oldRolesById = {};
+      selectedCharacters.forEach(c => {
+        oldRolesById[c.char_ref_id] = c.role;
+      });
+      
+      // 새 선택으로 재구성
+      selectedCharacters = tempSelectedCharIds.map(id => ({
+        char_ref_id: parseInt(id) || id,
+        role: oldRolesById[id] || oldRolesById[String(id)] || 'random',
+      }));
+      
+      // 오른쪽 display 필드 및 칩 업데이트
+      renderSelectedCharacterChips();
+      
+      // hidden select 동기화
+      syncCharacterHiddenField();
+      
+      // 역할 설정 리스트 렌더링
       renderCharacterList();
-      select.value = '';
-    });
+      
+      closeCharacterModal();
+    }
+
+    // 선택된 캐릭터 칩 렌더링
+    function renderSelectedCharacterChips() {
+      if (!charSelectedChips) return;
+      
+      charSelectedChips.innerHTML = '';
+      
+      const selectedChars = selectedCharacters
+        .map(item => {
+          const char = findCharacter(item.char_ref_id);
+          return char ? { ...item, char } : null;
+        })
+        .filter(Boolean);
+      
+      selectedChars.forEach(item => {
+        const char = item.char;
+        const chip = document.createElement('div');
+        chip.className = 'chip';
+        chip.innerHTML = `
+          <span class="chip-label">${char.name || '이름 없음'}</span>
+          <button type="button" class="chip-remove">×</button>
+        `;
+        
+        const removeBtn = chip.querySelector('.chip-remove');
+        if (removeBtn) {
+          removeBtn.addEventListener('click', () => {
+            selectedCharacters = selectedCharacters.filter(c => c.char_ref_id !== item.char_ref_id);
+            renderSelectedCharacterChips();
+            syncCharacterHiddenField();
+            renderCharacterList();
+          });
+        }
+        
+        charSelectedChips.appendChild(chip);
+      });
+      
+      // display 텍스트 업데이트
+      if (charSelectText) {
+        if (selectedChars.length === 0) {
+          charSelectText.textContent = '캐릭터를 선택하세요 (최대 5명)';
+        } else {
+          charSelectText.textContent = `${selectedChars.length}명 선택됨`;
+        }
+      }
+    }
+
+    // 캐릭터 hidden select 동기화
+    function syncCharacterHiddenField() {
+      if (!charSelectHidden) return;
+      
+      // select[multiple]로 처리
+      charSelectHidden.innerHTML = '';
+      
+      selectedCharacters.forEach(item => {
+        const opt = document.createElement('option');
+        opt.value = String(item.char_ref_id);
+        opt.selected = true;
+        charSelectHidden.appendChild(opt);
+      });
+    }
 
     // 캐릭터 리스트 렌더링
     function renderCharacterList() {
       const container = document.getElementById('character-list');
+      if (!container) return;
+      
       container.innerHTML = '';
 
-      selectedCharacters.forEach((char, index) => {
+      selectedCharacters.forEach((charItem, index) => {
+        const char = findCharacter(charItem.char_ref_id);
+        
+        if (!char) return; // 캐릭터를 찾을 수 없으면 스킵
+        
+        const imageUrl = resolvePath(char.image || char.cover || '/assets/img/placeholder.jpg');
+        const name = char.name || '알 수 없음';
+        const tags = safeTags(char.tags);
+        
         const item = document.createElement('div');
         item.className = 'character-item';
         item.innerHTML = `
-          <img src="${char.image_url}" alt="${char.name}" />
+          <img src="${imageUrl}" alt="${name}" />
           <div class="info">
-            <div class="name">${char.name}</div>
+            <div class="name">${name}</div>
+            <div style="font-size:11px; color:#94a3b8; margin-top:4px; display:flex; flex-wrap:wrap; gap:4px;">
+              ${tags.slice(0, 3).map(tag => `<span style="padding:2px 6px; background:#0b1220; border-radius:4px; font-size:10px;">${tag}</span>`).join('')}
+            </div>
           </div>
           <select class="role-select" data-index="${index}">
-            ${roles.map(r => `<option value="${r.value}" ${char.role === r.value ? 'selected' : ''}>${r.label}</option>`).join('')}
+            ${roles.map(r => `<option value="${r.value}" ${charItem.role === r.value ? 'selected' : ''}>${r.label}</option>`).join('')}
           </select>
           <button type="button" class="remove-btn" data-index="${index}">제거</button>
         `;
@@ -940,7 +1380,9 @@ create/game.html - 게임 생성 화면
       container.querySelectorAll('.role-select').forEach(select => {
         select.addEventListener('change', function() {
           const index = parseInt(this.getAttribute('data-index'));
-          selectedCharacters[index].role = this.value;
+          if (selectedCharacters[index]) {
+            selectedCharacters[index].role = this.value;
+          }
         });
       });
 
@@ -948,28 +1390,48 @@ create/game.html - 게임 생성 화면
       container.querySelectorAll('.remove-btn').forEach(btn => {
         btn.addEventListener('click', function() {
           const index = parseInt(this.getAttribute('data-index'));
-          selectedCharacters.splice(index, 1);
-          renderCharacterList();
+          if (selectedCharacters[index]) {
+            selectedCharacters.splice(index, 1);
+            renderCharacterList();
+          }
         });
       });
     }
 
     // 주사위 최대값 계산
     function updateDiceMax() {
-      const count = parseInt(document.getElementById('dice-count').value) || 5;
-      const faces = parseInt(document.getElementById('dice-faces').value) || 20;
-      document.getElementById('dice-max').value = count * faces;
+      const countEl = document.getElementById('dice-count');
+      const facesEl = document.getElementById('dice-faces');
+      const maxEl = document.getElementById('dice-max');
+      
+      if (!countEl || !facesEl || !maxEl) return;
+      
+      const count = parseInt(countEl.value) || 5;
+      const faces = parseInt(facesEl.value) || 20;
+      maxEl.value = count * faces;
     }
 
-    document.getElementById('dice-count').addEventListener('input', updateDiceMax);
-    document.getElementById('dice-faces').addEventListener('input', updateDiceMax);
+    const diceCountEl = document.getElementById('dice-count');
+    if (diceCountEl) {
+      diceCountEl.addEventListener('input', updateDiceMax);
+    }
+    
+    const diceFacesEl = document.getElementById('dice-faces');
+    if (diceFacesEl) {
+      diceFacesEl.addEventListener('input', updateDiceMax);
+    }
 
     // 게임 저장
-    document.getElementById('btn-game-save').addEventListener('click', async function() {
+    const btnGameSave = document.getElementById('btn-game-save');
+    if (!btnGameSave) {
+      console.warn('게임 저장 버튼을 찾을 수 없습니다.');
+    } else {
+      btnGameSave.addEventListener('click', async function() {
       const btn = this;
 
       // 필수 필드 체크
-      const title = document.getElementById('game-title').value.trim();
+      const titleEl = document.getElementById('game-title');
+      const title = titleEl ? titleEl.value.trim() : '';
       if (!title) {
         showToast('게임명을 입력해주세요.', 2000);
         return;
@@ -997,6 +1459,8 @@ create/game.html - 게임 생성 화면
         btn.disabled = true;
         showToast('게임 생성 중...', 3000);
 
+        // 이미지 파일 확인 (선택사항이므로 필수 체크는 하지 않음)
+
         // 태그 수집
         const tags = Array.from(document.querySelectorAll('[data-field="tags"] input[type="checkbox"]:checked'))
           .map(cb => cb.value);
@@ -1004,76 +1468,96 @@ create/game.html - 게임 생성 화면
         // 속성 수집
         const attributesData = {};
         attributes.forEach(attr => {
-          const enabled = document.getElementById(`attr-${attr.key}`).checked;
-          const max = parseInt(document.getElementById(`attr-${attr.key}-max`).value) || attr.max;
-          const base = parseInt(document.getElementById(`attr-${attr.key}-base`).value) || attr.base;
+          const enabledEl = document.getElementById(`attr-${attr.key}`);
+          const maxEl = document.getElementById(`attr-${attr.key}-max`);
+          const baseEl = document.getElementById(`attr-${attr.key}-base`);
+          const enabled = enabledEl ? enabledEl.checked : attr.enabled;
+          const max = maxEl ? (parseInt(maxEl.value) || attr.max) : attr.max;
+          const base = baseEl ? (parseInt(baseEl.value) || attr.base) : attr.base;
           attributesData[attr.key] = { enabled, max, base };
         });
 
-        // 룰 수집
+        // 룰 수집 (null 체크 포함)
+        const getValue = (id, defaultValue) => {
+          const el = document.getElementById(id);
+          return el ? el.value : defaultValue;
+        };
+        const getChecked = (id, defaultValue) => {
+          const el = document.getElementById(id);
+          return el ? el.checked : defaultValue;
+        };
+        const getIntValue = (id, defaultValue) => {
+          const el = document.getElementById(id);
+          return el ? (parseInt(el.value) || defaultValue) : defaultValue;
+        };
+        const getFloatValue = (id, defaultValue) => {
+          const el = document.getElementById(id);
+          return el ? (parseFloat(el.value) || defaultValue) : defaultValue;
+        };
+        
         const rules = {
-          success_base: parseInt(document.getElementById('success-base').value) || 60,
+          success_base: getIntValue('success-base', 60),
           difficulty_mod: {
-            easy: parseInt(document.getElementById('difficulty-easy').value) || -10,
-            normal: parseInt(document.getElementById('difficulty-normal').value) || 0,
-            hard: parseInt(document.getElementById('difficulty-hard').value) || 10,
-            very_hard: parseInt(document.getElementById('difficulty-very-hard').value) || 20,
+            easy: getIntValue('difficulty-easy', -10),
+            normal: getIntValue('difficulty-normal', 0),
+            hard: getIntValue('difficulty-hard', 10),
+            very_hard: getIntValue('difficulty-very-hard', 20),
           },
-          ability_scale: parseFloat(document.getElementById('ability-scale').value) || 1.0,
+          ability_scale: getFloatValue('ability-scale', 1.0),
           attributes: attributesData,
           dice: {
-            count: parseInt(document.getElementById('dice-count').value) || 5,
-            faces: parseInt(document.getElementById('dice-faces').value) || 20,
+            count: getIntValue('dice-count', 5),
+            faces: getIntValue('dice-faces', 20),
           },
           damage: {
-            str_multiplier: parseFloat(document.getElementById('str-multiplier').value) || 1.0,
-            flat_bonus: parseInt(document.getElementById('flat-bonus').value) || 0,
-            success_bonus_scale: parseFloat(document.getElementById('success-bonus-scale').value) || 1.0,
-            on_fail_zero: document.getElementById('on-fail-zero').checked,
+            str_multiplier: getFloatValue('str-multiplier', 1.0),
+            flat_bonus: getIntValue('flat-bonus', 0),
+            success_bonus_scale: getFloatValue('success-bonus-scale', 1.0),
+            on_fail_zero: getChecked('on-fail-zero', true),
           },
           critical: {
-            threshold_ratio: parseFloat(document.getElementById('critical-threshold').value) || 0.95,
-            multiplier: parseFloat(document.getElementById('critical-multiplier').value) || 2.0,
-            base_bonus_multiplier: parseFloat(document.getElementById('critical-base-bonus').value) || 1.5,
+            threshold_ratio: getFloatValue('critical-threshold', 0.95),
+            multiplier: getFloatValue('critical-multiplier', 2.0),
+            base_bonus_multiplier: getFloatValue('critical-base-bonus', 1.5),
           },
         };
 
-        // 세계관 스냅샷
-        const worldSnapshot = {
-          name: selectedWorld.name,
-          summary: selectedWorld.summary || '',
-          tags: selectedWorld.tags || [],
-          image_url: selectedWorld.image || selectedWorld.image_path || '',
-        };
-
-        // 캐릭터 배열 (char_ref_id와 role만)
+        // 캐릭터 배열 (char_ref_id와 role만, snapshot은 백엔드에서 생성)
         const characters = selectedCharacters.map(char => ({
-          char_ref_id: char.char_ref_id,
-          role: char.role,
+          char_ref_id: parseInt(char.char_ref_id) || char.char_ref_id,
+          role: char.role || 'random',
         }));
 
-        // 요청 데이터
+        // 요청 데이터 (world_snapshot과 character snapshot은 백엔드에서 생성)
+        const worldRefId = selectedWorld.id || selectedWorld._id || selectedWorld.mongo_id;
+        const scenarioSummaryEl = document.getElementById('scenario-summary');
+        const scenarioDetailEl = document.getElementById('scenario-detail');
         const payload = {
           title: title,
-          background_image_url: backgroundImageUrl || '',
-          world_ref_id: selectedWorld.id || selectedWorld._id || selectedWorld.mongo_id,
-          world_snapshot: worldSnapshot,
-          scenario_summary: document.getElementById('scenario-summary').value.trim(),
-          scenario_detail: document.getElementById('scenario-detail').value.trim(),
+          world_ref_id: parseInt(worldRefId) || worldRefId,
+          scenario_summary: scenarioSummaryEl ? scenarioSummaryEl.value.trim() : '',
+          scenario_detail: scenarioDetailEl ? scenarioDetailEl.value.trim() : '',
           tags: tags,
           characters: characters,
           rules: rules,
         };
 
-        // API 호출
+        // FormData로 이미지 + 메타 전송 (캐릭터/세계관 생성과 동일한 방식)
+        const formData = new FormData();
+        if (backgroundImageFile) {
+          formData.append('file', backgroundImageFile);
+        }
+        formData.append('meta', JSON.stringify(payload));
+
+        // 인증 헤더 추가 (FormData는 Content-Type을 자동으로 설정하므로 제외)
         const headers = getAuthHeaders();
-        headers['Content-Type'] = 'application/json';
+        delete headers['Content-Type'];
 
         const response = await fetch(`${API_BASE_URL}/v1/games`, {
           method: 'POST',
           headers: headers,
           credentials: 'include',
-          body: JSON.stringify(payload),
+          body: formData,
         });
 
         if (!response.ok) {
@@ -1103,13 +1587,108 @@ create/game.html - 게임 생성 화면
       }
     });
 
+    // 이벤트 리스너 등록 (null 체크 포함)
+    // 세계관 선택 display 필드
+    const worldSelectDisplay = document.getElementById('world-select-display');
+    if (worldSelectDisplay) {
+      worldSelectDisplay.addEventListener('click', openWorldModal);
+    }
+    
+    const worldSelectText = document.getElementById('world-select-text');
+    const worldSelectHidden = document.getElementById('world-select');
+    
+    // 캐릭터 선택 display 필드
+    const charSelectDisplay = document.getElementById('character-select-display');
+    if (charSelectDisplay) {
+      charSelectDisplay.addEventListener('click', openCharacterModal);
+    }
+    
+    const charSelectText = document.getElementById('character-select-text');
+    const charSelectHidden = document.getElementById('character-select');
+    const charSelectedChips = document.getElementById('character-selected-chips');
+    
+    const btnCloseWorldModal = document.getElementById('btn-close-world-modal');
+    if (btnCloseWorldModal) {
+      btnCloseWorldModal.addEventListener('click', closeWorldModal);
+    }
+    
+    const btnCloseWorldModalFooter = document.getElementById('btn-close-world-modal-footer');
+    if (btnCloseWorldModalFooter) {
+      btnCloseWorldModalFooter.addEventListener('click', closeWorldModal);
+    }
+    
+    const btnCloseCharacterModal = document.getElementById('btn-close-character-modal');
+    if (btnCloseCharacterModal) {
+      btnCloseCharacterModal.addEventListener('click', closeCharacterModal);
+    }
+    
+    const btnCloseCharacterModalFooter = document.getElementById('btn-close-character-modal-footer');
+    if (btnCloseCharacterModalFooter) {
+      btnCloseCharacterModalFooter.addEventListener('click', closeCharacterModal);
+    }
+    
+    const btnApplyCharacterSelection = document.getElementById('btn-apply-character-selection');
+    if (btnApplyCharacterSelection) {
+      btnApplyCharacterSelection.addEventListener('click', applyCharacterSelection);
+    }
+    
+    // 검색 입력 필드
+    const worldSearchInput = document.getElementById('world-search-input');
+    if (worldSearchInput) {
+      worldSearchInput.addEventListener('input', function(e) {
+        worldSearchText = e.target.value;
+        renderWorldModalList();
+      });
+    }
+    
+    const characterSearchInput = document.getElementById('character-search-input');
+    if (characterSearchInput) {
+      characterSearchInput.addEventListener('input', function(e) {
+        characterSearchText = e.target.value;
+        renderCharacterModalList();
+      });
+    }
+    
+    // 모달 배경 클릭 시 닫기
+    const worldModal = document.getElementById('world-modal');
+    if (worldModal) {
+      worldModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+          closeWorldModal();
+        }
+      });
+    }
+    
+    const characterModal = document.getElementById('character-modal');
+    if (characterModal) {
+      characterModal.addEventListener('click', function(e) {
+        if (e.target === this) {
+          closeCharacterModal();
+        }
+      });
+    }
+
     // 초기화
     (async function() {
       renderAttributes();
-      await loadWorlds();
-      await loadCharacters();
       updateDiceMax();
+      
+      // 초기 선택 상태 표시
+      if (selectedWorld && worldSelectText) {
+        worldSelectText.textContent = selectedWorld.name || '세계관을 선택하세요';
+        syncWorldHiddenField();
+      }
+      
+      // 초기 캐릭터 선택 상태 표시
+      if (selectedCharacters.length > 0) {
+        renderSelectedCharacterChips();
+        syncCharacterHiddenField();
+        renderCharacterList();
+      }
+      
+      // 세계관/캐릭터 목록은 모달 열 때 로드
     })();
   </script>
 </body>
 </html>
+
