@@ -878,8 +878,9 @@ create/game.html - 게임 생성 화면
         <h3>세계관 선택</h3>
         <button type="button" id="btn-close-world-modal" class="modal-close-btn">X</button>
       </div>
-      <div class="modal-search">
-        <input id="world-search-input" type="text" placeholder="세계관 이름/태그 검색" />
+      <div class="modal-search" style="display:flex; gap:8px;">
+        <input id="world-search-input" type="text" placeholder="세계관 이름/태그 검색" style="flex:1;" />
+        <button type="button" id="world-search-btn" style="padding:8px 16px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer;">검색</button>
       </div>
       <div id="world-modal-list" class="modal-body world-list"></div>
       <div class="modal-footer">
@@ -895,8 +896,9 @@ create/game.html - 게임 생성 화면
         <h3>캐릭터 선택 (최대 5명)</h3>
         <button type="button" id="btn-close-character-modal" class="modal-close-btn">X</button>
       </div>
-      <div class="modal-search">
-        <input id="character-search-input" type="text" placeholder="캐릭터 이름/태그 검색" />
+      <div class="modal-search" style="display:flex; gap:8px;">
+        <input id="character-search-input" type="text" placeholder="캐릭터 이름/태그 검색" style="flex:1;" />
+        <button type="button" id="character-search-btn" style="padding:8px 16px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer;">검색</button>
       </div>
       <div id="character-modal-list" class="modal-body char-list"></div>
       <div class="modal-footer">
@@ -1163,9 +1165,19 @@ create/game.html - 게임 생성 화면
         searchInput.value = '';
       }
       
+      // 검색 없이 전체 목록 표시
       if (worldsList.length === 0) {
         loadWorlds();
       } else {
+        renderWorldModalList();
+      }
+    }
+    
+    // 세계관 검색 실행
+    function executeWorldSearch() {
+      const searchInput = document.getElementById('world-search-input');
+      if (searchInput) {
+        worldSearchText = searchInput.value.trim();
         renderWorldModalList();
       }
     }
@@ -1195,6 +1207,9 @@ create/game.html - 게임 생성 화면
     function selectWorldFromModal(world) {
       selectedWorld = world;
       
+      // 선택된 세계관 카드 렌더링
+      renderSelectedWorld();
+      
       // 오른쪽 display 필드 업데이트
       if (worldSelectText) {
         worldSelectText.textContent = world.name || '세계관을 선택하세요';
@@ -1203,34 +1218,32 @@ create/game.html - 게임 생성 화면
       // hidden select에 값 설정
       syncWorldHiddenField();
       
-      // 왼쪽 미리보기 업데이트 (배경 이미지가 없을 때만)
-      if (!backgroundImageFile) {
-        const imageUrl = resolvePath(world.image || world.image_path || '/assets/img/placeholder.jpg');
-        
-        const previewName = document.getElementById('world-preview-name');
-        if (previewName) previewName.textContent = world.name || '이름 없음';
-        
-        const previewSummary = document.getElementById('world-preview-summary');
-        if (previewSummary) previewSummary.textContent = world.summary || '설명 없음';
-        
-        const previewImage = document.getElementById('world-preview-image');
-        if (previewImage) previewImage.src = imageUrl;
-        
-        const tagsContainer = document.getElementById('world-preview-tags');
-        if (tagsContainer) {
-          tagsContainer.innerHTML = '';
-          safeTags(world.tags).forEach(tag => {
-            const chip = document.createElement('span');
-            chip.className = 'tag-chip';
-            chip.textContent = tag;
-            tagsContainer.appendChild(chip);
-          });
-        }
+      // 왼쪽 미리보기 업데이트 (배경 이미지 아래에 표시)
+      const imageUrl = resolvePath(world.image || world.image_path || '/assets/img/placeholder.jpg');
+      
+      const previewName = document.getElementById('world-preview-name');
+      if (previewName) previewName.textContent = world.name || '이름 없음';
+      
+      const previewSummary = document.getElementById('world-preview-summary');
+      if (previewSummary) previewSummary.textContent = world.summary || '설명 없음';
+      
+      const previewImage = document.getElementById('world-preview-image');
+      if (previewImage) previewImage.src = imageUrl;
+      
+      const tagsContainer = document.getElementById('world-preview-tags');
+      if (tagsContainer) {
+        tagsContainer.innerHTML = '';
+        safeTags(world.tags).forEach(tag => {
+          const chip = document.createElement('span');
+          chip.className = 'tag-chip';
+          chip.textContent = tag;
+          tagsContainer.appendChild(chip);
+        });
+      }
 
-        const previewContainer = document.getElementById('world-preview-container');
-        if (previewContainer) {
-          previewContainer.style.display = 'block';
-        }
+      const previewContainer = document.getElementById('world-preview-container');
+      if (previewContainer) {
+        previewContainer.style.display = 'block';
       }
       
       closeWorldModal();
@@ -1680,6 +1693,12 @@ create/game.html - 게임 생성 화면
         }));
 
         // 요청 데이터 (world_snapshot과 character snapshot은 백엔드에서 생성)
+        if (!selectedWorld) {
+          showToast('세계관을 선택해주세요.', 2000);
+          btn.disabled = false;
+          return;
+        }
+        
         const worldRefId = selectedWorld.id || selectedWorld._id || selectedWorld.mongo_id;
         const scenarioSummaryEl = document.getElementById('scenario-summary');
         const scenarioDetailEl = document.getElementById('scenario-detail');
@@ -1790,20 +1809,34 @@ create/game.html - 게임 생성 화면
       btnApplyCharacterSelection.addEventListener('click', applyCharacterSelection);
     }
     
-    // 검색 입력 필드
+    // 검색 버튼 이벤트 리스너
+    const worldSearchBtn = document.getElementById('world-search-btn');
+    if (worldSearchBtn) {
+      worldSearchBtn.addEventListener('click', executeWorldSearch);
+    }
+    
     const worldSearchInput = document.getElementById('world-search-input');
     if (worldSearchInput) {
-      worldSearchInput.addEventListener('input', function(e) {
-        worldSearchText = e.target.value;
-        renderWorldModalList();
+      // Enter 키로 검색
+      worldSearchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          executeWorldSearch();
+        }
       });
+    }
+    
+    const characterSearchBtn = document.getElementById('character-search-btn');
+    if (characterSearchBtn) {
+      characterSearchBtn.addEventListener('click', executeCharacterSearch);
     }
     
     const characterSearchInput = document.getElementById('character-search-input');
     if (characterSearchInput) {
-      characterSearchInput.addEventListener('input', function(e) {
-        characterSearchText = e.target.value;
-        renderCharacterModalList();
+      // Enter 키로 검색
+      characterSearchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          executeCharacterSearch();
+        }
       });
     }
     
