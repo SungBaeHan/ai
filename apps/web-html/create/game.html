@@ -709,6 +709,24 @@ create/game.html - 게임 생성 화면
               <span id="world-select-text">세계관을 선택하세요</span>
             </div>
           </label>
+          
+          <!-- 선택된 세계관 카드 -->
+          <div id="selected-world-card" style="display:none; margin-top:12px; padding:16px; background:#111827; border:1px solid #1f2937; border-radius:8px;">
+            <div style="display:flex; gap:12px;">
+              <img id="selected-world-image" src="" alt="" style="width:120px; height:80px; object-fit:cover; border-radius:6px;" />
+              <div style="flex:1;">
+                <div id="selected-world-name" style="font-weight:600; color:#f3f4f6; margin-bottom:4px;"></div>
+                <div id="selected-world-summary" style="font-size:12px; color:#94a3b8; margin-bottom:8px;"></div>
+                <div id="selected-world-tags" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
+                <button type="button" id="btn-remove-world" style="margin-top:8px; padding:4px 8px; background:#dc2626; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:12px;">제거</button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- 선택된 세계관이 없을 때 placeholder -->
+          <div id="selected-world-placeholder" style="display:none; margin-top:12px; padding:40px; background:#0f172a; border:2px dashed #1f2937; border-radius:8px; text-align:center; color:#64748b;">
+            아직 선택된 세계관이 없습니다.
+          </div>
         </div>
 
         <!-- 시나리오 정보 -->
@@ -853,6 +871,42 @@ create/game.html - 게임 생성 화면
     <div class="box">준비중입니다</div>
   </div>
 
+  <!-- 세계관 선택 모달 -->
+  <div id="world-modal" class="modal-backdrop" style="display:none;">
+    <div class="modal-dialog world-modal">
+      <div class="modal-header">
+        <h3>세계관 선택</h3>
+        <button type="button" id="btn-close-world-modal" class="modal-close-btn">X</button>
+      </div>
+      <div class="modal-search">
+        <input id="world-search-input" type="text" placeholder="세계관 이름/태그 검색" />
+      </div>
+      <div id="world-modal-list" class="modal-body world-list"></div>
+      <div class="modal-footer">
+        <button type="button" id="btn-close-world-modal-footer">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 캐릭터 선택 모달 -->
+  <div id="character-modal" class="modal-backdrop" style="display:none;">
+    <div class="modal-dialog char-modal">
+      <div class="modal-header">
+        <h3>캐릭터 선택 (최대 5명)</h3>
+        <button type="button" id="btn-close-character-modal" class="modal-close-btn">X</button>
+      </div>
+      <div class="modal-search">
+        <input id="character-search-input" type="text" placeholder="캐릭터 이름/태그 검색" />
+      </div>
+      <div id="character-modal-list" class="modal-body char-list"></div>
+      <div class="modal-footer">
+        <span id="character-selected-count">선택: 0 / 5</span>
+        <button type="button" id="btn-apply-character-selection">선택 완료</button>
+        <button type="button" id="btn-close-character-modal-footer">취소</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // API Base URL
     const API_BASE_URL = getApiBaseUrl();
@@ -905,6 +959,11 @@ create/game.html - 게임 생성 화면
     let selectedCharacters = [];
     let worldsList = [];
     let charactersList = [];
+    let showWorldModal = false;
+    let showCharacterModal = false;
+    let worldSearchText = '';
+    let characterSearchText = '';
+    let tempSelectedCharIds = [];
 
     // 속성 정의
     const attributes = [
@@ -995,7 +1054,10 @@ create/game.html - 게임 생성 화면
         const data = await response.json();
         worldsList = data.items || [];
 
-        renderWorldList();
+        // 모달이 열려있으면 렌더링
+        if (showWorldModal) {
+          renderWorldModalList();
+        }
       } catch (error) {
         console.error('Load worlds error:', error);
         showToast('세계관 목록을 불러오는 중 오류가 발생했습니다.', 2000);
@@ -1012,6 +1074,11 @@ create/game.html - 게임 생성 화면
     // 세계관 모달 카드 리스트 렌더링
     function renderWorldModalList() {
       const container = document.getElementById('world-modal-list');
+      if (!container) {
+        console.warn('world-modal-list container not found');
+        return;
+      }
+      
       container.innerHTML = '';
       
       // 검색 필터링
@@ -1100,6 +1167,18 @@ create/game.html - 게임 생성 화면
         loadWorlds();
       } else {
         renderWorldModalList();
+      }
+    }
+    
+    // 세계관 제거
+    function removeWorld() {
+      selectedWorld = null;
+      renderSelectedWorld();
+      syncWorldHiddenField();
+      
+      const worldSelectText = document.getElementById('world-select-text');
+      if (worldSelectText) {
+        worldSelectText.textContent = '세계관을 선택하세요';
       }
     }
 
@@ -1679,6 +1758,12 @@ create/game.html - 게임 생성 화면
     const charSelectText = document.getElementById('character-select-text');
     const charSelectHidden = document.getElementById('character-select');
     const charSelectedChips = document.getElementById('character-selected-chips');
+    
+    // 세계관 제거 버튼
+    const btnRemoveWorld = document.getElementById('btn-remove-world');
+    if (btnRemoveWorld) {
+      btnRemoveWorld.addEventListener('click', removeWorld);
+    }
     
     const btnCloseWorldModal = document.getElementById('btn-close-world-modal');
     if (btnCloseWorldModal) {
