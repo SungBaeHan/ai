@@ -202,9 +202,11 @@
       const chat=document.getElementById('chat'); 
       const row=document.createElement('div'); 
       row.className='msg'; 
-      const rawImgUrl = CURRENT_GAME?.background_image_path || (CURRENT_GAME?.world_snapshot && CURRENT_GAME.world_snapshot.image_url);
-      const normalizedImgUrl = normalizeAssetPath(rawImgUrl) || rawImgUrl;
-      const img=resolvePath(normalizedImgUrl); 
+      // 게임 배경 이미지: 백엔드에서 R2 public URL로 변환된 필드 우선 사용
+      const img = CURRENT_GAME?.image || 
+                 CURRENT_GAME?.background_image_url || 
+                 (CURRENT_GAME?.world_snapshot && CURRENT_GAME.world_snapshot.image_url) || 
+                 '/assets/img/placeholder.jpg';
       row.innerHTML=`<img class="avatar" src="${img}" alt="bot"/><div class="bubble">${escapeHtml(text)}</div>`; 
       chat.appendChild(row); 
       chat.scrollTop=chat.scrollHeight; 
