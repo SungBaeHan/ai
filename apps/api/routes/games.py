@@ -10,6 +10,7 @@ import time
 import logging
 import hashlib
 import json
+from copy import deepcopy
 from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Query, status
 from adapters.persistence.mongo import get_db
@@ -186,7 +187,28 @@ async def create_game(
             img_hash=world_doc.get("img_hash"),
         ).model_dump()
         
-        # 3) 캐릭터 조회 및 스냅샷 생성
+        # 3) rules.attributes를 딕셔너리로 변환 (attributes_base로 사용)
+        base_attributes = None
+        if hasattr(payload.rules, "attributes") and payload.rules.attributes:
+            try:
+                # payload.rules.attributes는 Dict[str, GameRuleAttributesConfig] 형태
+                # 각 GameRuleAttributesConfig를 dict로 변환
+                base_attributes = {}
+                for key, value in payload.rules.attributes.items():
+                    if hasattr(value, "model_dump"):
+                        # Pydantic 모델이면 dict로 변환
+                        base_attributes[key] = value.model_dump()
+                    elif isinstance(value, dict):
+                        # 이미 dict 형태면 그대로 사용
+                        base_attributes[key] = deepcopy(value)
+                    else:
+                        # 기타 타입은 그대로 사용
+                        base_attributes[key] = value
+            except Exception as e:
+                logger.warning(f"Failed to convert rules.attributes to dict: {e}")
+                base_attributes = None
+        
+        # 4) 캐릭터 조회 및 스냅샷 생성
         char_ids = [c.char_ref_id for c in payload.characters]
         char_docs: Dict[int, Dict[str, Any]] = {}
         
@@ -210,7 +232,7 @@ async def create_game(
             # 이미지 URL을 상대 경로로 정규화
             normalized_char_image_url = normalize_asset_path(char_image_url)
             
-            # snapshot 딕셔너리 생성 (attributes_base는 값이 있을 때만 포함)
+            # snapshot 딕셔너리 생성
             snapshot_dict = {
                 "id": doc.get("id"),
                 "name": doc.get("name"),
@@ -220,10 +242,9 @@ async def create_game(
                 "archetype": doc.get("archetype"),
             }
             
-            # attributes_base가 실제 값이 있을 때만 추가
-            attributes_base = doc.get("attributes_base")
-            if attributes_base:
-                snapshot_dict["attributes_base"] = attributes_base
+            # attributes_base를 rules.attributes로 설정 (깊은 복사)
+            if base_attributes is not None:
+                snapshot_dict["attributes_base"] = deepcopy(base_attributes)
             
             snapshot = CharacterSnapshot(**snapshot_dict).model_dump()
             
