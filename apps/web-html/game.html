@@ -78,21 +78,30 @@
       gap:8px;
       opacity:0.85;
     }
-    .game-narration-box {
+    /* 전체 게임 페이지를 세로 플렉스 컨테이너로 구성 */
+    .game-page {
+      display: flex;
+      flex-direction: column;
+      /* 상단 글로벌 헤더(사이트 탑바) 높이를 빼고 싶다면 그에 맞게 조정 */
+      height: calc(100vh - 64px);
+    }
+    /* 커버 + 소개 + HUD: 위에 고정된 영역 */
+    .game-fixed-header {
+      flex: 0 0 auto;
+    }
+    /* 채팅 영역: 나머지 공간을 차지하고, 내부에서만 스크롤 */
+    .game-chat-container {
+      flex: 1 1 auto;
+      overflow-y: auto;
+      padding-top: 8px;
+      padding-bottom: 12px;
+    }
+    /* 필요하면 채팅 로그 내부 여백도 살짝 추가 */
+    #chat, #chat-log {
       max-width:980px;
-      margin:0 auto 12px;
-      padding:12px 16px;
-      border-radius:8px;
-      background:rgba(7, 9, 22, 0.95);
-      color:#f5f5f5;
-      font-size:13px;
-      line-height:1.5;
-      min-height:48px;
+      margin:0 auto;
+      padding:0 4px 80px; /* 입력창 가려지지 않게 여유 */
     }
-    .game-narration-placeholder {
-      opacity:0.6;
-    }
-    .chat { max-width:980px; margin:0 auto 90px; padding:0 4px; }
     .msg { display:flex; align-items:flex-start; gap:10px; margin:14px 0; animation:fadeInUp .35s ease; }
     .msg.me { flex-direction:row-reverse; }
     .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
@@ -122,36 +131,35 @@
     </div>
   </div>
 
-  <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
-  <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
+  <div id="game-page" class="game-page">
+    <div id="game-fixed-header" class="game-fixed-header">
+      <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
+      <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
 
-  <div class="panel" id="about">
-    <div style="font-weight:700; margin-bottom:6px;">소개</div>
-    <div id="bio" style="opacity:.9"></div> <!-- 장문 소개/배경 -->
-    <div class="chips">
-      <span class="chip">TRPG</span>
-      <span class="chip" id="chip-name">게임</span>
+      <div class="panel" id="about">
+        <div style="font-weight:700; margin-bottom:6px;">소개</div>
+        <div id="game-narration" style="opacity:.9"></div> <!-- 내레이션 영역 (기존 bio 영역 재사용) -->
+        <div class="chips">
+          <span class="chip">TRPG</span>
+          <span class="chip" id="chip-name">게임</span>
+        </div>
+        <div class="hint">Tip: 메세지를 보내면 게임 턴이 진행됩니다.</div>
+      </div>
+
+      <!-- 게임 HUD (상태 표시) -->
+      <div id="game-hud" class="game-hud-box">
+        <div class="game-hud-section">
+          <div class="game-hud-title">상태</div>
+          <div class="game-hud-body">게임을 시작하면 상태가 표시됩니다.</div>
+        </div>
+      </div>
     </div>
-    <div class="hint">Tip: 메세지를 보내면 게임 턴이 진행됩니다.</div>
-  </div>
 
-  <!-- 게임 HUD (상태 표시) -->
-  <div id="game-hud" class="game-hud-box">
-    <div class="game-hud-section">
-      <div class="game-hud-title">상태</div>
-      <div class="game-hud-body">게임을 시작하면 상태가 표시됩니다.</div>
+    <div id="game-chat-container" class="game-chat-container">
+      <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
+      <div class="chat" id="chat-log" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
     </div>
   </div>
-
-  <!-- Narration 영역 (노란 영역) -->
-  <div id="game-narration" class="game-narration-box">
-    <div class="game-narration-placeholder">
-      턴이 진행되면, 이 영역에 이번 턴의 배경 설명이 표시됩니다.
-    </div>
-  </div>
-
-  <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
-  <div class="chat" id="chat-log" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
 
   <div class="inputBar">
     <div class="inputIn">
@@ -243,7 +251,11 @@
       document.getElementById('title').textContent=game.title||game.id;
       document.getElementById('chip-name').textContent=game.title||'게임';
       const bioText = game.scenario_summary || game.scenario_detail || game.title || '';
-      document.getElementById('bio').textContent=bioText.toString();
+      // bio 대신 game-narration 사용
+      const narrationEl = document.getElementById('game-narration');
+      if (narrationEl) {
+        narrationEl.textContent = bioText.toString();
+      }
 
       // 게임 배경 이미지: 백엔드에서 R2 public URL로 변환된 필드 우선 사용
       const img = game.image || 
@@ -488,7 +500,11 @@
         // 1) 노란 영역: 턴 내레이션 표시
         if (narrationEl && typeof narration === 'string') {
           narrationEl.textContent = narration;
-          narrationEl.classList.remove('game-narration-placeholder');
+          // 제목도 "턴 내레이션"으로 변경
+          const introHeader = document.querySelector('#about > div:first-child');
+          if (introHeader) {
+            introHeader.textContent = '턴 내레이션';
+          }
         }
         
         // 2) HUD: 상태/스탯 갱신
@@ -546,6 +562,12 @@
       catch(e){ dbg('[error] '+e.message); game = {id:norm, title:'미확인 게임', background_image_path:'/assets/img/placeholder.jpg', scenario_summary:'정보 없음'}; }
       CURRENT_GAME = game;
       paintGame(game);
+      
+      // 초기 내레이션 영역에 게임 소개 텍스트 설정
+      if (narrationEl) {
+        const initialText = game.scenario_summary || game.scenario_detail || game.title || '게임을 시작하세요.';
+        narrationEl.textContent = initialText;
+      }
 
       // 게임은 인사말 없이 자유롭게 채팅 시작
 
