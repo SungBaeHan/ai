@@ -16,7 +16,7 @@ from adapters.persistence.mongo import get_db
 from adapters.file_storage.r2_storage import R2Storage
 from apps.api.routes.worlds import get_current_user_v2
 from apps.api.utils import build_public_image_url
-from apps.api.utils.assets import normalize_asset_path
+from apps.core.utils.assets import normalize_asset_path
 from apps.api.models.games import (
     GameCreateRequest,
     GameResponse,
