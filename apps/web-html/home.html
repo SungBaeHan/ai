@@ -86,6 +86,7 @@
     <div class="category-tabs">
       <button class="category-tab active" data-category="characters">캐릭터 선택</button>
       <button class="category-tab" data-category="worlds">세계관 선택</button>
+      <button class="category-tab" data-category="games">게임 선택</button>
     </div>
     <div id="grid" class="grid"></div>
   </div>
@@ -138,6 +139,26 @@
       return items;
     }
     
+    // 서버 API에서 게임 목록 로드
+    async function loadGamesFromApi() {
+      const r = await fetch(`${API_BASE_URL}/v1/games?offset=0&limit=200`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!r.ok) {
+        const errorText = await r.text();
+        console.error('[loadGamesFromApi] HTTP error:', r.status, errorText);
+        throw new Error('HTTP ' + r.status + ': ' + errorText);
+      }
+      const j = await r.json();
+      console.log('[loadGamesFromApi] Response:', j);
+      // API 응답 구조: { items: [...], total: number, ... }
+      const items = j.items || [];
+      console.log('[loadGamesFromApi] Items count:', items.length);
+      return items;
+    }
+    
         // 로컬 정적 JSON에서 캐릭터 목록 로드 (개발/오프라인용)
     async function loadFromLocal(url) {
       const r = await fetch(url);
@@ -162,6 +183,18 @@
         return items;
       } catch(error) {
         console.error('[loadWorlds] Error:', error);
+        return [];
+      }
+    }
+    
+    // 게임 목록 로드
+    async function loadGames() {
+      try { 
+        const items = await loadGamesFromApi();
+        console.log('[loadGames] Success, items:', items.length);
+        return items;
+      } catch(error) {
+        console.error('[loadGames] Error:', error);
         return [];
       }
     }
@@ -269,6 +302,53 @@
       console.log('[worldCard] Card created successfully');
       return a;
     }
+    
+    // 게임 카드 DOM 생성
+    function gameCard(item) {
+      console.log('[gameCard] Creating card for item:', item);
+      const id = item.id || item._id || 'game_01';
+      const a = document.createElement('a');
+      a.className = 'card';
+      a.href = `/game.html?game=${id}`;
+      a.addEventListener('click', () => { try { sessionStorage.setItem('lastGame', id); } catch(_){ } });
+
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.alt = item.title || id;
+      // 게임 배경 이미지 또는 세계관 이미지 사용
+      const imageUrl = item.background_image_path || 
+                      (item.world_snapshot && item.world_snapshot.image_url) || 
+                      '/assets/img/placeholder.jpg';
+      img.src = resolvePath(imageUrl);
+
+      const body = document.createElement('div');
+      body.className = 'body';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = item.title || id;
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      const summaryText = (item.scenario_summary || item.title || '').toString();
+      meta.textContent = summaryText.length > 60 ? summaryText.substring(0, 60) + '...' : summaryText;
+
+      body.appendChild(name);
+      body.appendChild(meta);
+      
+      // 태그 칩 추가
+      const chips = document.createElement('div');
+      chips.style.marginTop = '6px';
+      chips.style.display = 'flex';
+      chips.style.gap = '6px';
+      chips.style.flexWrap = 'wrap';
+      const chipValues = [...(item.tags || [])].filter(Boolean);
+      chips.innerHTML = chipValues.map(v => `<span style="font-size:11px;padding:2px 8px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#a5b4fc">${v}</span>`).join('');
+      body.appendChild(chips);
+      
+      a.appendChild(img);
+      a.appendChild(body);
+      console.log('[gameCard] Card created successfully');
+      return a;
+    }
 
     // 토큰 관리
     const TOKEN_KEY = 'access_token';
@@ -308,7 +388,13 @@
           
           // 제목 변경
           const h1 = document.querySelector('h1');
-          h1.textContent = category === 'characters' ? '캐릭터 선택' : '세계관 선택';
+          if (category === 'characters') {
+            h1.textContent = '캐릭터 선택';
+          } else if (category === 'worlds') {
+            h1.textContent = '세계관 선택';
+          } else if (category === 'games') {
+            h1.textContent = '게임 선택';
+          }
           
           // 그리드 초기화 및 데이터 로드
           const grid = document.getElementById('grid');
@@ -318,8 +404,10 @@
             let items = [];
             if (category === 'characters') {
               items = await loadCharacters();
-            } else {
+            } else if (category === 'worlds') {
               items = await loadWorlds();
+            } else if (category === 'games') {
+              items = await loadGames();
             }
             
             console.log('[Category tab click] Category:', category, 'Items:', items.length, items);
@@ -328,7 +416,8 @@
             grid.innerHTML = '';
             
             if (items.length === 0) {
-              grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">표시할 ' + (category === 'characters' ? '캐릭터' : '세계관') + '가 없습니다.</div>';
+              const emptyText = category === 'characters' ? '캐릭터' : (category === 'worlds' ? '세계관' : '게임');
+              grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">표시할 ' + emptyText + '가 없습니다.</div>';
             } else {
               // 각 아이템을 카드로 변환하여 그리드에 추가
               items.forEach((it, index) => {
@@ -337,8 +426,10 @@
                   let cardElement;
                   if (category === 'characters') {
                     cardElement = card(it);
-                  } else {
+                  } else if (category === 'worlds') {
                     cardElement = worldCard(it);
+                  } else if (category === 'games') {
+                    cardElement = gameCard(it);
                   }
                   if (cardElement) {
                     grid.appendChild(cardElement);

@@ -1,4 +1,5 @@
---extra-index-url https://download.pytorch.org/whl/cpu
+# === PyTorch 전용 인덱스 (CI 속도 문제로 임시 비활성화) ===
+# --extra-index-url https://download.pytorch.org/whl/cpu
 
 # --- 기본 서버 ---
 fastapi
@@ -9,7 +10,7 @@ python-multipart==0.0.9
 
 # --- 벡터DB / 임베딩 ---
 qdrant-client
-sentence-transformers
+# sentence-transformers  # TEMP: torch/transformers 계열이라 CI 빌드 느려져서 임시 비활성화
 
 # --- LLM 엔진 ---
 ollama
@@ -20,7 +21,7 @@ openai>=1.0.0
 # --- Pinterest 크롤러용 ---
 requests>=2.32.3
 beautifulsoup4>=4.12.3
-playwright>=1.48.0
+# playwright>=1.48.0  # TEMP: Pinterest 크롤러 기능 당분간 사용 안 해서 비활성화
 
 PyJWT>=2.8.0
 requests>=2.31.0

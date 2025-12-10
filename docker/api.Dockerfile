@@ -3,7 +3,7 @@ FROM python:3.12-slim
 
 # 최소 빌드 의존성
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl && \
+    curl && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

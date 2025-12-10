@@ -1,0 +1,446 @@
+<!-- ========================================
+     apps/web-html/game.html — 게임 상세(채팅) 화면
+     - URL ?game=1 또는 ?game_id=1 지원
+     - /v1/games/:id 단건 호출해서 렌더
+     - 이미지 경로 보정(resolvePath)로 /assets/game/… 보장
+     - 게임 채팅 시작
+     ======================================== -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Game Chat • TRPG</title>
+  <script src="/js/config.js"></script>
+  <script>
+    // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
+    window.API_BASE_URL = 'https://api.arcanaverse.ai';
+    window.API_BASE = 'https://api.arcanaverse.ai';  // API_BASE도 함께 설정
+  </script>
+  <style>
+    :root { color-scheme: dark; } /* 다크 테마 힌트 */
+    body { margin:0; background:#0b0f14; color:#e5e7eb; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
+    .topbar-wrap { display:flex; justify-content:center; border-bottom:1px solid #1b2430; background:#0e141c; position:sticky; top:0; z-index:20; }
+    .topbar { width:100%; max-width:980px; display:flex; align-items:center; gap:10px; padding:10px 14px; }
+    .back { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:1px solid #223042; background:#0f172a; color:#cbd5e1; cursor:pointer; }
+    .title { font-weight:700; font-size:15px; color:#f1f5f9; }
+    .hero { position:relative; margin:18px auto; max-width:980px; }
+    .hero img { width:100%; border-radius:14px; border:1px solid #1f2937; box-shadow:0 10px 28px rgba(0,0,0,.35); display:block; }
+    .panel { max-width:980px; margin:10px auto 18px; background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:12px 14px; }
+    .chips { margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; }
+    .chip { padding:3px 8px; font-size:11px; border-radius:999px; border:1px solid #334155; color:#a5b4fc; background:#0b1220; }
+    .hint { font-size:12px; color:#9ca3af; margin-top:6px; }
+    .chat { max-width:980px; margin:0 auto 90px; padding:0 4px; }
+    .msg { display:flex; align-items:flex-start; gap:10px; margin:14px 0; animation:fadeInUp .35s ease; }
+    .msg.me { flex-direction:row-reverse; }
+    .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
+    .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
+    .me .bubble { background:rgba(63,131,248,0.25); border-color:#334155; }
+    .inputBar { position:fixed; left:0; right:0; bottom:0; border-top:1px solid #1b2430; background:#0e141c; padding:12px; }
+    .inputIn { max-width:980px; margin:0 auto; display:flex; gap:8px; }
+    textarea { flex:1; resize:none; background:#0b1220; border:1px solid #1f2937; border-radius:10px; color:#e5e7eb; padding:10px 12px; min-height:44px; }
+    button { padding:0 14px; border-radius:10px; border:1px solid #334155; background:#111827; color:#c7d2fe; height:44px; }
+    button[disabled]{ opacity:.6; cursor:not-allowed; }
+    .bg { position:fixed; inset:0; background-position:center; background-size:cover; opacity:.4; filter:blur(1.5px) brightness(0.9); z-index:-1; transition:filter .5s ease, opacity .5s ease; }
+    .debug { max-width:980px; margin:6px auto 0; font-size:12px; color:#93c5fd; opacity:.9; white-space:pre-wrap; }
+    /* toast layer */
+    .toast { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .18s ease; z-index:50; }
+    .toast.show { opacity:1; }
+    .toast .box { pointer-events:auto; min-width:200px; max-width:80vw; background:#0f172a; border:1px solid #1f2937; color:#e5e7eb; padding:14px 18px; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.45); text-align:center; }
+    @keyframes fadeInUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+  </style>
+</head>
+<body>
+  <div class="bg" id="bg"></div> <!-- 흐림 배경 -->
+
+  <div class="topbar-wrap">
+    <div class="topbar">
+      <button id="backBtn" class="back" title="뒤로 가기">←</button> <!-- 뒤로가기 -->
+      <div class="title" id="title">로딩 중…</div>                   <!-- 게임 이름 -->
+    </div>
+  </div>
+
+  <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
+  <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
+
+  <div class="panel" id="about">
+    <div style="font-weight:700; margin-bottom:6px;">소개</div>
+    <div id="bio" style="opacity:.9"></div> <!-- 장문 소개/배경 -->
+    <div class="chips">
+      <span class="chip">TRPG</span>
+      <span class="chip" id="chip-name">게임</span>
+    </div>
+    <div class="hint">Tip: 메세지를 보내면 /v1/chat (TRPG 모드)로 요청합니다.</div>
+  </div>
+
+  <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
+
+  <div class="inputBar">
+    <div class="inputIn">
+      <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 -->
+      <button id="send">보내기</button>                         <!-- 전송 -->
+    </div>
+  </div>
+
+  <!-- Toast Layer -->
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true">
+    <div class="box">준비중입니다</div>
+  </div>
+
+  <script>
+    // 절대경로 API_BASE_URL 상수 정의
+    const API_BASE_URL =
+      window.location.hostname === "arcanaverse.ai" ||
+      window.location.hostname === "www.arcanaverse.ai"
+        ? "https://api.arcanaverse.ai"
+        : "http://localhost:8000";
+
+    // --- 전역/유틸 -------------------------------------------------------------
+    let CURRENT_GAME = null;  // 현재 게임
+    const FALLBACK_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675"><rect width="100%" height="100%" fill="#0e141c"/><text x="50%" y="50%" fill="#94a3b8" font-size="48" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">No Image</text></svg>`
+    );
+    const dbg = (m) => { 
+      const el=document.getElementById('dbg'); 
+      // el.textContent = (el.textContent?el.textContent+"\n":"") + m; 
+      // console.log(m); 
+    };
+
+    function qs(k){ return new URL(location.href).searchParams.get(k); } // 쿼리 파서
+
+    // 'game_1' → 1 / '1' → 1
+    function normalizeGameId(v){
+      if(!v) return null;
+      if(/^game_\d{1,6}$/i.test(v)) return parseInt(v.split('_')[1],10);
+      if(/^\d+$/.test(v)) return parseInt(v,10);
+      return v;
+    }
+
+    // 이미지 경로 보정 → 항상 /assets/game/... 또는 /assets/img/... 로
+    function resolvePath(p){
+      if (!p) return '/assets/img/placeholder.jpg';
+      if (/^https?:\/\//i.test(p)) return p;
+      p = String(p).replace(/\\/g, '/').trim();
+      if (p.startsWith('/')) return p;
+      if (p.startsWith('assets/')) return '/' + p;
+
+      if (p.includes('/game/') || p.startsWith('game/') || p.startsWith('assets/game/')) {
+        if (p.startsWith('assets/')) return '/' + p;
+        if (p.startsWith('game/'))   return '/assets/' + p;
+        return '/assets/game/' + p.replace(/^\/+/, '');
+      }
+      // 세계관 이미지 처리
+      if (p.includes('/world/') || p.startsWith('world/') || p.startsWith('assets/world/')) {
+        if (p.startsWith('assets/')) return '/' + p;
+        if (p.startsWith('world/'))   return '/assets/' + p;
+        return '/assets/world/' + p.replace(/^\/+/, '');
+      }
+      return '/assets/img/' + p.replace(/^\/+/, '');
+    }
+
+    // 안전한 hero 이미지 로더(404 시 SVG로 대체)
+    function safeSetHero(imgUrl){
+      const hero=document.getElementById('hero');
+      hero.onerror=()=>{ dbg('[hero 404] '+imgUrl); hero.src=FALLBACK_SVG; };
+      hero.onload =()=>{ dbg('[hero 200] '+imgUrl); };
+      hero.src=imgUrl||'/assets/img/placeholder.jpg';
+      dbg('[hero set] '+hero.src);
+    }
+
+    // 단일 게임 API 호출 (상세)
+    async function fetchGame(id){
+      dbg('[fetch] /v1/games/'+id);
+      const r = await fetch(`${API_BASE_URL}/v1/games/${id}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        cache: 'no-store'
+      });
+      dbg('[fetch status] '+r.status);
+      if(!r.ok) throw new Error('게임 불러오기 실패: HTTP '+r.status);
+      const j = await r.json();
+      dbg('[fetch image] '+j.background_image_path);
+      return j;
+    }
+
+    // 상단/배경/칩 렌더
+    function paintGame(game){
+      document.getElementById('title').textContent=game.title||game.id;
+      document.getElementById('chip-name').textContent=game.title||'게임';
+      const bioText = game.scenario_summary || game.scenario_detail || game.title || '';
+      document.getElementById('bio').textContent=bioText.toString();
+
+      // 게임 배경 이미지 또는 세계관 이미지 사용
+      const img = resolvePath(
+        game.background_image_path || 
+        (game.world_snapshot && game.world_snapshot.image_url) || 
+        '/assets/img/placeholder.jpg'
+      );
+      dbg('[resolved img] '+img);
+      safeSetHero(img);                                         // 히어로 이미지
+      document.getElementById('bg').style.backgroundImage=`url("${img}")`; // 흐림 배경
+
+      const wrap=document.querySelector('.chips');              // tags 칩
+      wrap.querySelectorAll('.chip.extra').forEach(n=>n.remove());
+      // tags 배열 처리
+      if(game.tags && Array.isArray(game.tags)){
+        game.tags.forEach(tag=>{
+          if(tag){ const s=document.createElement('span'); s.className='chip extra'; s.textContent=tag; wrap.appendChild(s); }
+        });
+      }
+    }
+
+    // 채팅 메시지 DOM 유틸
+    function escapeHtml(s){ 
+      return String(s||'').replace(
+        /[&<>"']/g,
+        c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
+      );
+    }
+    function addUser(text){ const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg me'; row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
+    function addBot(text){  const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg'; const img=resolvePath(CURRENT_GAME?.background_image_path || (CURRENT_GAME?.world_snapshot && CURRENT_GAME.world_snapshot.image_url)); row.innerHTML=`<img class="avatar" src="${img}" alt="bot"/><div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
+
+    // 토큰 관리
+    const TOKEN_KEY = 'access_token';
+    const USER_INFO_KEY = 'user_info_v2';
+
+    function getToken() { return localStorage.getItem(TOKEN_KEY); }
+    function isLoggedIn() { return !!getToken(); }
+
+    async function getUserInfo() {
+      const userInfoV2 = localStorage.getItem(USER_INFO_KEY);
+      if (!userInfoV2) {
+        return null;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/v1/auth/validate-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: userInfoV2 }),
+          credentials: "include",
+        });
+
+        if (res.ok) {
+          return await res.json();
+        }
+        return null;
+      } catch (err) {
+        console.error('Failed to get user info:', err);
+        return null;
+      }
+    }
+
+    /**
+     * 계정 상태 체크
+     * - ok: true 면 채팅 가능
+     * - ok: false 이면 reason 으로 상태 구분
+     *   - 'login': 로그인 필요
+     *   - 'lock': 계정 차단
+     *   - 'use': 사용 불가
+     */
+    async function checkAccountStatus() {
+      const token = getToken();
+      const info  = await getUserInfo();
+
+      console.log('[ACCOUNT] token:', !!token, 'info:', info);
+
+      if (!token) return { ok: false, reason: 'login' };
+
+      if (!info)  return { ok: false, reason: 'login' };
+
+      const is_use = info.is_use || false;
+      const is_lock = info.is_lock || false;
+
+      console.log('[ACCOUNT] is_use:', is_use, 'is_lock:', is_lock);
+
+      if (is_lock) return { ok: false, reason: 'lock' };
+      if (!is_use) return { ok: false, reason: 'use' };
+
+      return { ok: true, reason: null };
+    }
+
+    // 토스트 메시지 표시
+    function showToast(msg='준비중입니다', ms=2000){
+      const el = document.getElementById('toast');
+      el.querySelector('.box').textContent = msg;
+      el.classList.add('show');
+      clearTimeout(showToast.tid);
+      showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+    // 백엔드 LLM 호출
+    async function askLLM(message, mode='trpg', choices=0){
+      try {
+      const token = getToken();
+      const headers = { 'Content-Type': 'application/json' };
+      
+      // 로그인 토큰이 있으면 헤더에 추가
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      const payload = {
+        message, mode,
+        model:'trpg-gen', polish_model:'trpg-polish', choices,
+        game_id: CURRENT_GAME?.id ?? null,
+        game: CURRENT_GAME ? {
+          id: CURRENT_GAME.id,
+          title: CURRENT_GAME.title,
+          scenario_summary: CURRENT_GAME.scenario_summary,
+          scenario_detail: CURRENT_GAME.scenario_detail,
+          tags: CURRENT_GAME.tags || [],
+          world_snapshot: CURRENT_GAME.world_snapshot,
+          characters: CURRENT_GAME.characters || [],
+        } : null,
+      };
+        
+        const url = `${API_BASE_URL}/v1/chat/`;
+        console.log('[askLLM] Request URL:', url);
+        console.log('[askLLM] API_BASE_URL:', API_BASE_URL);
+        console.log('[askLLM] Payload:', payload);
+        
+        const r = await fetch(url, {
+          method: "POST",
+          credentials: "include",
+          headers: headers,
+          body: JSON.stringify(payload),
+        });
+        
+        console.log('[askLLM] Response status:', r.status, r.statusText);
+        console.log('[askLLM] Response headers:', Object.fromEntries(r.headers.entries()));
+        
+        if (!r.ok) {
+          const errorText = await r.text();
+          console.error(`[askLLM] HTTP ${r.status} Error:`, errorText);
+          throw new Error(`HTTP ${r.status}: ${errorText || 'Server error'}`);
+        }
+        
+      const j = await r.json();
+        console.log('[askLLM] Response JSON:', j);
+      return (j?.answer||'').trim();
+      } catch(e) {
+        console.error('[askLLM] Error:', e);
+        console.error('[askLLM] Error stack:', e.stack);
+        const errorMsg = e.message || String(e);
+        return `(오류 발생) ${errorMsg}`;
+      }
+    }
+
+    // 초기화
+    document.addEventListener('DOMContentLoaded', async ()=>{
+      // 뒤로가기
+      document.getElementById('backBtn').onclick=()=>{ if(history.length>1) history.back(); else location.href='/home.html'; };
+
+      // URL → 게임 id 정규화
+      const raw  = qs('game') || qs('game_id') || null;
+      const norm = normalizeGameId(raw) || 1;
+      dbg('[param] raw='+raw+' norm='+norm);
+
+      // 상세 API 호출
+      let game=null;
+      try { game = await fetchGame(norm); }
+      catch(e){ dbg('[error] '+e.message); game = {id:norm, title:'미확인 게임', background_image_path:'/assets/img/placeholder.jpg', scenario_summary:'정보 없음'}; }
+      CURRENT_GAME = game;
+      paintGame(game);
+
+      // 게임은 인사말 없이 자유롭게 채팅 시작
+
+      // 입력 동작
+      const ta=document.getElementById('ta'), btn=document.getElementById('send');
+      
+      // 비로그인 상태에서 입력/전송 시도 시 계정 상태 체크
+      async function checkLoginAndSend(){
+        const status = await checkAccountStatus();
+
+        if (!status.ok) {
+          if (status.reason === 'login') {
+            showToast('로그인이 필요합니다.', 2000);
+          } else if (status.reason === 'lock') {
+            showToast('현재 계정이 차단된 상태입니다.', 2000);
+          } else if (status.reason === 'use') {
+            showToast('현재 사용이 불가한 상태입니다.', 2000);
+          } else {
+            showToast('계정 상태를 확인할 수 없습니다.', 2000);
+          }
+          ta.blur();
+          return false;
+        }
+        return true;
+      }
+
+      async function send(){
+        // 로그인 체크
+        if (!(await checkLoginAndSend())) return;
+        
+        const v=ta.value.trim(); if(!v)return;
+        addUser(v); ta.value=''; btn.disabled=true;
+        
+        console.log('[send] Starting API call with message:', v);
+        console.log('[send] API_BASE_URL:', API_BASE_URL);
+        
+        try{ 
+          const ans=await askLLM(v,'trpg');
+          console.log('[send] Received answer:', ans);
+          addBot(ans||'(응답이 비어있습니다)');
+        }
+        catch(e){ 
+          console.error('[send] Error caught:', e);
+          addBot('서버 오류: '+e.message);
+        }
+        finally{ 
+          btn.disabled=false; 
+          ta.focus(); 
+        }
+      }
+      
+      // 입력 필드 포커스 시 계정 상태 체크
+      ta.addEventListener('focus', async (ev) => {
+        const status = await checkAccountStatus();
+        if (!status.ok) {
+          ev.preventDefault();
+          ta.blur();
+
+          if (status.reason === 'login') {
+            showToast('로그인이 필요합니다.', 2000);
+          } else if (status.reason === 'lock') {
+            showToast('현재 계정이 차단된 상태입니다.', 2000);
+          } else if (status.reason === 'use') {
+            showToast('현재 사용이 불가한 상태입니다.', 2000);
+          } else {
+            showToast('계정 상태를 확인할 수 없습니다.', 2000);
+          }
+        }
+      });
+
+      // 클릭 시도 시 계정 상태 체크
+      ta.addEventListener('click', async (ev) => {
+        const status = await checkAccountStatus();
+        if (!status.ok) {
+          ev.preventDefault();
+          ta.blur();
+
+          if (status.reason === 'login') {
+            showToast('로그인이 필요합니다.', 2000);
+          } else if (status.reason === 'lock') {
+            showToast('현재 계정이 차단된 상태입니다.', 2000);
+          } else if (status.reason === 'use') {
+            showToast('현재 사용이 불가한 상태입니다.', 2000);
+          } else {
+            showToast('계정 상태를 확인할 수 없습니다.', 2000);
+          }
+        }
+      });
+
+      btn.onclick=send;
+      ta.addEventListener('keydown', ev=>{ 
+        if (ev.key==='Enter' && !ev.shiftKey){ 
+          ev.preventDefault(); 
+          send(); 
+        }
+      });
+    });
+  </script>
+</body>
+</html>
+

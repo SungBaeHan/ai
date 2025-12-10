@@ -24,6 +24,7 @@ from apps.api.models.games import (
     CharacterSnapshot,
     GameRulesConfig,
 )
+from pydantic import BaseModel
 from bson import ObjectId
 from datetime import datetime, timezone
 from fastapi.encoders import jsonable_encoder
@@ -300,7 +301,14 @@ async def create_game(
         logger.exception("Game creation failed")
         raise HTTPException(status_code=500, detail="게임 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
 
-@router.get("", response_model=List[GameResponse], summary="게임 목록 조회")
+class GameListResponse(BaseModel):
+    """게임 목록 응답 모델 (캐릭터/세계관과 동일한 구조)"""
+    total: int
+    items: List[GameResponse]
+    offset: int = 0
+    limit: int = 20
+
+@router.get("", response_model=GameListResponse, summary="게임 목록 조회")
 async def list_games(
     offset: int = Query(0, ge=0, alias="offset"),
     limit: int = Query(20, ge=1, le=200, alias="limit"),
@@ -308,7 +316,12 @@ async def list_games(
 ):
     """
     게임 목록 조회 (created_at DESC 기준 정렬)
+    캐릭터/세계관과 동일한 응답 구조: { total, items, offset, limit }
     """
+    # 전체 개수 조회
+    total = db.games.count_documents({})
+    
+    # 게임 목록 조회
     cursor = (
         db.games
         .find({})
@@ -332,7 +345,7 @@ async def list_games(
         
         items.append(GameResponse(**doc))
     
-    return items
+    return GameListResponse(total=total, items=items, offset=offset, limit=limit)
 
 @router.get("/{game_id}", response_model=GameResponse, summary="게임 상세 조회")
 async def get_game(
