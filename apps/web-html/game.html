@@ -303,6 +303,23 @@
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
     }
 
+    // 현재 페이지가 /game 인지 여부
+    const isGamePage = window.location.pathname.startsWith('/game') || window.location.pathname.includes('game.html');
+    
+    // 쿼리 파라미터에서 game_id 추출
+    let GAME_ID = null;
+    if (isGamePage) {
+      const params = new URLSearchParams(window.location.search);
+      const idParam = params.get('game') || params.get('game_id');
+      if (idParam) {
+        // 'game_1' 형식이면 숫자만 추출
+        const match = idParam.match(/^game_(\d+)$/i);
+        GAME_ID = match ? parseInt(match[1], 10) : parseInt(idParam, 10);
+      } else if (CURRENT_GAME?.id) {
+        GAME_ID = CURRENT_GAME.id;
+      }
+    }
+
     // 백엔드 LLM 호출
     async function askLLM(message, mode='trpg', choices=0){
       try {
@@ -314,27 +331,35 @@
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const payload = {
-        message, mode,
-        model:'trpg-gen', polish_model:'trpg-polish', choices,
-        game_id: CURRENT_GAME?.id ?? null,
-        game: CURRENT_GAME ? {
-          id: CURRENT_GAME.id,
-          title: CURRENT_GAME.title,
-          scenario_summary: CURRENT_GAME.scenario_summary,
-          scenario_detail: CURRENT_GAME.scenario_detail,
-          tags: CURRENT_GAME.tags || [],
-          world_snapshot: CURRENT_GAME.world_snapshot,
-          characters: CURRENT_GAME.characters || [],
-        } : null,
-      };
+      // 게임 페이지면 /v1/games/{id}/turn, 아니면 /v1/chat/
+      const API_URL = isGamePage && GAME_ID
+        ? `${API_BASE_URL}/v1/games/${GAME_ID}/turn`
+        : `${API_BASE_URL}/v1/chat/`;
+      
+      // 게임 턴 API는 {user_message: ...} 형식, /chat은 {message: ...} 형식
+      const payload = isGamePage && GAME_ID
+        ? { user_message: message }
+        : {
+            message, mode,
+            model:'trpg-gen', polish_model:'trpg-polish', choices,
+            game_id: CURRENT_GAME?.id ?? null,
+            game: CURRENT_GAME ? {
+              id: CURRENT_GAME.id,
+              title: CURRENT_GAME.title,
+              scenario_summary: CURRENT_GAME.scenario_summary,
+              scenario_detail: CURRENT_GAME.scenario_detail,
+              tags: CURRENT_GAME.tags || [],
+              world_snapshot: CURRENT_GAME.world_snapshot,
+              characters: CURRENT_GAME.characters || [],
+            } : null,
+          };
         
-        const url = `${API_BASE_URL}/v1/chat/`;
-        console.log('[askLLM] Request URL:', url);
+        console.log('[askLLM] Request URL:', API_URL);
         console.log('[askLLM] API_BASE_URL:', API_BASE_URL);
+        console.log('[askLLM] isGamePage:', isGamePage, 'GAME_ID:', GAME_ID);
         console.log('[askLLM] Payload:', payload);
         
-        const r = await fetch(url, {
+        const r = await fetch(API_URL, {
           method: "POST",
           credentials: "include",
           headers: headers,
@@ -352,7 +377,16 @@
         
       const j = await r.json();
         console.log('[askLLM] Response JSON:', j);
-      return (j?.answer||'').trim();
+      
+      // 게임 턴 API 응답 형식 처리
+      if (isGamePage && GAME_ID) {
+        // 턴 API 응답: { narration, dialogues, user_info, characters_info, ... }
+        // 기존 채팅 형식으로 변환 (narration을 answer로)
+        return (j?.narration || '').trim();
+      } else {
+        // 기존 /chat 응답 형식
+        return (j?.answer||'').trim();
+      }
       } catch(e) {
         console.error('[askLLM] Error:', e);
         console.error('[askLLM] Error stack:', e.stack);

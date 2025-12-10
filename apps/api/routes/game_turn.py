@@ -5,6 +5,7 @@
 
 import json
 import logging
+from json import JSONDecodeError
 from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
 from pymongo.database import Database
@@ -28,6 +29,40 @@ from apps.llm.prompts.trpg_game_master import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def extract_json(text: str) -> str:
+    """
+    LLM이 ```json ... ``` 같이 감싸거나, 앞뒤에 설명을 붙인 경우에도
+    가능한 한 순수 JSON 부분만 잘라내는 헬퍼.
+    """
+    if not isinstance(text, str):
+        return text
+
+    cleaned = text.strip()
+
+    # ```json 또는 ``` 으로 감싸진 경우 제거
+    if cleaned.startswith("```"):
+        parts = cleaned.split("```")
+        # ```json\n{...}\n``` 형태라면 가운데 블럭을 취함
+        if len(parts) >= 3:
+            cleaned = parts[1]
+            # "json\n{...}" 처럼 언어 토큰이 붙은 경우 제거
+            if cleaned.lstrip().lower().startswith("json"):
+                cleaned = cleaned.split("\n", 1)[1]
+        else:
+            # 그냥 ``` 로만 감싼 경우, 첫 번째와 마지막 ``` 사이를 사용
+            cleaned = cleaned.replace("```", "")
+
+    cleaned = cleaned.strip()
+
+    # 첫 '{' 부터 마지막 '}' 까지 잘라내기 (앞뒤 잡소리 제거)
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        cleaned = cleaned[start : end + 1]
+
+    return cleaned
 
 
 @router.post("/{game_id}/turn", response_model=GameTurnResponse, summary="게임 턴 진행")
@@ -118,22 +153,26 @@ async def play_turn(
             raise HTTPException(status_code=500, detail=f"LLM 호출 실패: {str(e)}")
         
         # 5) JSON 파싱
+        raw_text = raw_response
+        
+        # 1차: 그대로 파싱 시도
         try:
-            # JSON 추출 (마크다운 코드 블록 제거)
-            json_text = raw_response.strip()
-            if json_text.startswith("```json"):
-                json_text = json_text[7:]
-            if json_text.startswith("```"):
-                json_text = json_text[3:]
-            if json_text.endswith("```"):
-                json_text = json_text[:-3]
-            json_text = json_text.strip()
-            
-            llm_data = GameTurnLLMResponse.model_validate_json(json_text)
-        except Exception as e:
-            logger.exception(f"JSON parsing failed: {e}")
-            logger.error(f"Raw LLM response: {raw_response}")
-            raise HTTPException(status_code=500, detail=f"LLM 응답 파싱 실패: {str(e)}")
+            llm_data = GameTurnLLMResponse.model_validate_json(raw_text)
+        except Exception as e1:
+            # 2차: JSON 부분만 추출해서 재시도
+            try:
+                cleaned = extract_json(raw_text)
+                llm_data = GameTurnLLMResponse.model_validate_json(cleaned)
+            except Exception as e2:
+                # 디버깅을 위해 raw_text도 로깅 후, 친절한 에러 메시지로 래핑
+                logger.error("=== TRPG TURN RAW TEXT ===")
+                logger.error(raw_text)
+                logger.error("=== PARSE ERROR 1 ===", exc_info=e1)
+                logger.error("=== PARSE ERROR 2 ===", exc_info=e2)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Turn 응답 JSON 1차/2차 validation error: {str(e2)}",
+                )
         
         # 6) 턴 증가
         current_turn = int(game_status.get("turn", 0)) + 1
