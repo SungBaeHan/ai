@@ -16,6 +16,7 @@ from adapters.persistence.mongo import get_db
 from adapters.file_storage.r2_storage import R2Storage
 from apps.api.routes.worlds import get_current_user_v2
 from apps.api.utils import build_public_image_url
+from apps.api.utils.assets import normalize_asset_path
 from apps.api.models.games import (
     GameCreateRequest,
     GameResponse,
@@ -174,12 +175,14 @@ async def create_game(
             world_doc.get("image") or world_doc.get("image_path"),
             prefix="world"
         )
+        # 이미지 URL을 상대 경로로 정규화
+        normalized_world_image_url = normalize_asset_path(world_image_url)
         world_snapshot = WorldSnapshot(
             id=world_doc.get("id"),
             name=world_doc.get("name"),
             summary=world_doc.get("summary"),
             tags=world_doc.get("tags", []),
-            image_url=world_image_url,
+            image_url=normalized_world_image_url,
             img_hash=world_doc.get("img_hash"),
         ).model_dump()
         
@@ -204,15 +207,25 @@ async def create_game(
                 doc.get("image") or doc.get("image_path"),
                 prefix="char"
             )
-            snapshot = CharacterSnapshot(
-                id=doc.get("id"),
-                name=doc.get("name"),
-                summary=doc.get("summary"),
-                tags=_normalize_tags(doc.get("tags")),
-                image_url=char_image_url,
-                archetype=doc.get("archetype"),
-                attributes_base=doc.get("attributes_base"),
-            ).model_dump()
+            # 이미지 URL을 상대 경로로 정규화
+            normalized_char_image_url = normalize_asset_path(char_image_url)
+            
+            # snapshot 딕셔너리 생성 (attributes_base는 값이 있을 때만 포함)
+            snapshot_dict = {
+                "id": doc.get("id"),
+                "name": doc.get("name"),
+                "summary": doc.get("summary"),
+                "tags": _normalize_tags(doc.get("tags")),
+                "image_url": normalized_char_image_url,
+                "archetype": doc.get("archetype"),
+            }
+            
+            # attributes_base가 실제 값이 있을 때만 추가
+            attributes_base = doc.get("attributes_base")
+            if attributes_base:
+                snapshot_dict["attributes_base"] = attributes_base
+            
+            snapshot = CharacterSnapshot(**snapshot_dict).model_dump()
             
             game_characters.append(
                 GameCharacter(
@@ -237,7 +250,9 @@ async def create_game(
                 try:
                     r2 = get_r2_storage()
                     image_meta = r2.upload_image(content, prefix="assets/game/", content_type=content_type)
-                    image_path = normalize_image_path(image_meta["url"])
+                    # 이미지 경로를 상대 경로로 정규화
+                    raw_image_path = normalize_image_path(image_meta["url"])
+                    image_path = normalize_asset_path(raw_image_path)
                     img_hash = hashlib.md5(content).hexdigest()
                 except HTTPException:
                     raise
@@ -278,7 +293,7 @@ async def create_game(
                 "tags": payload.tags or [],
                 "characters": game_characters,
                 "rules": payload.rules.model_dump(),
-                "background_image_path": image_path,
+                "background_image_path": normalize_asset_path(image_path) if image_path else None,
                 "img_hash": img_hash,
                 "status": "active",
                 "reg_user": reg_user,
