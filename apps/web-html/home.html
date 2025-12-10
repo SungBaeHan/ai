@@ -9,6 +9,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>캐릭터 선택</title>
   <script src="/js/config.js"></script>
+  <script src="/js/assets.js"></script>
   <script>
     // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
@@ -315,11 +316,12 @@
       const img = document.createElement('img');
       img.className = 'thumb';
       img.alt = item.title || id;
-      // 게임 배경 이미지 또는 세계관 이미지 사용
-      const imageUrl = item.background_image_path || 
-                      (item.world_snapshot && item.world_snapshot.image_url) || 
-                      '/assets/img/placeholder.jpg';
-      img.src = resolvePath(imageUrl);
+      // 게임 배경 이미지 또는 세계관 이미지 사용 (정규화 적용)
+      const rawImageUrl = item.background_image_path || 
+                         (item.world_snapshot && item.world_snapshot.image_url) || 
+                         '/assets/img/placeholder.jpg';
+      const normalizedUrl = normalizeAssetPath(rawImageUrl) || rawImageUrl;
+      img.src = resolvePath(normalizedUrl);
 
       const body = document.createElement('div');
       body.className = 'body';
