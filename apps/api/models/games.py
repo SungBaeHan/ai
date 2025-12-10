@@ -94,7 +94,9 @@ class GameResponse(BaseModel):
     tags: List[str] = Field(default_factory=list)
     characters: List[GameCharacter] = Field(default_factory=list)
     rules: GameRulesConfig
-    background_image_path: Optional[str] = None
+    background_image_path: Optional[str] = None  # DB에 저장된 상대경로(/assets/.../xxx.png)
+    background_image_url: Optional[str] = None     # 응답용 public URL (추가)
+    image: Optional[str] = None                   # 프론트 편의를 위한 alias (게임 카드 썸네일용)
     img_hash: Optional[str] = None
     status: str
     reg_user: Optional[str] = None

@@ -344,6 +344,53 @@ class GameListResponse(BaseModel):
     offset: int = 0
     limit: int = 20
 
+
+def to_public_url(path: Optional[str]) -> Optional[str]:
+    """
+    이미지 경로를 R2 public URL로 변환합니다.
+    
+    Args:
+        path: 이미지 경로 (상대 경로 또는 절대 URL)
+    
+    Returns:
+        R2 public URL 또는 None
+    """
+    if not path:
+        return None
+    if isinstance(path, str) and (path.startswith("http://") or path.startswith("https://")):
+        return path
+    return build_public_image_url_from_path(path)
+
+
+def enrich_game_asset_urls(game: GameResponse) -> GameResponse:
+    """
+    게임 응답 객체의 이미지 경로를 R2 public URL로 변환합니다.
+    
+    Args:
+        game: GameResponse 객체
+    
+    Returns:
+        이미지 URL이 변환된 GameResponse 객체
+    """
+    # 1) 게임 배경 이미지: background_image_path -> background_image_url / image
+    if game.background_image_path:
+        public_bg = to_public_url(game.background_image_path)
+        game.background_image_url = public_bg
+        # 게임 카드/상세 공통으로 쓸 alias
+        game.image = public_bg
+    
+    # 2) 월드 스냅샷 이미지: /assets/world/... -> public URL
+    if game.world_snapshot and game.world_snapshot.image_url:
+        game.world_snapshot.image_url = to_public_url(game.world_snapshot.image_url)
+    
+    # 3) 캐릭터 스냅샷 이미지: /assets/char/... -> public URL
+    if game.characters:
+        for entry in game.characters:
+            if entry.snapshot and entry.snapshot.image_url:
+                entry.snapshot.image_url = to_public_url(entry.snapshot.image_url)
+    
+    return game
+
 @router.get("", response_model=GameListResponse, summary="게임 목록 조회")
 async def list_games(
     offset: int = Query(0, ge=0, alias="offset"),
@@ -379,25 +426,11 @@ async def list_games(
         elif doc.get("updated_at") is None:
             doc["updated_at"] = datetime.now(timezone.utc)
         
+        # GameResponse 객체 생성
+        game = GameResponse(**doc)
         # 이미지 URL을 R2 public URL로 변환
-        # 1) 게임 배경 이미지
-        if doc.get("background_image_path"):
-            doc["background_image_path"] = build_public_image_url_from_path(doc["background_image_path"])
-        
-        # 2) 월드 스냅샷 이미지
-        if doc.get("world_snapshot") and isinstance(doc["world_snapshot"], dict):
-            if doc["world_snapshot"].get("image_url"):
-                doc["world_snapshot"]["image_url"] = build_public_image_url_from_path(doc["world_snapshot"]["image_url"])
-        
-        # 3) 캐릭터 스냅샷 이미지
-        if doc.get("characters") and isinstance(doc["characters"], list):
-            for char in doc["characters"]:
-                if isinstance(char, dict) and char.get("snapshot"):
-                    snapshot = char["snapshot"]
-                    if isinstance(snapshot, dict) and snapshot.get("image_url"):
-                        snapshot["image_url"] = build_public_image_url_from_path(snapshot["image_url"])
-        
-        items.append(GameResponse(**doc))
+        game = enrich_game_asset_urls(game)
+        items.append(game)
     
     return GameListResponse(total=total, items=items, offset=offset, limit=limit)
 
@@ -424,25 +457,11 @@ async def get_game(
     elif doc.get("updated_at") is None:
         doc["updated_at"] = datetime.now(timezone.utc)
     
+    # GameResponse 객체 생성
+    game = GameResponse(**doc)
     # 이미지 URL을 R2 public URL로 변환
-    # 1) 게임 배경 이미지
-    if doc.get("background_image_path"):
-        doc["background_image_path"] = build_public_image_url_from_path(doc["background_image_path"])
-    
-    # 2) 월드 스냅샷 이미지
-    if doc.get("world_snapshot") and isinstance(doc["world_snapshot"], dict):
-        if doc["world_snapshot"].get("image_url"):
-            doc["world_snapshot"]["image_url"] = build_public_image_url_from_path(doc["world_snapshot"]["image_url"])
-    
-    # 3) 캐릭터 스냅샷 이미지
-    if doc.get("characters") and isinstance(doc["characters"], list):
-        for char in doc["characters"]:
-            if isinstance(char, dict) and char.get("snapshot"):
-                snapshot = char["snapshot"]
-                if isinstance(snapshot, dict) and snapshot.get("image_url"):
-                    snapshot["image_url"] = build_public_image_url_from_path(snapshot["image_url"])
-    
-    return GameResponse(**doc)
+    game = enrich_game_asset_urls(game)
+    return game
 
 @router.get("/health")
 async def games_health_check():

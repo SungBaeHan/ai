@@ -171,12 +171,11 @@
       const bioText = game.scenario_summary || game.scenario_detail || game.title || '';
       document.getElementById('bio').textContent=bioText.toString();
 
-      // 게임 배경 이미지 또는 세계관 이미지 사용 (정규화 적용)
-      const rawImageUrl = game.background_image_path || 
-                         (game.world_snapshot && game.world_snapshot.image_url) || 
-                         '/assets/img/placeholder.jpg';
-      const normalizedUrl = normalizeAssetPath(rawImageUrl) || rawImageUrl;
-      const img = resolvePath(normalizedUrl);
+      // 게임 배경 이미지: 백엔드에서 R2 public URL로 변환된 필드 우선 사용
+      const img = game.image || 
+                 game.background_image_url || 
+                 (game.world_snapshot && game.world_snapshot.image_url) || 
+                 '/assets/img/placeholder.jpg';
       dbg('[resolved img] '+img);
       safeSetHero(img);                                         // 히어로 이미지
       document.getElementById('bg').style.backgroundImage=`url("${img}")`; // 흐림 배경

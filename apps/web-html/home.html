@@ -316,12 +316,11 @@
       const img = document.createElement('img');
       img.className = 'thumb';
       img.alt = item.title || id;
-      // 게임 배경 이미지 또는 세계관 이미지 사용 (정규화 적용)
-      const rawImageUrl = item.background_image_path || 
-                         (item.world_snapshot && item.world_snapshot.image_url) || 
-                         '/assets/img/placeholder.jpg';
-      const normalizedUrl = normalizeAssetPath(rawImageUrl) || rawImageUrl;
-      img.src = resolvePath(normalizedUrl);
+      // 게임 배경 이미지: 백엔드에서 R2 public URL로 변환된 필드 우선 사용
+      img.src = item.image || 
+                item.background_image_url || 
+                (item.world_snapshot && item.world_snapshot.image_url) || 
+                '/assets/img/placeholder.jpg';
 
       const body = document.createElement('div');
       body.className = 'body';
