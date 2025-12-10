@@ -10,8 +10,6 @@
     ? 'https://api.arcanaverse.ai'
     : 'http://localhost:8000';
 
-  const API_BASE_URL = API_BASE;  // API_BASE와 동일 (이미 /api 없음)
-
   const IMAGE_BASE = isProd
     ? 'https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev/assets'
     : 'http://localhost:8000/assets';
@@ -20,7 +18,7 @@
     // window.API_BASE_URL이 이미 설정되어 있으면 덮어쓰지 않음
     if (!window.API_BASE_URL) {
       window.API_BASE = API_BASE;
-      window.API_BASE_URL = API_BASE_URL;
+      window.API_BASE_URL = API_BASE;  // API_BASE와 동일 (이미 /api 없음)
     }
     window.IMAGE_BASE = IMAGE_BASE;
   }

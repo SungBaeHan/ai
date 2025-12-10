@@ -14,9 +14,9 @@
   <script src="/js/config.js"></script>
   <script src="/js/assets.js"></script>
   <script>
-    // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
+    // 전역 API 엔드포인트 설정 (어디서든 window.API_BASE_URL로 접근)
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
-    window.API_BASE = 'https://api.arcanaverse.ai';  // API_BASE도 함께 설정
+    window.API_BASE = 'https://api.arcanaverse.ai';
     
     // 게임 ID 주입 (쿼리 파라미터에서 추출)
     (function() {
@@ -116,12 +116,7 @@
   </div>
 
   <script>
-    // 절대경로 API_BASE_URL 상수 정의
-    const API_BASE_URL =
-      window.location.hostname === "arcanaverse.ai" ||
-      window.location.hostname === "www.arcanaverse.ai"
-        ? "https://api.arcanaverse.ai"
-        : "http://localhost:8000";
+    // API_BASE_URL은 이미 위쪽에서 window.API_BASE_URL로 설정됨
 
     // --- 전역/유틸 -------------------------------------------------------------
     let CURRENT_GAME = null;  // 현재 게임
