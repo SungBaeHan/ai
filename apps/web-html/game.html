@@ -43,6 +43,55 @@
     .chips { margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; }
     .chip { padding:3px 8px; font-size:11px; border-radius:999px; border:1px solid #334155; color:#a5b4fc; background:#0b1220; }
     .hint { font-size:12px; color:#9ca3af; margin-top:6px; }
+    .game-hud-box {
+      max-width:980px;
+      margin:16px auto 8px;
+      padding:12px 16px;
+      border-radius:8px;
+      background:rgba(10, 12, 28, 0.9);
+      color:#f5f5f5;
+      display:flex;
+      gap:24px;
+      font-size:13px;
+    }
+    .game-hud-section {
+      min-width:180px;
+    }
+    .game-hud-title {
+      font-weight:600;
+      margin-bottom:4px;
+      opacity:0.7;
+    }
+    .game-hud-char {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-top:4px;
+      font-size:12px;
+    }
+    .game-hud-char-name {
+      font-weight:600;
+      margin-right:8px;
+    }
+    .game-hud-char-stats {
+      display:flex;
+      gap:8px;
+      opacity:0.85;
+    }
+    .game-narration-box {
+      max-width:980px;
+      margin:0 auto 12px;
+      padding:12px 16px;
+      border-radius:8px;
+      background:rgba(7, 9, 22, 0.95);
+      color:#f5f5f5;
+      font-size:13px;
+      line-height:1.5;
+      min-height:48px;
+    }
+    .game-narration-placeholder {
+      opacity:0.6;
+    }
     .chat { max-width:980px; margin:0 auto 90px; padding:0 4px; }
     .msg { display:flex; align-items:flex-start; gap:10px; margin:14px 0; animation:fadeInUp .35s ease; }
     .msg.me { flex-direction:row-reverse; }
@@ -87,15 +136,18 @@
   </div>
 
   <!-- 게임 HUD (상태 표시) -->
-  <div class="panel" id="game-hud" style="display:none;">
-    <div style="font-weight:700; margin-bottom:6px;">게임 상태</div>
-    <div id="hud-content"></div>
+  <div id="game-hud" class="game-hud-box">
+    <div class="game-hud-section">
+      <div class="game-hud-title">상태</div>
+      <div class="game-hud-body">게임을 시작하면 상태가 표시됩니다.</div>
+    </div>
   </div>
 
   <!-- Narration 영역 (노란 영역) -->
-  <div class="panel" id="game-narration" style="background:#1e3a5f; border-color:#3b82f6; display:none;">
-    <div style="font-weight:700; margin-bottom:6px; color:#fbbf24;">상황 설명</div>
-    <div id="narration-content" style="opacity:.9"></div>
+  <div id="game-narration" class="game-narration-box">
+    <div class="game-narration-placeholder">
+      턴이 진행되면, 이 영역에 이번 턴의 배경 설명이 표시됩니다.
+    </div>
   </div>
 
   <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
@@ -220,7 +272,7 @@
       );
     }
     function addUser(text){ const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg me'; row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
-    function addBot(text){  
+    function addBot(text, name=null){  
       const chat=document.getElementById('chat'); 
       const row=document.createElement('div'); 
       row.className='msg'; 
@@ -229,9 +281,55 @@
                  CURRENT_GAME?.background_image_url || 
                  (CURRENT_GAME?.world_snapshot && CURRENT_GAME.world_snapshot.image_url) || 
                  '/assets/img/placeholder.jpg';
-      row.innerHTML=`<img class="avatar" src="${img}" alt="bot"/><div class="bubble">${escapeHtml(text)}</div>`; 
+      const nameLabel = name ? `<strong>${escapeHtml(name)}</strong>: ` : '';
+      row.innerHTML=`<img class="avatar" src="${img}" alt="bot"/><div class="bubble">${nameLabel}${escapeHtml(text)}</div>`; 
       chat.appendChild(row); 
       chat.scrollTop=chat.scrollHeight; 
+    }
+    
+    function renderGameHud(userInfo, charactersInfo) {
+      if (!hudEl) return;
+      
+      const attrs = (userInfo && userInfo.attributes) || {};
+      const hp = attrs.hp || {};
+      const mp = attrs.mp || {};
+      const items = (userInfo && userInfo.items) || {};
+      const gold = items.gold ?? 0;
+      const chars = Array.isArray(charactersInfo) ? charactersInfo : [];
+      
+      hudEl.innerHTML = `
+        <div class="game-hud-section">
+          <div class="game-hud-title">플레이어</div>
+          <div>HP: ${hp.current ?? 0} / ${hp.max ?? 0}</div>
+          <div>MP: ${mp.current ?? 0} / ${mp.max ?? 0}</div>
+          <div>Gold: ${gold}</div>
+        </div>
+        <div class="game-hud-section">
+          <div class="game-hud-title">동료 / NPC</div>
+          ${
+            chars.length === 0
+              ? '<div class="game-hud-char">아직 동료가 없습니다.</div>'
+              : chars
+                  .map((c) => {
+                    const snap = c.snapshot || {};
+                    const name = snap.name || '???';
+                    const a = snap.attributes || {};
+                    const chp = a.hp || {};
+                    const cmp = a.mp || {};
+                    return `
+                      <div class="game-hud-char">
+                        <span class="game-hud-char-name">${escapeHtml(name)}</span>
+                        <span class="game-hud-char-stats">
+                          <span>HP ${chp.current ?? 0}/${chp.max ?? 0}</span>
+                          <span>MP ${cmp.current ?? 0}/${cmp.max ?? 0}</span>
+                        </span>
+                      </div>
+                    `;
+                  })
+                  .join('')
+          }
+        </div>
+      `;
     }
 
     // 토큰 관리
@@ -319,6 +417,10 @@
         GAME_ID = CURRENT_GAME.id;
       }
     }
+    
+    // HUD / 내레이션 영역 DOM
+    const hudEl = document.getElementById('game-hud');
+    const narrationEl = document.getElementById('game-narration');
 
     // 백엔드 LLM 호출
     async function askLLM(message, mode='trpg', choices=0){
@@ -380,12 +482,45 @@
       
       // 게임 턴 API 응답 형식 처리
       if (isGamePage && GAME_ID) {
-        // 턴 API 응답: { narration, dialogues, user_info, characters_info, ... }
-        // 기존 채팅 형식으로 변환 (narration을 answer로)
-        return (j?.narration || '').trim();
+        // === TRPG 게임 모드 응답 처리 ===
+        const { narration, dialogues, user_info, characters_info } = j;
+        
+        // 1) 노란 영역: 턴 내레이션 표시
+        if (narrationEl && typeof narration === 'string') {
+          narrationEl.textContent = narration;
+          narrationEl.classList.remove('game-narration-placeholder');
+        }
+        
+        // 2) HUD: 상태/스탯 갱신
+        renderGameHud(user_info, characters_info);
+        
+        // 3) 채팅 로그: 대사만 출력
+        if (Array.isArray(dialogues)) {
+          dialogues.forEach((d) => {
+            // speaker_type: "user" | "npc" | "system"
+            // name: string | null
+            const speakerType = d.speaker_type || 'npc';
+            const name = d.name || (speakerType === 'user' ? null : 'NPC');
+            const text = d.text || '';
+            
+            // 기존 addUser/addBot 함수를 재사용
+            if (speakerType === 'user') {
+              addUser(text);
+            } else {
+              addBot(text, name);
+            }
+          });
+        }
+        
+        // narration을 반환하여 기존 코드와 호환성 유지
+        return (narration || '').trim();
       } else {
-        // 기존 /chat 응답 형식
-        return (j?.answer||'').trim();
+        // === 기존 세계관 / 일반 채팅 응답 처리 ===
+        const answer = j?.answer || j?.message || j?.content || (typeof j === 'string' ? j : '');
+        if (answer) {
+          addBot(answer);
+        }
+        return answer;
       }
       } catch(e) {
         console.error('[askLLM] Error:', e);
@@ -446,11 +581,15 @@
         
         console.log('[send] Starting API call with message:', v);
         console.log('[send] API_BASE_URL:', API_BASE_URL);
+        console.log('[send] isGamePage:', isGamePage, 'GAME_ID:', GAME_ID);
         
         try{ 
           const ans=await askLLM(v,'trpg');
           console.log('[send] Received answer:', ans);
-          addBot(ans||'(응답이 비어있습니다)');
+          // 게임 페이지가 아닐 때만 addBot 호출 (게임 페이지는 askLLM 내부에서 처리)
+          if (!isGamePage && ans) {
+            addBot(ans||'(응답이 비어있습니다)');
+          }
         }
         catch(e){ 
           console.error('[send] Error caught:', e);
