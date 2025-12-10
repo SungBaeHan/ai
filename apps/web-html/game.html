@@ -97,17 +97,16 @@
       display: block;
       border-radius: 16px;
     }
-    /* 소개 텍스트 영역 (이미지 위 오버레이 또는 아래 배치) */
-    .game-hero-title {
-      position: absolute;
-      top: 16px;
-      left: 16px;
-      right: 16px;
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(6px);
+    /* 소개 패널 (이미지+스탯 아래 배치) */
+    .game-intro-panel {
+      margin-top: 16px;      /* 이미지+스탯과 살짝 간격 */
+      max-width: 900px;      /* 카드 폭에 맞추고 싶으면 hero-card와 동일 값 */
+      margin-left: auto;
+      margin-right: auto;
+      background: #0f172a;
+      border: 1px solid #1e293b;
       border-radius: 12px;
       padding: 12px 14px;
-      z-index: 5;
     }
     /* ⭐ 스탯 HUD 오버레이 */
     .game-hero-stats {
@@ -222,16 +221,6 @@
         <img id="hero" class="game-hero-image" alt="cover" src="/assets/img/placeholder.jpg" /> <!-- 히어로 이미지 -->
         <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
 
-        <div class="game-hero-title">
-          <div style="font-weight:700; margin-bottom:6px;">소개</div>
-          <div id="game-narration" style="opacity:.9"></div> <!-- 내레이션 영역 (기존 bio 영역 재사용) -->
-          <div class="chips">
-            <span class="chip">TRPG</span>
-            <span class="chip" id="chip-name">게임</span>
-          </div>
-          <div class="hint">Tip: 메세지를 보내면 게임 턴이 진행됩니다.</div>
-        </div>
-
         <!-- ⭐ HUD 스탯 패널 (이미지 위에 오버레이) -->
         <div id="game-hud" class="game-hero-stats">
           <div class="game-hud-section">
@@ -239,6 +228,17 @@
             <div class="game-hud-body">게임을 시작하면 상태가 표시됩니다.</div>
           </div>
         </div>
+      </div>
+
+      <!-- 소개 패널 전체 래퍼 (이미지+스탯 아래로 이동) -->
+      <div class="game-intro-panel">
+        <div style="font-weight:700; margin-bottom:6px;">소개</div>
+        <div id="game-narration" style="opacity:.9"></div> <!-- 내레이션 영역 (기존 bio 영역 재사용) -->
+        <div class="chips">
+          <span class="chip">TRPG</span>
+          <span class="chip" id="chip-name">게임</span>
+        </div>
+        <div class="hint">Tip: 메세지를 보내면 게임 턴이 진행됩니다.</div>
       </div>
     </section>
 
@@ -600,7 +600,7 @@
         if (narrationEl && typeof narration === 'string') {
           narrationEl.textContent = narration;
           // 제목도 "턴 내레이션"으로 변경
-          const introHeader = document.querySelector('#about > div:first-child');
+          const introHeader = document.querySelector('.game-intro-panel > div:first-child');
           if (introHeader) {
             introHeader.textContent = '턴 내레이션';
           }
