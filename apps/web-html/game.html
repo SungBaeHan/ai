@@ -43,17 +43,8 @@
     .chips { margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; }
     .chip { padding:3px 8px; font-size:11px; border-radius:999px; border:1px solid #334155; color:#a5b4fc; background:#0b1220; }
     .hint { font-size:12px; color:#9ca3af; margin-top:6px; }
-    .game-hud-box {
-      max-width:980px;
-      margin:16px auto 8px;
-      padding:12px 16px;
-      border-radius:8px;
-      background:rgba(10, 12, 28, 0.9);
-      color:#f5f5f5;
-      display:flex;
-      gap:24px;
-      font-size:13px;
-    }
+    /* game-hud-box는 game-hero-stats로 대체되었으므로 제거 */
+    /* 기존 스타일은 game-hero-stats에 통합됨 */
     .game-hud-section {
       min-width:180px;
     }
@@ -78,29 +69,69 @@
       gap:8px;
       opacity:0.85;
     }
-    /* 전체 게임 페이지를 세로 플렉스 컨테이너로 구성 */
+    /* 전체 게임 페이지: 상단 고정 + 하단 스크롤을 위한 기본 레이아웃 */
     .game-page {
       display: flex;
       flex-direction: column;
-      /* 상단 글로벌 헤더(사이트 탑바) 높이를 빼고 싶다면 그에 맞게 조정 */
-      height: calc(100vh - 64px);
+      height: 100vh;          /* 전체 화면 꽉 채우기 */
     }
-    /* 커버 + 소개 + HUD: 위에 고정된 영역 */
-    .game-fixed-header {
-      flex: 0 0 auto;
+    /* 상단 히어로 영역: 네비게이션 바로부터 살짝 아래에 sticky */
+    .game-hero {
+      position: sticky;
+      top: 64px;              /* 상단 네비게이션 높이에 맞춰 조정 (필요시 56~80px 사이로 조절) */
+      z-index: 10;
+      margin-bottom: 16px;
     }
-    /* 채팅 영역: 나머지 공간을 차지하고, 내부에서만 스크롤 */
-    .game-chat-container {
-      flex: 1 1 auto;
+    /* 이미지 + 시나리오 카드 컨테이너 (기존 카드 스타일 유지 + relative 추가) */
+    .game-hero-card {
+      position: relative;     /* 내부에 absolute 오버레이를 두기 위해 필요 */
+      overflow: hidden;
+      border-radius: 16px;
+    }
+    /* ▶ 여기서 핵심: 스탯 박스를 이미지 위에 겹쳐 올림 */
+    .game-hero-stats {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;           /* 이미지 하단에서 조금 띄워서 붙이기 */
+      z-index: 20;
+      padding: 12px 16px;
+      border-radius: 12px;
+      /* 반투명 HUD 느낌 (프로젝트 색상 토큰 있으면 거기에 맞게 바꿔줘) */
+      background: rgba(5, 7, 14, 0.85);
+      backdrop-filter: blur(6px);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      font-size: 0.9rem;
+    }
+    /* 스탯 테이블이 너무 붙어보이지 않게 약간의 여백 */
+    .game-hero-stats table,
+    .game-hero-stats .stats-row {
+      width: 100%;
+    }
+    /* 하단: 채팅 영역 전체 */
+    .game-body {
+      flex: 1;                /* 남은 세로 공간 전부 차지 */
+      display: flex;
+      flex-direction: column;
+      min-height: 0;          /* flex 컨테이너 안에서 overflow가 제대로 작동하게 */
+    }
+    /* 채팅 로그는 스크롤 영역 */
+    .game-chat-log {
+      flex: 1;
       overflow-y: auto;
-      padding-top: 8px;
       padding-bottom: 12px;
     }
-    /* 필요하면 채팅 로그 내부 여백도 살짝 추가 */
+    /* 채팅 입력 영역은 화면 하단에 고정되듯이 항상 보이게 */
+    .game-chat-input {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    /* 기존 채팅 스타일 유지 */
     #chat, #chat-log {
       max-width:980px;
       margin:0 auto;
-      padding:0 4px 80px; /* 입력창 가려지지 않게 여유 */
+      padding:0 4px;
     }
     .msg { display:flex; align-items:flex-start; gap:10px; margin:14px 0; animation:fadeInUp .35s ease; }
     .msg.me { flex-direction:row-reverse; }
@@ -132,33 +163,42 @@
   </div>
 
   <div id="game-page" class="game-page">
-    <div id="game-fixed-header" class="game-fixed-header">
-      <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
-      <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
+    <!-- 상단: 이미지 + 시나리오 + HUD(스탯) -->
+    <section class="game-hero">
+      <div class="game-hero-card">
+        <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
+        <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
 
-      <div class="panel" id="about">
-        <div style="font-weight:700; margin-bottom:6px;">소개</div>
-        <div id="game-narration" style="opacity:.9"></div> <!-- 내레이션 영역 (기존 bio 영역 재사용) -->
-        <div class="chips">
-          <span class="chip">TRPG</span>
-          <span class="chip" id="chip-name">게임</span>
+        <div class="panel" id="about">
+          <div style="font-weight:700; margin-bottom:6px;">소개</div>
+          <div id="game-narration" style="opacity:.9"></div> <!-- 내레이션 영역 (기존 bio 영역 재사용) -->
+          <div class="chips">
+            <span class="chip">TRPG</span>
+            <span class="chip" id="chip-name">게임</span>
+          </div>
+          <div class="hint">Tip: 메세지를 보내면 게임 턴이 진행됩니다.</div>
         </div>
-        <div class="hint">Tip: 메세지를 보내면 게임 턴이 진행됩니다.</div>
-      </div>
 
-      <!-- 게임 HUD (상태 표시) -->
-      <div id="game-hud" class="game-hud-box">
-        <div class="game-hud-section">
-          <div class="game-hud-title">상태</div>
-          <div class="game-hud-body">게임을 시작하면 상태가 표시됩니다.</div>
+        <!-- ⬇️ 스탯 박스를 이미지 위에 오버레이로 배치 -->
+        <div id="game-hud" class="game-hero-stats">
+          <div class="game-hud-section">
+            <div class="game-hud-title">상태</div>
+            <div class="game-hud-body">게임을 시작하면 상태가 표시됩니다.</div>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div id="game-chat-container" class="game-chat-container">
-      <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
-      <div class="chat" id="chat-log" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
-    </div>
+    <!-- 하단: 채팅 로그 + 입력창 -->
+    <section class="game-body">
+      <div class="game-chat-log">
+        <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
+        <div class="chat" id="chat-log" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
+      </div>
+      <form class="game-chat-input">
+        <!-- 입력창은 기존 inputBar 사용 -->
+      </form>
+    </section>
   </div>
 
   <div class="inputBar">
@@ -342,6 +382,10 @@
           }
         </div>
       `;
+      // game-hero-stats는 flex 레이아웃 유지
+      hudEl.style.display = 'flex';
+      hudEl.style.gap = '24px';
+      hudEl.style.color = '#f5f5f5';
     }
 
     // 토큰 관리
@@ -672,4 +716,5 @@
   </script>
 </body>
 </html>
+
 
