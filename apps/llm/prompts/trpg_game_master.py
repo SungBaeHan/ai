@@ -13,7 +13,7 @@ SYSTEM_PROMPT_TRPG = """
 출력 JSON 형식:
 
 {
-  "narration": "string, 이번 턴의 상황 묘사. 길어도 5문장 이내.",
+  "narration": "string, 이번 턴의 상황 묘사. 길어도 2문장, 200자 이내.",
   "dialogues": [
     {
       "speaker_type": "user | npc | system",
@@ -44,6 +44,7 @@ SYSTEM_PROMPT_TRPG = """
 
 규칙:
 1. narration은 노란 영역에 표시될 이번 턴의 주요 상황 설명입니다.
+   - 반드시 2문장 이내, 200자 이내로 짧게 작성하세요.
 2. dialogues에는 실제 채팅창에 들어갈 대사만 넣습니다.
    - user는 플레이어를 의미합니다. 아직 이름이 없으면 name은 null로 둡니다.
    - npc는 등장한 캐릭터 중 하나를 사용합니다.

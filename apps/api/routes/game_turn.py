@@ -16,6 +16,8 @@ from apps.api.schemas.game_turn import (
     GameTurnResponse,
     GameTurnLLMResponse,
     StatusChanges,
+    UserStatusChange,
+    CharacterStatusChange,
 )
 from apps.api.services.game_status_service import (
     get_game_status,
@@ -63,6 +65,27 @@ def extract_json(text: str) -> str:
         cleaned = cleaned[start : end + 1]
 
     return cleaned
+
+
+def build_fallback_llm_response(raw_text: str) -> GameTurnLLMResponse:
+    """
+    LLM JSON 파싱에 실패했을 때,
+    전체 텍스트를 narration 으로라도 써먹기 위한 fall-back 응답 생성.
+    스탯 변화는 모두 0으로 처리.
+    """
+    # 너무 길면 앞부분만 사용 (로그형 텍스트일 수 있으니 400자 정도로 자름)
+    narration = (raw_text or "").strip()
+    if len(narration) > 400:
+        narration = narration[:400] + "..."
+    
+    return GameTurnLLMResponse(
+        narration=narration or "이번 턴의 설명을 불러오는 데 실패했습니다.",
+        dialogues=[],  # fall-back에서는 대사 없이 상황 설명만 사용
+        status_changes=StatusChanges(
+            user=UserStatusChange(),
+            characters=[],
+        ),
+    )
 
 
 @router.post("/{game_id}/turn", response_model=GameTurnResponse, summary="게임 턴 진행")
@@ -147,6 +170,7 @@ async def play_turn(
                 messages=messages,
                 model="gpt-4o-mini",  # 또는 프로젝트 설정에 맞게
                 temperature=0.7,
+                max_tokens=512,
             )
         except Exception as e:
             logger.exception(f"LLM call failed: {e}")
@@ -164,15 +188,11 @@ async def play_turn(
                 cleaned = extract_json(raw_text)
                 llm_data = GameTurnLLMResponse.model_validate_json(cleaned)
             except Exception as e2:
-                # 디버깅을 위해 raw_text도 로깅 후, 친절한 에러 메시지로 래핑
-                logger.error("=== TRPG TURN RAW TEXT ===")
-                logger.error(raw_text)
+                # 3차: 그래도 안 되면, raw_text를 narration 으로 쓰는 fall-back 생성
+                logger.error("=== TRPG TURN RAW TEXT (FALLBACK) ===\n%s", raw_text)
                 logger.error("=== PARSE ERROR 1 ===", exc_info=e1)
                 logger.error("=== PARSE ERROR 2 ===", exc_info=e2)
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Turn 응답 JSON 1차/2차 validation error: {str(e2)}",
-                )
+                llm_data = build_fallback_llm_response(raw_text)
         
         # 6) 턴 증가
         current_turn = int(game_status.get("turn", 0)) + 1
