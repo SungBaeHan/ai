@@ -82,33 +82,53 @@
       z-index: 10;
       margin-bottom: 16px;
     }
-    /* 이미지 + 시나리오 카드 컨테이너 (기존 카드 스타일 유지 + relative 추가) */
+    /* 이미지 카드 전체 */
     .game-hero-card {
-      position: relative;     /* 내부에 absolute 오버레이를 두기 위해 필요 */
+      position: relative;
+      width: 100%;
+      max-width: 900px; /* 카드의 실제 너비에 맞춰 조정 */
+      margin: 0 auto;
+      border-radius: 16px;
       overflow: hidden;
+    }
+    /* 이미지 */
+    .game-hero-image {
+      width: 100%;
+      display: block;
       border-radius: 16px;
     }
-    /* ▶ 여기서 핵심: 스탯 박스를 이미지 위에 겹쳐 올림 */
-    .game-hero-stats {
+    /* 소개 텍스트 영역 (이미지 위 오버레이 또는 아래 배치) */
+    .game-hero-title {
       position: absolute;
+      top: 16px;
       left: 16px;
       right: 16px;
-      bottom: 16px;           /* 이미지 하단에서 조금 띄워서 붙이기 */
-      z-index: 20;
-      padding: 12px 16px;
-      border-radius: 12px;
-      /* 반투명 HUD 느낌 (프로젝트 색상 토큰 있으면 거기에 맞게 바꿔줘) */
-      background: rgba(5, 7, 14, 0.85);
+      background: rgba(15, 23, 42, 0.85);
       backdrop-filter: blur(6px);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-      font-size: 0.9rem;
+      border-radius: 12px;
+      padding: 12px 14px;
+      z-index: 5;
+    }
+    /* ⭐ 스탯 HUD 오버레이 */
+    .game-hero-stats {
+      position: absolute;
+      bottom: 12px;                 /* 이미지 안에서의 아래쪽 위치 */
+      left: 12px;
+      right: 12px;                  /* 좌우 여백이 exactly 이미지 카드 폭에 맞도록 */
+      padding: 14px 18px;
+      border-radius: 12px;
+      background: rgba(10, 12, 20, 0.80);  /* 반투명 HUD */
+      backdrop-filter: blur(6px);
+      color: #fff;
+      z-index: 10;                  /* 이미지보다 위 */
       display: flex;
       gap: 24px;
-      color: #f5f5f5;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      font-size: 0.9rem;
     }
-    /* 스탯 테이블이 너무 붙어보이지 않게 약간의 여백 */
+    /* 텍스트 너무 붙지 않도록 */
     .game-hero-stats table,
-    .game-hero-stats .stats-row {
+    .game-hero-stats div {
       width: 100%;
     }
     /* 하단: 채팅 영역 전체 */
@@ -169,10 +189,10 @@
     <!-- 상단: 이미지 + 시나리오 + HUD(스탯) -->
     <section class="game-hero">
       <div class="game-hero-card">
-        <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
+        <img id="hero" class="game-hero-image" alt="cover" src="/assets/img/placeholder.jpg" /> <!-- 히어로 이미지 -->
         <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
 
-        <div class="panel" id="about">
+        <div class="game-hero-title">
           <div style="font-weight:700; margin-bottom:6px;">소개</div>
           <div id="game-narration" style="opacity:.9"></div> <!-- 내레이션 영역 (기존 bio 영역 재사용) -->
           <div class="chips">
@@ -182,7 +202,7 @@
           <div class="hint">Tip: 메세지를 보내면 게임 턴이 진행됩니다.</div>
         </div>
 
-        <!-- ⬇️ 스탯 박스를 이미지 위에 오버레이로 배치 -->
+        <!-- ⭐ HUD 스탯 패널 (이미지 위에 오버레이) -->
         <div id="game-hud" class="game-hero-stats">
           <div class="game-hud-section">
             <div class="game-hud-title">상태</div>
