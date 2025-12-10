@@ -102,6 +102,9 @@
       backdrop-filter: blur(6px);
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
       font-size: 0.9rem;
+      display: flex;
+      gap: 24px;
+      color: #f5f5f5;
     }
     /* 스탯 테이블이 너무 붙어보이지 않게 약간의 여백 */
     .game-hero-stats table,
@@ -195,19 +198,15 @@
         <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
         <div class="chat" id="chat-log" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
       </div>
-      <form class="game-chat-input">
-        <!-- 입력창은 기존 inputBar 사용 -->
-      </form>
+      <div class="inputBar game-chat-input">
+        <div class="inputIn">
+          <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 (기존) -->
+          <textarea id="user-input" placeholder="메시지 입력…" style="display:none;"></textarea>  <!-- 턴 시스템용 입력창 -->
+          <button id="send">보내기</button>                         <!-- 전송 (기존) -->
+          <button id="send-btn" style="display:none;">보내기</button>  <!-- 턴 시스템용 전송 버튼 -->
+        </div>
+      </div>
     </section>
-  </div>
-
-  <div class="inputBar">
-    <div class="inputIn">
-      <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 (기존) -->
-      <textarea id="user-input" placeholder="메시지 입력…" style="display:none;"></textarea>  <!-- 턴 시스템용 입력창 -->
-      <button id="send">보내기</button>                         <!-- 전송 (기존) -->
-      <button id="send-btn" style="display:none;">보내기</button>  <!-- 턴 시스템용 전송 버튼 -->
-    </div>
   </div>
 
   <!-- Toast Layer -->
