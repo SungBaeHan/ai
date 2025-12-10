@@ -16,7 +16,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Q
 from adapters.persistence.mongo import get_db
 from adapters.file_storage.r2_storage import R2Storage
 from apps.api.routes.worlds import get_current_user_v2
-from apps.api.utils import build_public_image_url
+from apps.api.utils import build_public_image_url, build_public_image_url_from_path
 from apps.core.utils.assets import normalize_asset_path
 from apps.api.models.games import (
     GameCreateRequest,
@@ -379,6 +379,24 @@ async def list_games(
         elif doc.get("updated_at") is None:
             doc["updated_at"] = datetime.now(timezone.utc)
         
+        # 이미지 URL을 R2 public URL로 변환
+        # 1) 게임 배경 이미지
+        if doc.get("background_image_path"):
+            doc["background_image_path"] = build_public_image_url_from_path(doc["background_image_path"])
+        
+        # 2) 월드 스냅샷 이미지
+        if doc.get("world_snapshot") and isinstance(doc["world_snapshot"], dict):
+            if doc["world_snapshot"].get("image_url"):
+                doc["world_snapshot"]["image_url"] = build_public_image_url_from_path(doc["world_snapshot"]["image_url"])
+        
+        # 3) 캐릭터 스냅샷 이미지
+        if doc.get("characters") and isinstance(doc["characters"], list):
+            for char in doc["characters"]:
+                if isinstance(char, dict) and char.get("snapshot"):
+                    snapshot = char["snapshot"]
+                    if isinstance(snapshot, dict) and snapshot.get("image_url"):
+                        snapshot["image_url"] = build_public_image_url_from_path(snapshot["image_url"])
+        
         items.append(GameResponse(**doc))
     
     return GameListResponse(total=total, items=items, offset=offset, limit=limit)
@@ -405,6 +423,24 @@ async def get_game(
         doc["updated_at"] = datetime.fromtimestamp(doc["updated_at"], tz=timezone.utc)
     elif doc.get("updated_at") is None:
         doc["updated_at"] = datetime.now(timezone.utc)
+    
+    # 이미지 URL을 R2 public URL로 변환
+    # 1) 게임 배경 이미지
+    if doc.get("background_image_path"):
+        doc["background_image_path"] = build_public_image_url_from_path(doc["background_image_path"])
+    
+    # 2) 월드 스냅샷 이미지
+    if doc.get("world_snapshot") and isinstance(doc["world_snapshot"], dict):
+        if doc["world_snapshot"].get("image_url"):
+            doc["world_snapshot"]["image_url"] = build_public_image_url_from_path(doc["world_snapshot"]["image_url"])
+    
+    # 3) 캐릭터 스냅샷 이미지
+    if doc.get("characters") and isinstance(doc["characters"], list):
+        for char in doc["characters"]:
+            if isinstance(char, dict) and char.get("snapshot"):
+                snapshot = char["snapshot"]
+                if isinstance(snapshot, dict) and snapshot.get("image_url"):
+                    snapshot["image_url"] = build_public_image_url_from_path(snapshot["image_url"])
     
     return GameResponse(**doc)
 

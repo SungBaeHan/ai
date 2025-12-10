@@ -66,6 +66,37 @@ def build_public_image_url(src_file: Optional[str], prefix: str = "char") -> Opt
     return f"{r2_base}/assets/{prefix}/{filename}"
 
 
+def build_public_image_url_from_path(path: Optional[str]) -> Optional[str]:
+    """
+    /assets/... 형식의 경로를 R2 public URL로 변환합니다.
+    경로에서 prefix를 자동으로 추출합니다.
+    
+    Args:
+        path: 이미지 경로 (예: "/assets/game/xxx.png", "/assets/world/xxx.png", "/assets/char/xxx.png")
+    
+    Returns:
+        R2 public URL 또는 None
+    """
+    if not path:
+        return None
+    
+    # 이미 전체 URL인 경우 그대로 반환
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+    
+    # /assets/로 시작하지 않으면 build_public_image_url 사용 (기존 로직)
+    if not path.startswith("/assets/"):
+        return build_public_image_url(path)
+    
+    # R2 public base URL 가져오기
+    r2_base = os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
+    if not r2_base:
+        return None
+    
+    # /assets/xxx/... 형식이면 그대로 사용
+    return f"{r2_base}{path}"
+
+
 # 하위 호환성을 위한 별칭
 def build_r2_public_url(key_or_path: Optional[str]) -> Optional[str]:
     """Deprecated: build_public_image_url()를 사용하세요."""
