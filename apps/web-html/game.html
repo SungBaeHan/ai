@@ -156,6 +156,36 @@
       margin:0 auto;
       padding:0 4px;
     }
+    /* 채팅 로그 영역 안에 자연스럽게 배치될 선택지 버튼 컨테이너 */
+    .game-turn-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 16px 0 8px;
+      max-width: 980px;
+      margin-left: auto;
+      margin-right: auto;
+      padding: 0 4px;
+    }
+    /* 버튼이 위로 딸려가지 않도록 position 관련 스타일은 절대 넣지 말 것 */
+    .game-turn-actions button {
+      /* 기존 버튼 스타일 유지 */
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #111827;
+      color: #c7d2fe;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s ease;
+    }
+    .game-turn-actions button:hover {
+      background: #1f2937;
+      border-color: #475569;
+    }
+    .game-turn-actions button:active {
+      transform: translateY(1px);
+    }
     .msg { display:flex; align-items:flex-start; gap:10px; margin:14px 0; animation:fadeInUp .35s ease; }
     .msg.me { flex-direction:row-reverse; }
     .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
@@ -215,8 +245,14 @@
     <!-- 하단: 채팅 로그 + 입력창 -->
     <section class="game-body">
       <div class="game-chat-log">
-        <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
-        <div class="chat" id="chat-log" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
+        <div id="game-log-messages">
+          <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
+          <div class="chat" id="chat-log" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
+        </div>
+        <!-- ⭐ 선택지 버튼은 여기 -->
+        <div id="game-turn-actions" class="game-turn-actions">
+          <!-- JS가 여기 안에 버튼들을 append 하도록 유지 -->
+        </div>
       </div>
       <div class="inputBar game-chat-input">
         <div class="inputIn">
