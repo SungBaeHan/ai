@@ -341,6 +341,18 @@ async def get_game_session(
         # 초기 세션 저장
         game_status = _convert_session_snapshot_to_game_status(session)
         game_status["world_snapshot"] = game_doc.get("world_snapshot", {})
+        
+        # 초기 세션에도 characters_info 포함 (game_doc.characters에서)
+        # 저장 전에 추가해야 함
+        if "characters" in game_doc:
+            game_status["characters_info"] = [
+                {
+                    "char_ref_id": char.get("char_ref_id", 0),
+                    "snapshot": char.get("snapshot", {}),
+                }
+                for char in game_doc["characters"]
+            ]
+        
         save_game_status(db, game_status)
     
     # 게임 메타 정보도 함께 반환
@@ -354,9 +366,46 @@ async def get_game_session(
     game = GameResponse(**game_doc)
     game = enrich_game_asset_urls(game)
     
+    # characters_info 생성 (프론트엔드에서 이미지 매핑을 위해 필요)
+    # game_status에서 characters_info를 가져오거나, session.npcs에서 생성
+    characters_info = []
+    if game_status and "characters_info" in game_status:
+        # 기존 game_status에서 characters_info 사용
+        for char_info in game_status["characters_info"]:
+            char_ref_id = char_info.get("char_ref_id")
+            snapshot = char_info.get("snapshot", {})
+            if char_ref_id and snapshot:
+                characters_info.append({
+                    "char_ref_id": char_ref_id,
+                    "snapshot": {
+                        "id": snapshot.get("id") or char_ref_id,
+                        "name": snapshot.get("name", "Unknown"),
+                        "image_url": snapshot.get("image_url"),
+                        "attributes": snapshot.get("attributes", {}),
+                    }
+                })
+    else:
+        # session.npcs에서 생성 (fallback)
+        for npc in session.npcs:
+            characters_info.append({
+                "char_ref_id": npc.id,
+                "snapshot": {
+                    "id": npc.id,
+                    "name": npc.name,
+                    "image_url": npc.image_url,
+                    "attributes": npc.attributes,
+                }
+            })
+    
+    # 턴 로그의 speaker_id가 char_ref_id와 일치하도록 확인
+    # (이미 변환 과정에서 처리됨)
+    
+    session_dict = session.model_dump()
+    session_dict["characters_info"] = characters_info
+    
     return {
         "game": game.model_dump(),
-        "session": session.model_dump(),
+        "session": session_dict,
     }
 
 
@@ -609,7 +658,56 @@ async def play_turn(
         game_status["world_snapshot"] = world_snapshot
         save_game_status(db, game_status)
         
-        # 9) 응답 반환 (기존 형식 유지)
+        # 9) 응답 반환 (세션 포함하여 중복 방지)
+        # characters_info 생성 (프론트엔드에서 이미지 매핑을 위해 필요)
+        characters_info = []
+        if game_status and "characters_info" in game_status:
+            # game_status에서 characters_info 사용
+            for char_info in game_status["characters_info"]:
+                char_ref_id = char_info.get("char_ref_id")
+                snapshot = char_info.get("snapshot", {})
+                if char_ref_id and snapshot:
+                    characters_info.append({
+                        "char_ref_id": char_ref_id,
+                        "snapshot": {
+                            "id": snapshot.get("id") or char_ref_id,
+                            "name": snapshot.get("name", "Unknown"),
+                            "image_url": snapshot.get("image_url"),
+                            "attributes": snapshot.get("attributes", {}),
+                        }
+                    })
+        else:
+            # session.npcs에서 생성 (fallback)
+            for npc in session.npcs:
+                characters_info.append({
+                    "char_ref_id": npc.id,
+                    "snapshot": {
+                        "name": npc.name,
+                        "image_url": npc.image_url,
+                        "attributes": {
+                            "hp": {
+                                "current": npc.hp,
+                                "max": npc.hp_max,
+                                "base": npc.hp,
+                            },
+                            "mp": {
+                                "current": npc.mp,
+                                "max": npc.mp_max,
+                                "base": npc.mp,
+                            },
+                            **npc.attributes,
+                        },
+                        "items": {
+                            "gold": npc.gold,
+                            "inventory": [],
+                        },
+                    },
+                })
+        
+        # 세션에 characters_info 포함
+        session_dict = session.model_dump()
+        session_dict["characters_info"] = characters_info
+        
         return GameTurnResponse(
             game_id=game_id,
             turn=session.turn,
@@ -622,21 +720,9 @@ async def play_turn(
                 },
                 "items": {"gold": session.player.gold, "inventory": []},
             },
-            characters_info=[
-                {
-                    "char_ref_id": npc.id,
-                    "snapshot": {
-                        "name": npc.name,
-                        "image_url": npc.image_url,
-                        "attributes": {
-                            "hp": {"current": npc.hp, "max": npc.hp_max},
-                            "mp": {"current": npc.mp, "max": npc.mp_max},
-                        },
-                        "items": {"gold": npc.gold, "inventory": []},
-                    },
-                }
-                for npc in session.npcs
-            ],
+            characters_info=characters_info,
+            new_turns=[log.model_dump() for log in new_turns],  # 호환성
+            session=session_dict,  # 세션 전체 포함 (중복 방지)
         )
     
     except HTTPException:

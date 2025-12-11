@@ -35,7 +35,7 @@
     html, body {
       height: 100%;
       margin: 0;
-      overflow: hidden; /* 전체 페이지는 스크롤 금지 */
+      overflow: auto; /* 전체 페이지 스크롤 허용 */
     }
     body { 
       background:#0b0f14; 
@@ -185,21 +185,7 @@
       min-height: 0;
       overflow-y: auto;
       padding: 12px 24px 16px;
-      /* 스크롤바를 완전히 숨기되 레이아웃에 영향 없도록 */
-      scrollbar-width: none;  /* Firefox: 스크롤바 완전히 숨김 */
-      -ms-overflow-style: none;  /* IE/Edge: 스크롤바 숨김 */
-      /* max-height 제거 - flex: 1이 자동으로 높이 조절 */
-    }
-    .game-chat-log::-webkit-scrollbar {
-      width: 0;  /* 스크롤바 너비 0으로 설정하여 레이아웃 영향 없음 */
-      height: 0;
-      display: none;  /* 완전히 숨김 */
-    }
-    .game-chat-log::-webkit-scrollbar-track {
-      display: none;  /* 트랙 숨김 */
-    }
-    .game-chat-log::-webkit-scrollbar-thumb {
-      display: none;  /* 스크롤바 숨김 */
+      /* 스크롤바 표시 (원래대로 복원) */
     }
     /* 입력창은 flex 하단에 고정 */
     .game-chat-input {

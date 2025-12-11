@@ -63,6 +63,8 @@ class GameTurnResponse(BaseModel):
     dialogues: List[DialogueItem]
     user_info: dict
     characters_info: list
+    session: Optional[Dict[str, Any]] = None  # 세션 전체 (중복 방지)
+    new_turns: Optional[List[Dict[str, Any]]] = None  # 새 턴 로그 (호환성)
 
 
 # ========================================
