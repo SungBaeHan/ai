@@ -32,7 +32,16 @@
   <script src="/js/game_turn.js"></script>
   <style>
     :root { color-scheme: dark; } /* 다크 테마 힌트 */
-    body { margin:0; background:#0b0f14; color:#e5e7eb; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden; /* 전체 페이지는 스크롤 금지 */
+    }
+    body { 
+      background:#0b0f14; 
+      color:#e5e7eb; 
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; 
+    }
     .topbar-wrap { display:flex; justify-content:center; border-bottom:1px solid #1b2430; background:#0e141c; position:sticky; top:0; z-index:20; }
     .topbar { width:100%; max-width:980px; display:flex; align-items:center; gap:10px; padding:10px 14px; }
     .back { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:1px solid #223042; background:#0f172a; color:#cbd5e1; cursor:pointer; }
@@ -74,13 +83,19 @@
       display: flex;
       flex-direction: column;
       height: 100vh;          /* 전체 화면 꽉 채우기 */
+      overflow: hidden;       /* 페이지 레벨 스크롤 방지 */
     }
-    /* 상단 히어로 영역: 네비게이션 바로부터 살짝 아래에 sticky */
+    /* 상단 히어로 영역: 높이 제한하여 압축 */
     .game-hero {
-      position: sticky;
-      top: 64px;              /* 상단 네비게이션 높이에 맞춰 조정 (필요시 56~80px 사이로 조절) */
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-height: 35vh;    /* 화면의 35%까지만 사용 (더 압축) */
+      min-height: 200px;   /* 최소값 줄임 */
       z-index: 10;
-      margin-bottom: 16px;
+      margin-bottom: 0;
+      overflow: hidden;
     }
     /* 이미지 카드 전체 */
     .game-hero-card {
@@ -97,16 +112,20 @@
       display: block;
       border-radius: 16px;
     }
-    /* 소개 패널 (이미지+스탯 아래 배치) */
+    /* 소개 패널 (이미지+스탯 아래 배치) - 높이 제한 */
     .game-intro-panel {
-      margin-top: 16px;      /* 이미지+스탯과 살짝 간격 */
-      max-width: 900px;      /* 카드 폭에 맞추고 싶으면 hero-card와 동일 값 */
+      flex-shrink: 0;
+      max-height: 100px;      /* 너무 길어지지 않게 (더 압축) */
+      overflow: hidden;
+      margin-top: 8px;
+      max-width: 900px;
       margin-left: auto;
       margin-right: auto;
       background: #0f172a;
       border: 1px solid #1e293b;
       border-radius: 12px;
-      padding: 12px 14px;
+      padding: 8px 14px;  /* 패딩 줄임 */
+      font-size: 0.9rem;  /* 폰트 크기 줄임 */
     }
     /* ⭐ 스탯 HUD 오버레이 */
     .game-hero-stats {
@@ -136,18 +155,62 @@
       display: flex;
       flex-direction: column;
       min-height: 0;          /* flex 컨테이너 안에서 overflow가 제대로 작동하게 */
+      overflow: hidden;      /* 전체 페이지에서 넘치는 스크롤 방지 */
     }
-    /* 채팅 로그는 스크롤 영역 */
+    /* 소개 박스는 고정 높이 (너무 커지지 않게) */
+    .game-intro-panel {
+      flex-shrink: 0;
+      max-height: 80px;  /* 더 압축 */
+      overflow: hidden;
+      margin-top: 4px;
+      max-width: 900px;
+      margin-left: auto;
+      margin-right: auto;
+      background: #0f172a;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 6px 14px;  /* 패딩 줄임 */
+      font-size: 0.85rem;  /* 폰트 크기 줄임 */
+    }
+    /* 채팅 전체 컨테이너 */
+    .game-chat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    /* 채팅 로그는 스크롤 영역 - 입력창 위까지만 */
     .game-chat-log {
       flex: 1;
+      min-height: 0;
       overflow-y: auto;
-      padding-bottom: 12px;
+      padding: 12px 24px 16px;
+      scrollbar-width: thin;  /* Firefox: 얇은 스크롤바 */
+      scrollbar-color: rgba(255, 255, 255, 0.2) transparent;  /* Firefox: 투명 스크롤바 */
+      /* max-height 제거 - flex: 1이 자동으로 높이 조절 */
     }
-    /* 채팅 입력 영역은 화면 하단에 고정되듯이 항상 보이게 */
+    .game-chat-log::-webkit-scrollbar {
+      width: 8px;  /* 스크롤바 너비 (0 대신 얇게) */
+      height: 8px;
+    }
+    .game-chat-log::-webkit-scrollbar-track {
+      background: transparent;  /* 트랙 투명 */
+    }
+    .game-chat-log::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.2);  /* 스크롤바 투명 */
+      border-radius: 4px;
+    }
+    .game-chat-log::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(255, 255, 255, 0.3);  /* 호버 시 약간 더 진하게 */
+    }
+    /* 입력창은 flex 하단에 고정 */
     .game-chat-input {
-      margin-top: 8px;
-      padding-top: 8px;
+      flex-shrink: 0;
+      padding: 8px 24px 16px;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(2px);
       border-top: 1px solid rgba(255, 255, 255, 0.08);
+      /* position: fixed/absolute/bottom 제거 확인 - flex만 사용 */
     }
     /* 기존 채팅 스타일 유지 */
     #chat, #chat-log {
@@ -190,7 +253,12 @@
     .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
     .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
     .me .bubble { background:rgba(63,131,248,0.25); border-color:#334155; }
-    .inputBar { position:fixed; left:0; right:0; bottom:0; border-top:1px solid #1b2430; background:#0e141c; padding:12px; }
+    .inputBar { 
+      /* position:fixed 제거 - flex layout으로 처리 */
+      border-top:1px solid #1b2430; 
+      background:#0e141c; 
+      padding:12px; 
+    }
     .inputIn { max-width:980px; margin:0 auto; display:flex; gap:8px; }
     textarea { flex:1; resize:none; background:#0b1220; border:1px solid #1f2937; border-radius:10px; color:#e5e7eb; padding:10px 12px; min-height:44px; }
     button { padding:0 14px; border-radius:10px; border:1px solid #334155; background:#111827; color:#c7d2fe; height:44px; }
@@ -229,37 +297,42 @@
           </div>
         </div>
       </div>
+    </section>
 
-      <!-- 소개 패널 전체 래퍼 (이미지+스탯 아래로 이동) -->
+    <!-- 하단: 채팅 로그 + 입력창 -->
+    <section class="game-body">
+      <!-- 소개 박스 -->
       <div class="game-intro-panel">
         <div style="font-weight:700; margin-bottom:6px;">소개</div>
-        <div id="game-narration" style="opacity:.9"></div> <!-- 내레이션 영역 (기존 bio 영역 재사용) -->
+        <div id="game-narration" style="opacity:.9"></div> <!-- 내레이션 영역 -->
         <div class="chips">
           <span class="chip">TRPG</span>
           <span class="chip" id="chip-name">게임</span>
         </div>
         <div class="hint">Tip: 메세지를 보내면 게임 턴이 진행됩니다.</div>
       </div>
-    </section>
 
-    <!-- 하단: 채팅 로그 + 입력창 -->
-    <section class="game-body">
-      <div class="game-chat-log">
-        <div id="game-log-messages">
-          <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
-          <div class="chat" id="chat-log" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
+      <!-- 채팅 영역 (로그 + 입력창) -->
+      <div class="game-chat">
+        <div class="game-chat-log" id="chat-log">
+          <div id="game-log-messages">
+            <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
+            <div class="chat" id="chat-log-old" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
+          </div>
+          <!-- ⭐ 선택지 버튼은 여기 -->
+          <div id="game-turn-actions" class="game-turn-actions">
+            <!-- JS가 여기 안에 버튼들을 append 하도록 유지 -->
+          </div>
+          <!-- 스크롤 하단 마커 (자동 스크롤용) -->
+          <div id="chat-bottom-marker" style="height: 1px;"></div>
         </div>
-        <!-- ⭐ 선택지 버튼은 여기 -->
-        <div id="game-turn-actions" class="game-turn-actions">
-          <!-- JS가 여기 안에 버튼들을 append 하도록 유지 -->
-        </div>
-      </div>
-      <div class="inputBar game-chat-input">
-        <div class="inputIn">
-          <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 (기존) -->
-          <textarea id="user-input" placeholder="메시지 입력…" style="display:none;"></textarea>  <!-- 턴 시스템용 입력창 -->
-          <button id="send">보내기</button>                         <!-- 전송 (기존) -->
-          <button id="send-btn" style="display:none;">보내기</button>  <!-- 턴 시스템용 전송 버튼 -->
+        <div class="game-chat-input" id="chat-input">
+          <div class="inputIn">
+            <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 (기존) -->
+            <textarea id="user-input" placeholder="메시지 입력…" style="display:none;"></textarea>  <!-- 턴 시스템용 입력창 -->
+            <button id="send">보내기</button>                         <!-- 전송 (기존) -->
+            <button id="send-btn" style="display:none;">보내기</button>  <!-- 턴 시스템용 전송 버튼 -->
+          </div>
         </div>
       </div>
     </section>
@@ -294,26 +367,39 @@
       return v;
     }
 
-    // 이미지 경로 보정 → 항상 /assets/game/... 또는 /assets/img/... 로
+    // 이미지 경로 보정 → 상대 경로를 풀 URL로 변환
+    // R2 Public URL (배경 이미지와 동일한 방식)
+    const R2_PUBLIC_URL = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
+    const ASSET_BASE_URL = window.location.origin; // => https://www.arcanaverse.ai
+    
+    function resolveAssetUrl(path) {
+      if (!path) return "";
+      // 이미 풀 URL이면 그대로 반환 (R2 URL 포함)
+      if (path.startsWith("http://") || path.startsWith("https://")) return path;
+      
+      // 상대 경로(/assets/...)를 R2 Public URL로 변환 (배경 이미지와 동일)
+      // 배경 이미지처럼 R2_PUBLIC_URL을 직접 사용
+      if (path.startsWith("/")) {
+        return `${R2_PUBLIC_URL}${path}`;
+      }
+      // 상대 경로가 /로 시작하지 않으면 /assets/char/ 또는 /assets/img/ 경로로 가정
+      if (path.includes('/char/') || path.includes('char_')) {
+        return `${R2_PUBLIC_URL}/assets/char/${path.replace(/^.*\/(char\/|char_)/, '').replace(/^.*\//, '')}`;
+      }
+      return `${R2_PUBLIC_URL}/assets/img/${path}`;
+    }
+    
     function resolvePath(p){
-      if (!p) return '/assets/img/placeholder.jpg';
+      if (!p) {
+        return resolveAssetUrl('/assets/img/placeholder.jpg');
+      }
+      // 이미 풀 URL이면 그대로 반환
       if (/^https?:\/\//i.test(p)) return p;
+      
       p = String(p).replace(/\\/g, '/').trim();
-      if (p.startsWith('/')) return p;
-      if (p.startsWith('assets/')) return '/' + p;
-
-      if (p.includes('/game/') || p.startsWith('game/') || p.startsWith('assets/game/')) {
-        if (p.startsWith('assets/')) return '/' + p;
-        if (p.startsWith('game/'))   return '/assets/' + p;
-        return '/assets/game/' + p.replace(/^\/+/, '');
-      }
-      // 세계관 이미지 처리
-      if (p.includes('/world/') || p.startsWith('world/') || p.startsWith('assets/world/')) {
-        if (p.startsWith('assets/')) return '/' + p;
-        if (p.startsWith('world/'))   return '/assets/' + p;
-        return '/assets/world/' + p.replace(/^\/+/, '');
-      }
-      return '/assets/img/' + p.replace(/^\/+/, '');
+      
+      // resolveAssetUrl 사용 (unreachable code 제거)
+      return resolveAssetUrl(p);
     }
 
     // 안전한 hero 이미지 로더(404 시 SVG로 대체)
@@ -594,15 +680,21 @@
       // 게임 턴 API 응답 형식 처리
       if (isGamePage && GAME_ID) {
         // === TRPG 게임 모드 응답 처리 ===
-        // 세션을 다시 로드하여 최신 상태 반영
-        const sessionData = await loadSession(GAME_ID);
-        if (sessionData && sessionData.session) {
-          currentSession = sessionData.session;
+        // 백엔드 응답에서 session을 직접 사용 (중복 방지: 세션 전체 교체)
+        // 플레이어 메시지는 이미 백엔드에서 turn_logs에 포함되어 있으므로
+        // 로컬로 추가하지 않고 백엔드가 내려준 session을 그대로 사용
+        if (j.session) {
+          // 백엔드 응답의 session을 그대로 사용 (중복 방지: 세션 전체 교체)
+          const prevLength = currentSession?.turn_logs?.length || 0;
+          currentSession = j.session;
+          const newLength = currentSession.turn_logs.length;
+          console.log("[DEBUG] Using session from response, turn_logs length:", prevLength, "->", newLength);
           
           // 1) HUD 업데이트
           renderHudFromSession(currentSession);
           
-          // 2) 채팅 로그 업데이트 (전체 재렌더링)
+          // 2) 채팅 로그 업데이트 (전체 재렌더링 - session.turn_logs만 사용, 한 번만)
+          // 로컬 메시지 배열 없이 오직 session.turn_logs만 렌더링
           renderChatLogsFromSession(currentSession);
           
           // 3) 내레이션 업데이트
@@ -615,27 +707,26 @@
             }
           }
         } else {
-          // 폴백: 기존 방식 사용
-          const { narration, dialogues, user_info, characters_info } = j;
-          
-          if (narrationEl && typeof narration === 'string') {
-            narrationEl.textContent = narration;
-          }
-          
-          renderGameHud(user_info, characters_info);
-          
-          if (Array.isArray(dialogues)) {
-            dialogues.forEach((d) => {
-              const speakerType = d.speaker_type || 'npc';
-              const name = d.name || (speakerType === 'user' ? null : 'NPC');
-              const text = d.text || '';
-              
-              if (speakerType === 'user') {
-                addUser(text);
-              } else {
-                addBot(text, name);
+          // 폴백: 세션을 다시 로드 (하지만 중복 방지를 위해 한 번만)
+          console.warn('[askLLM] j.session not found, loading from API');
+          const sessionData = await loadSession(GAME_ID);
+          if (sessionData && sessionData.session) {
+            const prevLength = currentSession?.turn_logs?.length || 0;
+            currentSession = sessionData.session;
+            const newLength = currentSession.turn_logs.length;
+            console.log("[DEBUG] Loaded session from API, turn_logs length:", prevLength, "->", newLength);
+            renderHudFromSession(currentSession);
+            renderChatLogsFromSession(currentSession);
+            if (narrationEl) {
+              const lastNarration = currentSession.turn_logs
+                .filter(log => log.speaker_type === 'narration')
+                .pop();
+              if (lastNarration) {
+                narrationEl.textContent = lastNarration.text;
               }
-            });
+            }
+          } else {
+            console.warn('[askLLM] Session data not available');
           }
         }
         
@@ -718,18 +809,126 @@
       hudEl.style.color = '#f5f5f5';
     }
 
-    // 세션 기반 채팅 로그 렌더링
+    // 캐릭터 맵 생성 (characters_info 기반 - id와 name 둘 다로 매핑)
+    // 반드시 session.characters_info만 사용 (game.characters_info 제거)
+    function buildCharacterMaps(session) {
+      const infoList = session?.characters_info || [];
+      
+      // id로 매핑하는 맵
+      const byId = new Map();
+      // name으로 매핑하는 맵
+      const byName = new Map();
+      
+      // session.characters_info만 사용
+      infoList.forEach((c) => {
+        const snap = c.snapshot;
+        if (!snap) return;
+        
+        const charId = Number(c.char_ref_id);
+        if (!Number.isNaN(charId) && charId) {
+          byId.set(charId, snap);
+        }
+        if (snap.name) {
+          byName.set(snap.name.trim(), snap);
+        }
+      });
+      
+      console.log("[DEBUG] characterMaps", { 
+        infoList,
+        byId: Array.from(byId.entries()),
+        byName: Array.from(byName.entries())
+      });
+      
+      return { byId, byName };
+    }
+
+    // 아바타 URL 계산 함수 (페이지 레벨에서 계산)
+    function getAvatarForLog(log, characterMaps, session) {
+      const { byId, byName } = characterMaps;
+      
+      let rawUrl = null;
+      let name = log.speaker_name || undefined;
+      
+      if (log.speaker_type === 'npc' || log.speaker_type === 'monster') {
+        const id = log.speaker_id != null ? Number(log.speaker_id) : NaN;
+        let snapshot = null;
+        
+        // 1차: speaker_id로 찾기
+        if (!Number.isNaN(id)) {
+          snapshot = byId.get(id);
+        }
+        
+        // 2차: speaker_name으로 찾기
+        if (!snapshot && name) {
+          snapshot = byName.get(name.trim());
+        }
+        
+        // 3차: 세션의 npcs에서 찾기 (fallback)
+        if (!snapshot && log.speaker_id != null) {
+          const npc = session.npcs?.find(n => n.id === Number(log.speaker_id));
+          if (npc) {
+            snapshot = { image_url: npc.image_url, name: npc.name };
+          }
+        }
+        
+        if (snapshot) {
+          rawUrl = snapshot.image_url || null;
+          if (!name) name = snapshot.name || 'NPC';
+        } else {
+          if (!name) name = 'NPC';
+        }
+      } else if (log.speaker_type === 'player') {
+        rawUrl = null; // 플레이어는 아바타 없음
+        if (!name) name = '플레이어';
+      }
+      
+      // 상대 경로를 풀 URL로 변환 (resolveAssetUrl 사용)
+      const avatarUrl = rawUrl ? resolveAssetUrl(rawUrl) : resolveAssetUrl('/assets/img/placeholder.jpg');
+      
+      console.log("[DEBUG] avatarForLog", { 
+        log: { speaker_type: log.speaker_type, speaker_id: log.speaker_id, speaker_name: log.speaker_name },
+        rawUrl,
+        avatarUrl,
+        name
+      });
+      
+      return { avatarUrl, name };
+    }
+
+    // 세션 기반 채팅 로그 렌더링 (오직 session.turn_logs만 사용)
     function renderChatLogsFromSession(session) {
-      if (!session) return;
+      if (!session) {
+        console.warn("[DEBUG] renderChatLogsFromSession: no session");
+        return;
+      }
       
       const chatEl = document.getElementById('chat');
-      if (!chatEl) return;
+      if (!chatEl) {
+        console.warn("[DEBUG] renderChatLogsFromSession: chat element not found");
+        return;
+      }
       
-      // 기존 로그 제거
+      // 기존 로그 제거 (중복 방지) - 항상 완전히 비우기
+      const beforeLength = chatEl.children.length;
       chatEl.innerHTML = '';
+      console.log("[DEBUG] renderChatLogsFromSession: cleared", beforeLength, "existing messages, rendering", (session.turn_logs || []).length, "logs");
       
-      // 세션의 turn_logs를 렌더링
-      session.turn_logs.forEach((log) => {
+      // 선택지 버튼 영역도 비우기 (중복 방지) - 항상 완전히 비우기
+      const actionsEl = document.getElementById('game-turn-actions');
+      if (actionsEl) {
+        const beforeActions = actionsEl.children.length;
+        actionsEl.innerHTML = '';
+        console.log("[DEBUG] renderChatLogsFromSession: cleared", beforeActions, "existing action buttons");
+      }
+      
+      // 캐릭터 맵 생성 (id와 name 둘 다로 매핑) - session만 사용
+      const characterMaps = buildCharacterMaps(session);
+      
+      // 세션의 turn_logs를 렌더링 (오직 session.turn_logs만 사용)
+      const logs = session.turn_logs || [];
+      console.log("[DEBUG] turn_logs length", logs.length);
+      
+      logs.forEach((log) => {
         if (log.speaker_type === 'narration') {
           // 내레이션은 별도 처리하지 않음 (노란 영역에만 표시)
           return;
@@ -739,30 +938,61 @@
         const row = document.createElement('div');
         row.className = `msg ${isPlayer ? 'me' : ''}`;
         
-        let avatarUrl = null;
-        let nameLabel = '';
+        // 페이지 레벨에서 아바타 URL 계산
+        const { avatarUrl, name: displayName } = getAvatarForLog(log, characterMaps, session);
         
-        if (!isPlayer && log.speaker_id) {
-          // NPC인 경우 세션에서 찾기
-          const npc = session.npcs.find(n => n.id === log.speaker_id);
-          if (npc && npc.image_url) {
-            avatarUrl = npc.image_url;
-          }
-          nameLabel = npc ? `<strong>${escapeHtml(npc.name)}</strong>: ` : '';
-        }
+        // 이름 레이블 생성
+        const nameLabel = displayName ? `<strong>${escapeHtml(displayName)}</strong>: ` : '';
         
         // 플레이어는 아바타 없이
         if (isPlayer) {
           row.innerHTML = `<div class="bubble">${renderMessageText(log.text)}</div>`;
         } else {
-          const imgSrc = avatarUrl || (CURRENT_GAME?.image || '/assets/img/placeholder.jpg');
-          row.innerHTML = `<img class="avatar" src="${imgSrc}" alt="bot"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
+          // NPC/Monster는 아바타와 함께 (이미 풀 URL로 변환된 avatarUrl 사용)
+          row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName || 'NPC'}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
         }
         
         chatEl.appendChild(row);
       });
       
-      chatEl.scrollTop = chatEl.scrollHeight;
+      // 마지막 턴의 선택지 처리 (한 번만, 중복 방지)
+      if (logs.length > 0 && actionsEl) {
+        const lastLog = logs[logs.length - 1];
+        const choices = lastLog?.choices || lastLog?.meta?.choices || [];
+        console.log("[DEBUG] Rendering choices for last log:", choices.length, "choices");
+        if (choices.length > 0) {
+          // 중복 방지: 기존 버튼 제거 후 추가
+          actionsEl.innerHTML = '';
+          choices.forEach((choice, index) => {
+            const btn = document.createElement('button');
+            btn.textContent = choice.text || choice;
+            btn.onclick = () => {
+              const choiceText = choice.text || choice;
+              const ta = document.getElementById('ta');
+              if (ta) {
+                ta.value = choiceText;
+                const sendBtn = document.getElementById('send');
+                if (sendBtn) sendBtn.click();
+              }
+            };
+            actionsEl.appendChild(btn);
+          });
+        }
+      }
+      
+      // 자동 스크롤 (하단 마커로) - 약간의 지연을 두어 DOM 업데이트 완료 후 실행
+      // window.scrollTo는 사용하지 않고, 채팅 컨테이너 내부에서만 스크롤
+      setTimeout(() => {
+        const bottomMarker = document.getElementById('chat-bottom-marker');
+        const chatContainer = chatEl.closest('.game-chat-log');
+        if (bottomMarker && chatContainer) {
+          // 채팅 로그 컨테이너 내부에서만 스크롤
+          bottomMarker.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        } else if (chatEl) {
+          // 폴백: 직접 스크롤
+          chatEl.scrollTop = chatEl.scrollHeight;
+        }
+      }, 100);
     }
 
     // 메시지 텍스트 렌더링 (*대사* → 기울임체)
@@ -782,6 +1012,8 @@
 
     // 초기화
     document.addEventListener('DOMContentLoaded', async ()=>{
+      console.log("[DEBUG] Rendering game chat template - apps/web-html/game.html");
+      
       // 뒤로가기
       document.getElementById('backBtn').onclick=()=>{ if(history.length>1) history.back(); else location.href='/home.html'; };
 
@@ -797,15 +1029,16 @@
       CURRENT_GAME = game;
       paintGame(game);
       
-      // 세션 로딩
+      // 세션 로딩 (초기 로드만 - gameId만 의존성, session/turn_logs는 의존성에 넣지 않음)
       const sessionData = await loadSession(norm);
       if (sessionData && sessionData.session) {
         currentSession = sessionData.session;
+        console.log("[DEBUG] Initial session load, turn_logs length:", currentSession.turn_logs.length);
         
         // HUD 렌더링
         renderHudFromSession(currentSession);
         
-        // 채팅 로그 렌더링
+        // 채팅 로그 렌더링 (session.turn_logs만 사용 - 한 번만)
         renderChatLogsFromSession(currentSession);
         
         // 내레이션 영역 업데이트
@@ -856,19 +1089,8 @@
         
         const v=ta.value.trim(); if(!v)return;
         
-        // 플레이어 메시지를 채팅에 먼저 표시 (세션 로드 전)
-        if (isGamePage && GAME_ID) {
-          const chatEl = document.getElementById('chat');
-          if (chatEl) {
-            const row = document.createElement('div');
-            row.className = 'msg me';
-            row.innerHTML = `<div class="bubble">${escapeHtml(v)}</div>`;
-            chatEl.appendChild(row);
-            chatEl.scrollTop = chatEl.scrollHeight;
-          }
-        } else {
-          addUser(v);
-        }
+        // 플레이어 메시지는 세션에 포함되므로 여기서 추가하지 않음
+        // (백엔드에서 turn_logs에 추가되고, askLLM에서 세션 재로드 시 렌더링됨)
         
         ta.value=''; btn.disabled=true;
         
@@ -887,13 +1109,19 @@
         catch(e){ 
           console.error('[send] Error caught:', e);
           if (isGamePage && GAME_ID) {
+            // 에러 메시지만 추가 (세션 재렌더링은 하지 않음)
             const chatEl = document.getElementById('chat');
             if (chatEl) {
               const row = document.createElement('div');
               row.className = 'msg';
               row.innerHTML = `<div class="bubble">서버 오류: ${escapeHtml(e.message)}</div>`;
               chatEl.appendChild(row);
-              chatEl.scrollTop = chatEl.scrollHeight;
+              const bottomMarker = document.getElementById('chat-bottom-marker');
+              if (bottomMarker) {
+                bottomMarker.scrollIntoView({ behavior: 'smooth', block: 'end' });
+              } else {
+                chatEl.scrollTop = chatEl.scrollHeight;
+              }
             }
           } else {
             addBot('서버 오류: '+e.message);
@@ -954,5 +1182,6 @@
   </script>
 </body>
 </html>
+
 
 
