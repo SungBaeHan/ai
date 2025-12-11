@@ -157,11 +157,11 @@
       min-height: 0;          /* flex 컨테이너 안에서 overflow가 제대로 작동하게 */
       overflow: hidden;      /* 전체 페이지에서 넘치는 스크롤 방지 */
     }
-    /* 소개 박스는 고정 높이 (너무 커지지 않게) */
+    /* 소개 박스는 고정 높이 (2줄 정도 더 표시 가능) */
     .game-intro-panel {
       flex-shrink: 0;
-      max-height: 60px;  /* 더 압축 */
-      overflow: hidden;
+      max-height: 110px;  /* 2줄 정도 더 표시 가능하도록 높이 증가 */
+      overflow-y: auto;  /* 내용이 넘칠 경우 스크롤 가능 */
       margin-top: 4px;
       max-width: 900px;
       margin-left: auto;
@@ -169,8 +169,16 @@
       background: #0f172a;
       border: 1px solid #1e293b;
       border-radius: 12px;
-      padding: 4px 14px;  /* 패딩 더 줄임 */
-      font-size: 0.8rem;  /* 폰트 크기 더 줄임 */
+      padding: 6px 14px;  /* 패딩 조정 */
+      font-size: 0.85rem;  /* 폰트 크기 조정 */
+    }
+    /* 소개 박스 스크롤바 숨기기 */
+    .game-intro-panel::-webkit-scrollbar {
+      display: none;
+    }
+    .game-intro-panel {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
     /* 채팅 전체 컨테이너 */
     .game-chat {
