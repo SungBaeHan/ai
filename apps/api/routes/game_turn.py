@@ -26,11 +26,7 @@ from apps.api.schemas.game_turn import (
     CombatState,
     TurnLog,
 )
-from apps.api.services.game_status_service import (
-    get_game_status,
-    save_game_status,
-    apply_status_changes,
-)
+from apps.api.deps.user_snapshot import build_owner_ref_info
 from apps.llm.prompts.trpg_game_master import (
     SYSTEM_PROMPT_TRPG,
     build_trpg_user_prompt,
@@ -96,15 +92,15 @@ def build_fallback_llm_response(raw_text: str) -> GameTurnLLMResponse:
     )
 
 
-def _convert_game_status_to_session_snapshot(
-    game_status: Dict[str, Any],
+def _convert_game_session_to_session_snapshot(
+    game_session: Dict[str, Any],
     game_id: int,
     user_id: Optional[str] = None,
 ) -> GameSessionSnapshot:
     """
-    game_status 딕셔너리를 GameSessionSnapshot으로 변환
+    game_session 딕셔너리를 GameSessionSnapshot으로 변환
     """
-    user_info = game_status.get("user_info", {})
+    user_info = game_session.get("user_info", {})
     user_attrs = user_info.get("attributes", {})
     user_items = user_info.get("items", {})
     
@@ -124,7 +120,7 @@ def _convert_game_status_to_session_snapshot(
     
     # NPC 상태 생성
     npcs = []
-    for char_info in game_status.get("characters_info", []):
+    for char_info in game_session.get("characters_info", []):
         snapshot = char_info.get("snapshot", {})
         char_attrs = snapshot.get("attributes", {})
         char_items = snapshot.get("items", {})
@@ -144,14 +140,14 @@ def _convert_game_status_to_session_snapshot(
     
     # 전투 상태 생성
     combat = CombatState(
-        in_combat=game_status.get("combat", {}).get("in_combat", False),
+        in_combat=game_session.get("combat", {}).get("in_combat", False),
         monsters=[],  # TODO: 몬스터 정보가 있으면 변환
-        phase=game_status.get("combat", {}).get("phase", "none"),
+        phase=game_session.get("combat", {}).get("phase", "none"),
     )
     
     # 턴 로그 변환
     turn_logs = []
-    for h in game_status.get("story_history", []):
+    for h in game_session.get("story_history", []):
         turn_num = h.get("turn", 0)
         narration = h.get("narration", "")
         if narration:
@@ -178,7 +174,7 @@ def _convert_game_status_to_session_snapshot(
     return GameSessionSnapshot(
         game_id=game_id,
         user_id=user_id,
-        turn=game_status.get("turn", 0),
+        turn=game_session.get("turn", 0),
         player=player,
         npcs=npcs,
         combat=combat,
@@ -186,11 +182,13 @@ def _convert_game_status_to_session_snapshot(
     )
 
 
-def _convert_session_snapshot_to_game_status(
+def _convert_session_snapshot_to_game_session(
     session: GameSessionSnapshot,
+    owner_ref_info: Optional[Dict[str, Any]] = None,
+    world_snapshot: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
-    GameSessionSnapshot을 game_status 딕셔너리로 변환
+    GameSessionSnapshot을 game_session 딕셔너리로 변환
     """
     return {
         "game_id": session.game_id,
@@ -263,153 +261,17 @@ def _convert_session_snapshot_to_game_status(
             }
             for log in session.turn_logs
         ],
-        "world_snapshot": {},  # 별도로 관리
+        "world_snapshot": world_snapshot or {},  # 별도로 관리
     }
+    
+    # owner_ref_info가 제공되면 추가
+    if owner_ref_info:
+        result["owner_ref_info"] = owner_ref_info
+    
+    return result
 
 
-@router.get("/{game_id}/session", summary="게임 세션 조회")
-async def get_game_session(
-    game_id: int,
-    request: Request,
-    db: Database = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
-):
-    """
-    게임 세션 조회 또는 초기화
-    """
-    # 사용자 ID 추출
-    user_id = None
-    if current_user:
-        user_id = current_user.get("sub") or current_user.get("google_id") or current_user.get("email")
-    
-    # 기존 세션 조회
-    game_status = get_game_status(db, game_id)
-    
-    if game_status:
-        # 기존 세션을 스냅샷으로 변환
-        session = _convert_game_status_to_session_snapshot(game_status, game_id, user_id)
-    else:
-        # 게임 메타 정보 조회
-        game_doc = db.games.find_one({"id": game_id})
-        if not game_doc:
-            raise HTTPException(status_code=404, detail="Game not found")
-        
-        # 초기 세션 생성
-        rules = game_doc.get("rules", {})
-        attributes_config = rules.get("attributes", {})
-        
-        # 플레이어 초기 스탯
-        hp_max = attributes_config.get("hp", {}).get("max", 100) if isinstance(attributes_config.get("hp"), dict) else 100
-        mp_max = attributes_config.get("mp", {}).get("max", 0) if isinstance(attributes_config.get("mp"), dict) else 0
-        
-        player = CharacterState(
-            id=0,
-            name="플레이어",
-            hp=hp_max,
-            hp_max=hp_max,
-            mp=mp_max,
-            mp_max=mp_max,
-            gold=0,
-        )
-        
-        # NPC 초기화
-        npcs = []
-        for char in game_doc.get("characters", []):
-            snapshot = char.get("snapshot", {})
-            attrs_base = snapshot.get("attributes_base", {})
-            hp_max_npc = attrs_base.get("hp", {}).get("max", 100) if isinstance(attrs_base.get("hp"), dict) else 100
-            mp_max_npc = attrs_base.get("mp", {}).get("max", 0) if isinstance(attrs_base.get("mp"), dict) else 0
-            
-            npcs.append(CharacterState(
-                id=snapshot.get("id", 0),
-                name=snapshot.get("name", "Unknown"),
-                image_url=snapshot.get("image_url"),
-                hp=hp_max_npc,
-                hp_max=hp_max_npc,
-                mp=mp_max_npc,
-                mp_max=mp_max_npc,
-                gold=0,
-            ))
-        
-        session = GameSessionSnapshot(
-            game_id=game_id,
-            user_id=user_id,
-            turn=0,
-            player=player,
-            npcs=npcs,
-            combat=CombatState(),
-            turn_logs=[],
-        )
-        
-        # 초기 세션 저장
-        game_status = _convert_session_snapshot_to_game_status(session)
-        game_status["world_snapshot"] = game_doc.get("world_snapshot", {})
-        
-        # 초기 세션에도 characters_info 포함 (game_doc.characters에서)
-        # 저장 전에 추가해야 함
-        if "characters" in game_doc:
-            game_status["characters_info"] = [
-                {
-                    "char_ref_id": char.get("char_ref_id", 0),
-                    "snapshot": char.get("snapshot", {}),
-                }
-                for char in game_doc["characters"]
-            ]
-        
-        save_game_status(db, game_status)
-    
-    # 게임 메타 정보도 함께 반환
-    game_doc = db.games.find_one({"id": game_id})
-    if not game_doc:
-        raise HTTPException(status_code=404, detail="Game not found")
-    
-    from apps.api.models.games import GameResponse
-    from apps.api.routes.games import enrich_game_asset_urls
-    
-    game = GameResponse(**game_doc)
-    game = enrich_game_asset_urls(game)
-    
-    # characters_info 생성 (프론트엔드에서 이미지 매핑을 위해 필요)
-    # game_status에서 characters_info를 가져오거나, session.npcs에서 생성
-    characters_info = []
-    if game_status and "characters_info" in game_status:
-        # 기존 game_status에서 characters_info 사용
-        for char_info in game_status["characters_info"]:
-            char_ref_id = char_info.get("char_ref_id")
-            snapshot = char_info.get("snapshot", {})
-            if char_ref_id and snapshot:
-                characters_info.append({
-                    "char_ref_id": char_ref_id,
-                    "snapshot": {
-                        "id": snapshot.get("id") or char_ref_id,
-                        "name": snapshot.get("name", "Unknown"),
-                        "image_url": snapshot.get("image_url"),
-                        "attributes": snapshot.get("attributes", {}),
-                    }
-                })
-    else:
-        # session.npcs에서 생성 (fallback)
-        for npc in session.npcs:
-            characters_info.append({
-                "char_ref_id": npc.id,
-                "snapshot": {
-                    "id": npc.id,
-                    "name": npc.name,
-                    "image_url": npc.image_url,
-                    "attributes": npc.attributes,
-                }
-            })
-    
-    # 턴 로그의 speaker_id가 char_ref_id와 일치하도록 확인
-    # (이미 변환 과정에서 처리됨)
-    
-    session_dict = session.model_dump()
-    session_dict["characters_info"] = characters_info
-    
-    return {
-        "game": game.model_dump(),
-        "session": session_dict,
-    }
+# NOTE: 게임 세션 조회는 /v1/games/{game_id}/session 엔드포인트를 사용하세요.
 
 
 @router.post("/{game_id}/turn", response_model=GameTurnResponse, summary="게임 턴 진행")
@@ -425,70 +287,34 @@ async def play_turn(
     세션 스냅샷 기반으로 동작합니다.
     """
     try:
-        # 사용자 ID 추출
-        user_id = None
-        if current_user:
-            user_id = current_user.get("sub") or current_user.get("google_id") or current_user.get("email")
+        # 로그인 체크
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
         
-        # 1) 세션 조회 또는 생성
-        game_status = get_game_status(db, game_id)
-        if not game_status:
+        user_id = current_user.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="유저 정보를 찾을 수 없습니다.")
+        
+        # 1) 현재 유저의 game_session 조회
+        game_session = db.game_session.find_one({
+            "game_id": game_id,
+            "owner_ref_info.user_ref_id": user_id,
+        })
+        
+        if not game_session:
             # 게임 메타 정보 조회
             game_doc = db.games.find_one({"id": game_id})
             if not game_doc:
                 raise HTTPException(status_code=404, detail="Game not found")
             
-            # 초기 세션 생성 (get_game_session과 동일한 로직)
-            rules = game_doc.get("rules", {})
-            attributes_config = rules.get("attributes", {})
-            hp_max = attributes_config.get("hp", {}).get("max", 100) if isinstance(attributes_config.get("hp"), dict) else 100
-            mp_max = attributes_config.get("mp", {}).get("max", 0) if isinstance(attributes_config.get("mp"), dict) else 0
-            
-            player = CharacterState(
-                id=0,
-                name="플레이어",
-                hp=hp_max,
-                hp_max=hp_max,
-                mp=mp_max,
-                mp_max=mp_max,
-                gold=0,
+            # /games/{game_id}/session API를 통해 세션을 생성해야 함
+            raise HTTPException(
+                status_code=404,
+                detail="게임 세션이 없습니다. 먼저 /v1/games/{game_id}/session을 호출하여 세션을 생성하세요.",
             )
-            
-            npcs = []
-            for char in game_doc.get("characters", []):
-                snapshot = char.get("snapshot", {})
-                attrs_base = snapshot.get("attributes_base", {})
-                hp_max_npc = attrs_base.get("hp", {}).get("max", 100) if isinstance(attrs_base.get("hp"), dict) else 100
-                mp_max_npc = attrs_base.get("mp", {}).get("max", 0) if isinstance(attrs_base.get("mp"), dict) else 0
-                
-                npcs.append(CharacterState(
-                    id=snapshot.get("id", 0),
-                    name=snapshot.get("name", "Unknown"),
-                    image_url=snapshot.get("image_url"),
-                    hp=hp_max_npc,
-                    hp_max=hp_max_npc,
-                    mp=mp_max_npc,
-                    mp_max=mp_max_npc,
-                    gold=0,
-                ))
-            
-            session = GameSessionSnapshot(
-                game_id=game_id,
-                user_id=user_id,
-                turn=0,
-                player=player,
-                npcs=npcs,
-                combat=CombatState(),
-                turn_logs=[],
-            )
-            
-            # 초기 세션 저장
-            game_status = _convert_session_snapshot_to_game_status(session)
-            game_status["world_snapshot"] = game_doc.get("world_snapshot", {})
-            save_game_status(db, game_status)
-        else:
-            # 기존 세션을 스냅샷으로 변환
-            session = _convert_game_status_to_session_snapshot(game_status, game_id, user_id)
+        
+        # 기존 세션을 스냅샷으로 변환
+        session = _convert_game_session_to_session_snapshot(game_session, game_id, user_id)
         
         # 2) 게임 메타 정보 조회
         game_doc = db.games.find_one({"id": game_id})
@@ -515,8 +341,14 @@ async def play_turn(
         }
         
         # 4) LLM 프롬프트 구성 (기존 함수 사용하되 세션 상태 포함)
+        # game_status 형태로 변환하여 호환성 유지
+        temp_game_status = _convert_session_snapshot_to_game_session(
+            session,
+            owner_ref_info=game_session.get("owner_ref_info"),
+            world_snapshot=world_snapshot,
+        )
         user_prompt = build_trpg_user_prompt(
-            game_status=game_status,
+            game_status=temp_game_status,
             user_message=payload.user_message,
             world_snapshot=world_snapshot,
         )
@@ -656,17 +488,28 @@ async def play_turn(
                     for m in monsters_data
                 ]
         
-        # 8) 세션 저장
-        game_status = _convert_session_snapshot_to_game_status(session)
-        game_status["world_snapshot"] = world_snapshot
-        save_game_status(db, game_status)
+        # 8) 세션 저장 (game_session 컬렉션에 업데이트)
+        updated_session = _convert_session_snapshot_to_game_session(
+            session,
+            owner_ref_info=game_session.get("owner_ref_info"),
+            world_snapshot=world_snapshot,
+        )
+        
+        # game_session 업데이트
+        db.game_session.update_one(
+            {
+                "game_id": game_id,
+                "owner_ref_info.user_ref_id": user_id,
+            },
+            {"$set": updated_session},
+        )
         
         # 9) 응답 반환 (세션 포함하여 중복 방지)
         # characters_info 생성 (프론트엔드에서 이미지 매핑을 위해 필요)
         characters_info = []
-        if game_status and "characters_info" in game_status:
-            # game_status에서 characters_info 사용
-            for char_info in game_status["characters_info"]:
+        if updated_session and "characters_info" in updated_session:
+            # game_session에서 characters_info 사용
+            for char_info in updated_session["characters_info"]:
                 char_ref_id = char_info.get("char_ref_id")
                 snapshot = char_info.get("snapshot", {})
                 if char_ref_id and snapshot:
