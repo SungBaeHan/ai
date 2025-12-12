@@ -307,10 +307,10 @@ async def play_turn(
             if not game_doc:
                 raise HTTPException(status_code=404, detail="Game not found")
             
-            # /games/{game_id}/session API를 통해 세션을 생성해야 함
+            # 세션이 없으면 401 반환 (유효한 세션이 아님)
             raise HTTPException(
-                status_code=404,
-                detail="게임 세션이 없습니다. 먼저 /v1/games/{game_id}/session을 호출하여 세션을 생성하세요.",
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="유효한 세션이 아닙니다.",
             )
         
         # 기존 세션을 스냅샷으로 변환

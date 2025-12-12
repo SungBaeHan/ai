@@ -44,12 +44,21 @@ async function callTurnApi(message) {
   }
   
   try {
+    // user_info_v2 토큰을 헤더에 추가
+    const userInfoV2 = localStorage.getItem('user_info_v2');
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    
+    if (userInfoV2) {
+      headers['X-User-Info-Token'] = userInfoV2;
+    }
+    
     const res = await fetch(`${API_BASE_URL}/v1/games/${gameId}/turn`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
+      credentials: 'include',  // 세션 쿠키를 함께 보냄
+      headers: headers,
       body: JSON.stringify({ user_message: message }),
     });
     
