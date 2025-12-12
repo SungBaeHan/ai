@@ -41,5 +41,18 @@ def init_mongo_indexes() -> Optional[dict]:
         import logging
         logging.warning(f"Failed to create games indexes: {e}")
     
+    # game_session 컬렉션 인덱스
+    try:
+        game_session_col = db.game_session
+        # game_id와 owner_ref_info.user_ref_id 복합 인덱스
+        game_session_col.create_index(
+            [("game_id", 1), ("owner_ref_info.user_ref_id", 1)],
+            name="game_session_idx_game_user"
+        )
+    except Exception as e:
+        # 인덱스 생성 실패는 로그만 남기고 계속 진행
+        import logging
+        logging.warning(f"Failed to create game_session indexes: {e}")
+    
     return {"ok": True, "created": True}
 

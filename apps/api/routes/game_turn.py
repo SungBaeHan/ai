@@ -1,6 +1,9 @@
 # apps/api/routes/game_turn.py
 """
 게임 턴 처리 API
+
+⚠️ NOTE: 이 파일은 아직 game_status 컬렉션을 사용하고 있습니다.
+향후 game_session 컬렉션 기반으로 리팩토링이 필요합니다.
 """
 
 import json

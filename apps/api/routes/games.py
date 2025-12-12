@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Q
 from adapters.persistence.mongo import get_db
 from adapters.file_storage.r2_storage import R2Storage
 from apps.api.routes.worlds import get_current_user_v2
+from apps.api.deps.user_snapshot import build_owner_ref_info
 from apps.api.utils import build_public_image_url, build_public_image_url_from_path
 from apps.core.utils.assets import normalize_asset_path
 from apps.api.models.games import (
@@ -462,6 +463,82 @@ async def get_game(
     # 이미지 URL을 R2 public URL로 변환
     game = enrich_game_asset_urls(game)
     return game
+
+@router.get("/{game_id}/session", summary="게임 세션 조회/생성")
+async def get_or_create_game_session(
+    game_id: int,
+    current_user = Depends(get_current_user_v2),
+    db: Database = Depends(get_db),
+):
+    """
+    현재 유저 기준으로 game_session을 조회하거나, 없으면 새로 생성해서 반환한다.
+    
+    - 로그인 필수
+    - 기존 세션이 있으면 반환
+    - 없으면 게임 메타를 기반으로 새 세션 생성
+    """
+    # 로그인 체크
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    
+    # 1) 기존 세션 조회
+    session = db.game_session.find_one({
+        "game_id": game_id,
+        "owner_ref_info.user_ref_id": current_user.get("user_id"),
+    })
+    
+    if session:
+        # _id를 문자열로 변환하여 반환
+        if "_id" in session:
+            session["_id"] = str(session["_id"])
+        return session
+    
+    # 2) 게임 메타 조회
+    game = db.games.find_one({"id": game_id})
+    if not game:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="게임을 찾을 수 없습니다.",
+        )
+    
+    # 3) owner_ref_info 스냅샷 생성
+    owner_ref_info = build_owner_ref_info(current_user)
+    
+    # 4) 새로운 세션 도큐먼트 구성
+    new_session = {
+        "game_id": game_id,
+        "owner_ref_info": owner_ref_info,
+        "persona_ref_id": None,  # 페르조나 기능 확장용, 지금은 None
+        
+        "characters_info": [],   # 이후 캐릭터 선택 화면에서 채울 예정이면 일단 빈 배열
+        "combat": {
+            "in_combat": False,
+            "monsters": [],
+            "phase": "none",
+        },
+        "story_history": [],
+        "turn": 0,
+        
+        "user_info": {
+            "attributes": {
+                "hp": {"current": 100, "max": 100, "base": 100},
+                "mp": {"current": 80, "max": 80, "base": 80},
+            },
+            "items": {
+                "gold": 0,
+                "inventory": [],
+            },
+        },
+        
+        # games 컬렉션의 world_snapshot을 그대로 스냅샷으로 저장
+        "world_snapshot": game.get("world_snapshot"),
+    }
+    
+    result = db.game_session.insert_one(new_session)
+    new_session["_id"] = str(result.inserted_id)
+    
+    return new_session
+
 
 @router.get("/health")
 async def games_health_check():

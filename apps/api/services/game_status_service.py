@@ -1,6 +1,10 @@
 # apps/api/services/game_status_service.py
 """
 게임 상태 관리 서비스
+
+⚠️ DEPRECATED: 이 서비스는 더 이상 사용하지 않습니다.
+새로운 코드는 game_session 컬렉션을 사용해야 합니다.
+기존 코드와의 호환성을 위해 유지되지만, 새로운 기능은 game_session을 사용하세요.
 """
 
 from typing import Optional, Dict, Any
@@ -10,7 +14,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "game_status"
+COLLECTION_NAME = "game_status"  # DEPRECATED: game_session 사용 권장
 
 
 def get_game_status(db: Database, game_id: int) -> Optional[Dict[str, Any]]:
