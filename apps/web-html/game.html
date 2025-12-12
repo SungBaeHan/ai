@@ -1053,6 +1053,32 @@
       return { avatarUrl, name };
     }
 
+    // 중복 메시지 필터링 함수
+    function dedupeMessages(messages) {
+      const seen = new Map();
+      
+      const normalize = (t) => {
+        if (!t || typeof t !== 'string') return '';
+        return t.replace(/[.!\s]+$/g, "");  // 끝의 . ! 공백 제거
+      };
+      
+      return messages.filter(msg => {
+        // turn, speaker_type, speaker_id, text로 고유 키 생성
+        const turn = msg.turn || 0;
+        const speakerType = msg.speaker_type || '';
+        const speakerId = msg.speaker_id || '';
+        const normalizedText = normalize(msg.text || '');
+        const key = `${turn}-${speakerType}-${speakerId}-${normalizedText}`;
+        
+        if (seen.has(key)) {
+          console.log("[DEBUG] Dedupe: skipping duplicate message", key);
+          return false;
+        }
+        seen.set(key, true);
+        return true;
+      });
+    }
+
     // 세션 기반 채팅 로그 렌더링 (오직 session.turn_logs만 사용)
     function renderChatLogsFromSession(session) {
       if (!session) {
@@ -1083,8 +1109,10 @@
       const characterMaps = buildCharacterMaps(session);
       
       // 세션의 turn_logs를 렌더링 (오직 session.turn_logs만 사용)
-      const logs = session.turn_logs || [];
-      console.log("[DEBUG] turn_logs length", logs.length);
+      // 중복 메시지 필터링 적용
+      const rawLogs = session.turn_logs || [];
+      const logs = dedupeMessages(rawLogs);
+      console.log("[DEBUG] turn_logs length", rawLogs.length, "-> deduped", logs.length);
       
       logs.forEach((log) => {
         if (log.speaker_type === 'narration') {
