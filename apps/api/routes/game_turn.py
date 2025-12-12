@@ -31,7 +31,7 @@ from apps.llm.prompts.trpg_game_master import (
     SYSTEM_PROMPT_TRPG,
     build_trpg_user_prompt,
 )
-from apps.api.routes.worlds import get_current_user_v2
+from apps.api.routes.auth import get_current_user_dependency
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -280,7 +280,7 @@ async def play_turn(
     payload: GameTurnRequest,
     request: Request,
     db: Database = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_dependency),
 ):
     """
     게임 턴을 진행하고 LLM 응답을 받아 상태를 업데이트합니다.

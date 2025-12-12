@@ -44,15 +44,16 @@ async function callTurnApi(message) {
   }
   
   try {
-    // user_info_v2 토큰을 헤더에 추가
-    const userInfoV2 = localStorage.getItem('user_info_v2');
+    // access_token을 Authorization 헤더에 추가
+    const token = localStorage.getItem('access_token');
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
     
-    if (userInfoV2) {
-      headers['X-User-Info-Token'] = userInfoV2;
+    // JWT 기반 인증 사용
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
     
     const res = await fetch(`${API_BASE_URL}/v1/games/${gameId}/turn`, {

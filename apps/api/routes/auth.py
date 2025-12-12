@@ -99,13 +99,13 @@ def decode_jwt_token(token: str) -> Optional[dict]:
         return None
 
 
-@router.get("/me")
-async def get_current_user(req: Request):
+def get_current_user_dependency(request: Request):
     """
-    현재 로그인한 사용자 정보 조회
+    FastAPI 의존성 함수: Authorization 헤더에서 JWT 토큰을 읽어서 사용자 정보를 반환.
+    MongoDB users 컬렉션에서 user_id를 조회하여 반환.
     """
     # Authorization 헤더에서 토큰 추출
-    auth_header = req.headers.get("Authorization")
+    auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
     
@@ -115,11 +115,42 @@ async def get_current_user(req: Request):
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     
+    # JWT의 sub (Google user ID)로 MongoDB에서 user 조회
+    db = get_mongo_client()
+    users = db.users
+    
+    google_id = payload.get('sub')
+    if not google_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+    
+    # google_id 또는 email로 user 조회
+    user = users.find_one({
+        "$or": [
+            {"google_id": google_id},
+            {"email": payload.get('email')}
+        ]
+    })
+    
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    
     return {
-        'sub': payload.get('sub'),
-        'email': payload.get('email'),
-        'name': payload.get('name')
+        'user_id': str(user['_id']),  # MongoDB ObjectId를 문자열로 변환
+        'sub': google_id,
+        'email': user.get('email', payload.get('email')),
+        'name': user.get('display_name', payload.get('name')),
+        'member_level': user.get('member_level', 1),
+        'is_use': user.get('is_use', 'Y') == 'Y',
+        'is_lock': user.get('is_lock', 'N') == 'Y',
     }
+
+
+@router.get("/me")
+async def get_current_user(req: Request):
+    """
+    현재 로그인한 사용자 정보 조회
+    """
+    return get_current_user_dependency(req)
 
 
 @router.post("/logout")

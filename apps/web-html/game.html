@@ -626,14 +626,9 @@
         'Accept': 'application/json',
       };
       
-      // 로그인 토큰이 있으면 헤더에 추가
+      // JWT 기반 인증 사용 (Authorization 헤더)
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      // user_info_v2 토큰을 헤더에 추가 (get_current_user_v2가 사용)
-      if (userInfoV2) {
-        headers['X-User-Info-Token'] = userInfoV2;
       }
       
       // 게임 페이지면 /v1/games/{id}/turn, 아니면 /v1/chat/
