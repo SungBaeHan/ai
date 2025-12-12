@@ -488,10 +488,41 @@ async def get_or_create_game_session(
     })
     
     if session:
-        # _id를 문자열로 변환하여 반환
+        # _id를 문자열로 변환
         if "_id" in session:
             session["_id"] = str(session["_id"])
-        return session
+        
+        # story_history를 turn_logs로 변환 (프론트엔드 호환성)
+        # 순환 import 방지를 위해 함수 내부에서 import
+        from apps.api.routes.game_turn import _convert_game_session_to_session_snapshot
+        try:
+            session_snapshot = _convert_game_session_to_session_snapshot(
+                session,
+                game_id,
+                current_user.get("user_id"),
+            )
+            
+            # 프론트엔드가 기대하는 형식으로 변환
+            result = {
+                "game_id": session.get("game_id"),
+                "owner_ref_info": session.get("owner_ref_info"),
+                "persona_ref_id": session.get("persona_ref_id"),
+                "characters_info": session.get("characters_info", []),
+                "combat": session.get("combat", {}),
+                "story_history": session.get("story_history", []),
+                "turn": session.get("turn", 0),
+                "user_info": session.get("user_info", {}),
+                "world_snapshot": session.get("world_snapshot", {}),
+                # 프론트엔드가 기대하는 필드 추가
+                "turn_logs": [log.model_dump() for log in session_snapshot.turn_logs],
+                "player": session_snapshot.player.model_dump(),
+                "npcs": [npc.model_dump() for npc in session_snapshot.npcs],
+            }
+            return result
+        except Exception as e:
+            logger.error(f"Failed to convert session to snapshot: {e}")
+            # 변환 실패 시 기본 구조만 반환
+            return session
     
     # 2) 게임 메타 조회
     game = db.games.find_one({"id": game_id})
@@ -537,7 +568,46 @@ async def get_or_create_game_session(
     result = db.game_session.insert_one(new_session)
     new_session["_id"] = str(result.inserted_id)
     
-    return new_session
+    # 프론트엔드가 기대하는 형식으로 변환 (turn_logs 추가)
+    # 순환 import 방지를 위해 함수 내부에서 import
+    from apps.api.routes.game_turn import _convert_game_session_to_session_snapshot
+    try:
+        session_snapshot = _convert_game_session_to_session_snapshot(
+            new_session,
+            game_id,
+            current_user.get("user_id"),
+        )
+        
+        return {
+            "game_id": new_session.get("game_id"),
+            "owner_ref_info": new_session.get("owner_ref_info"),
+            "persona_ref_id": new_session.get("persona_ref_id"),
+            "characters_info": new_session.get("characters_info", []),
+            "combat": new_session.get("combat", {}),
+            "story_history": new_session.get("story_history", []),
+            "turn": new_session.get("turn", 0),
+            "user_info": new_session.get("user_info", {}),
+            "world_snapshot": new_session.get("world_snapshot", {}),
+            # 프론트엔드가 기대하는 필드 추가
+            "turn_logs": [log.model_dump() for log in session_snapshot.turn_logs],
+            "player": session_snapshot.player.model_dump(),
+            "npcs": [npc.model_dump() for npc in session_snapshot.npcs],
+        }
+    except Exception as e:
+        logger.error(f"Failed to convert new session to snapshot: {e}")
+        # 변환 실패 시 기본 구조만 반환 (turn_logs는 빈 배열)
+        new_session["turn_logs"] = []
+        new_session["player"] = {
+            "id": 0,
+            "name": "플레이어",
+            "hp": 100,
+            "hp_max": 100,
+            "mp": 80,
+            "mp_max": 80,
+            "gold": 0,
+        }
+        new_session["npcs"] = []
+        return new_session
 
 
 @router.get("/health")

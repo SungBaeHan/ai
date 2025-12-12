@@ -707,9 +707,9 @@
           // 폴백: 세션을 다시 로드 (하지만 중복 방지를 위해 한 번만)
           console.warn('[askLLM] j.session not found, loading from API');
           const sessionData = await loadSession(GAME_ID);
-          if (sessionData && sessionData.session) {
+          if (sessionData) {
             const prevLength = currentSession?.turn_logs?.length || 0;
-            currentSession = sessionData.session;
+            currentSession = sessionData;
             const newLength = currentSession.turn_logs.length;
             console.log("[DEBUG] Loaded session from API, turn_logs length:", prevLength, "->", newLength);
             renderHudFromSession(currentSession);
@@ -750,10 +750,18 @@
     // 세션 로딩
     async function loadSession(gameId) {
       try {
+        const userInfoV2 = localStorage.getItem(USER_INFO_KEY);
+        const headers = { 'Content-Type': 'application/json' };
+        
+        // user_info_v2 토큰을 헤더에 추가
+        if (userInfoV2) {
+          headers['X-User-Info-Token'] = userInfoV2;
+        }
+        
         const res = await fetch(`${API_BASE_URL}/v1/games/${gameId}/session`, {
           method: 'GET',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: headers,
         });
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
@@ -1039,8 +1047,9 @@
       
       // 세션 로딩 (초기 로드만 - gameId만 의존성, session/turn_logs는 의존성에 넣지 않음)
       const sessionData = await loadSession(norm);
-      if (sessionData && sessionData.session) {
-        currentSession = sessionData.session;
+      if (sessionData) {
+        // 백엔드가 세션 객체를 직접 반환하므로 그대로 사용
+        currentSession = sessionData;
         console.log("[DEBUG] Initial session load, turn_logs length:", currentSession.turn_logs.length);
         
         // HUD 렌더링

@@ -2,8 +2,8 @@
 """
 게임 턴 처리 API
 
-⚠️ NOTE: 이 파일은 아직 game_status 컬렉션을 사용하고 있습니다.
-향후 game_session 컬렉션 기반으로 리팩토링이 필요합니다.
+game_session 컬렉션 기반으로 동작합니다.
+각 사용자는 owner_ref_info.user_ref_id로 구분된 자신의 세션만 조회/수정합니다.
 """
 
 import json
@@ -341,14 +341,14 @@ async def play_turn(
         }
         
         # 4) LLM 프롬프트 구성 (기존 함수 사용하되 세션 상태 포함)
-        # game_status 형태로 변환하여 호환성 유지
-        temp_game_status = _convert_session_snapshot_to_game_session(
+        # build_trpg_user_prompt는 game_status 형태를 기대하므로 변환
+        temp_session_dict = _convert_session_snapshot_to_game_session(
             session,
             owner_ref_info=game_session.get("owner_ref_info"),
             world_snapshot=world_snapshot,
         )
         user_prompt = build_trpg_user_prompt(
-            game_status=temp_game_status,
+            game_status=temp_session_dict,  # 함수 파라미터명은 game_status지만 실제로는 game_session 데이터
             user_message=payload.user_message,
             world_snapshot=world_snapshot,
         )
