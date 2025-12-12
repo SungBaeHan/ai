@@ -103,9 +103,15 @@
       display: flex;
       flex-direction: column;
     }
+    /* 상단 스탯 카드와 소개/채팅이 공유할 가로 폭 래퍼 */
+    .game-inner-width {
+      max-width: 960px;      /* 상단 카드 실제 폭에 맞게 조절해도 됨 */
+      width: 100%;
+      margin: 0 auto;        /* 가운데 정렬 */
+      box-sizing: border-box;
+    }
     /* HUD 와 소개는 이 컬럼 안에서 전체 폭 사용 */
-    .game-top-panel,
-    .game-intro-panel {
+    .game-top-panel {
       width: 100%;
     }
     /* 상단 히어로 영역: 높이 제한하여 압축 */
@@ -199,16 +205,23 @@
       width: 100%;  /* game-main-column 안에서 전체 폭 사용 */
     }
     /* 채팅 영역 자체는 중앙 컬럼 안에서만 동작 */
+    /* 세로 높이는 기존 구조 유지 */
     .game-chat-log {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
       margin-top: 16px;
       padding: 0 0 24px 0;
-      width: 100%;
       /* 스크롤바만 숨기기 (스크롤 기능은 유지) */
       scrollbar-width: none;  /* Firefox: 스크롤바 숨김 */
       -ms-overflow-style: none;  /* IE/Edge: 스크롤바 숨김 */
+    }
+    /* 채팅 로그 본문은 전체 폭 사용 */
+    #chat, #chat-log, #game-log-messages {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
     .game-chat-log::-webkit-scrollbar {
       display: none;  /* Chrome/Safari: 스크롤바 숨김 */
@@ -223,12 +236,6 @@
       backdrop-filter: blur(2px);
       border-top: 1px solid rgba(255, 255, 255, 0.08);
       /* position: fixed/absolute/bottom 제거 확인 - flex만 사용 */
-    }
-    /* 채팅 메시지 영역 - 부모 컨테이너 기준으로 정렬 */
-    #chat, #chat-log {
-      width: 100%;
-      margin: 0;
-      padding: 0;
     }
     /* 채팅 로그 영역 안에 자연스럽게 배치될 선택지 버튼 컨테이너 */
     /* 부모 컨테이너 기준으로 중앙 정렬 */
@@ -298,21 +305,26 @@
       margin-left: auto;             /* 왼쪽은 자동 */
       margin-right: 0;
     }
-    /* 기존 .msg 클래스 호환성 유지 */
+    /* 말풍선 공통 - 기존 .msg 클래스 호환성 유지 */
     .msg { 
       display: flex; 
       align-items: flex-start; 
       gap: 10px; 
-      margin: 14px 0; 
-      padding: 0 8px;
+      margin: 4px 0; 
+      padding: 0;
       animation: fadeInUp .35s ease; 
+      max-width: 100%;
+    }
+    /* NPC: 왼쪽 정렬 (노란 박스 왼쪽에 붙게) */
+    .msg:not(.me) {
       justify-content: flex-start;
     }
+    /* 플레이어: 오른쪽 정렬 (노란 박스 오른쪽에 붙게) */
     .msg.me { 
       flex-direction: row-reverse; 
+      margin-left: auto;           /* 자동으로 오른쪽으로 밀기 */
       justify-content: flex-end;
       align-items: flex-end;
-      padding: 0 8px;
     }
     .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
     .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
@@ -360,7 +372,7 @@
     <div class="game-main-column">
       <!-- 상단: 이미지 + 시나리오 + HUD(스탯) -->
       <section class="game-hero game-top-panel">
-        <div class="game-hero-card top-hud">
+        <div class="game-hero-card top-hud game-inner-width">
           <img id="hero" class="game-hero-image" alt="cover" src="/assets/img/placeholder.jpg" /> <!-- 히어로 이미지 -->
           <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
 
@@ -377,7 +389,7 @@
       <!-- 하단: 채팅 로그 + 입력창 -->
       <section class="game-body">
         <!-- 소개 박스 -->
-        <div id="game-intro" class="game-intro-panel">
+        <div id="game-intro" class="game-intro-panel game-inner-width">
           <div style="font-weight:700; margin-bottom:6px;">소개</div>
           <div id="game-narration" style="opacity:.9"></div> <!-- 내레이션 영역 -->
           <div class="chips">
@@ -389,7 +401,7 @@
 
         <!-- 채팅 영역 (로그 + 입력창) -->
         <div class="game-chat">
-          <section id="chat-log" class="game-chat-log">
+          <section id="chat-log" class="game-chat-log game-inner-width">
             <div id="game-log-messages">
               <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
               <div class="chat" id="chat-log-old" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
@@ -1111,23 +1123,25 @@
 
     // 초기화
     // .top-hud(.game-hero-card) width 동기화 함수
-    function syncHudWidth() {
-      const topHud = document.querySelector('.top-hud') || document.querySelector('.game-hero-card');
-      if (topHud) {
-        const hudWidth = topHud.clientWidth;
-        document.documentElement.style.setProperty('--hud-width', hudWidth + 'px');
-        console.log('[HUD Width] Synced to:', hudWidth + 'px');
-      }
-    }
+    // 주의: CSS game-inner-width로 고정 폭을 사용하므로 동적 width 설정은 제거
+    // function syncHudWidth() {
+    //   const topHud = document.querySelector('.top-hud') || document.querySelector('.game-hero-card');
+    //   if (topHud) {
+    //     const hudWidth = topHud.clientWidth;
+    //     document.documentElement.style.setProperty('--hud-width', hudWidth + 'px');
+    //     console.log('[HUD Width] Synced to:', hudWidth + 'px');
+    //   }
+    // }
 
     // 페이지 로드 시 및 리사이즈 시 HUD 폭 동기화
-    window.addEventListener('resize', () => {
-      syncHudWidth();
-    });
+    // CSS game-inner-width로 고정 폭을 사용하므로 제거
+    // window.addEventListener('resize', () => {
+    //   syncHudWidth();
+    // });
 
     document.addEventListener('DOMContentLoaded', async ()=>{
-      // HUD 폭 동기화 (초기 로드 시)
-      syncHudWidth();
+      // HUD 폭 동기화 제거 - CSS game-inner-width로 고정 폭 사용
+      // syncHudWidth();
       console.log("[DEBUG] Rendering game chat template - apps/web-html/game.html");
       
       // 뒤로가기
@@ -1145,10 +1159,10 @@
       CURRENT_GAME = game;
       paintGame(game);
       
-      // 이미지 로드 후 HUD 폭 재동기화 (약간의 지연 후)
-      setTimeout(() => {
-        syncHudWidth();
-      }, 100);
+      // 이미지 로드 후 HUD 폭 재동기화 제거 - CSS game-inner-width로 고정 폭 사용
+      // setTimeout(() => {
+      //   syncHudWidth();
+      // }, 100);
       
       // 세션 로딩 (초기 로드만 - gameId만 의존성, session/turn_logs는 의존성에 넣지 않음)
       const sessionData = await loadSession(norm);
