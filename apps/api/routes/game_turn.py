@@ -10,7 +10,7 @@ import json
 import logging
 from json import JSONDecodeError
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pymongo.database import Database
 from adapters.persistence.mongo import get_db
 from adapters.external.llm_client import get_default_llm_client
@@ -32,6 +32,10 @@ from apps.llm.prompts.trpg_game_master import (
     build_trpg_user_prompt,
 )
 from apps.api.routes.auth import get_current_user_dependency
+from apps.api.services.game_events import (
+    maybe_trigger_random_event,
+    apply_event_to_session,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -313,16 +317,28 @@ async def play_turn(
                 detail="유효한 세션이 아닙니다.",
             )
         
-        # 기존 세션을 스냅샷으로 변환
-        session = _convert_game_session_to_session_snapshot(game_session, game_id, user_id)
-        
         # 2) 게임 메타 정보 조회
         game_doc = db.games.find_one({"id": game_id})
         if not game_doc:
             raise HTTPException(status_code=404, detail="Game not found")
         world_snapshot = game_doc.get("world_snapshot", {})
         
-        # 3) LLM 엔진 입력 구성 (세션 상태 포함)
+        # 3) 플레이어 메시지를 세션에 추가 (먼저 추가)
+        # game_session dict에 직접 추가
+        story_history = game_session.setdefault("story_history", [])
+        current_turn = int(game_session.get("turn", 0))
+        
+        # 4) 랜덤 이벤트 판정 & 적용 (매 턴 주사위 굴리는 지점)
+        event_result = maybe_trigger_random_event(game_session, game_doc)
+        if event_result is not None:
+            apply_event_to_session(game_session, event_result)
+            # 이벤트 적용 후 턴이 증가했을 수 있으므로 다시 가져옴
+            current_turn = int(game_session.get("turn", 0))
+        
+        # 기존 세션을 스냅샷으로 변환 (이벤트 적용 후)
+        session = _convert_game_session_to_session_snapshot(game_session, game_id, user_id)
+        
+        # 5) LLM 엔진 입력 구성 (세션 상태 포함)
         engine_input = {
             "world": world_snapshot,
             "game_meta": {
@@ -338,9 +354,10 @@ async def play_turn(
             },
             "history": [log.model_dump() for log in session.turn_logs[-20:]],  # 최근 20턴
             "user_input": payload.user_message,
+            "event": event_result,  # 랜덤 이벤트 정보 전달
         }
         
-        # 4) LLM 프롬프트 구성 (기존 함수 사용하되 세션 상태 포함)
+        # 6) LLM 프롬프트 구성 (기존 함수 사용하되 세션 상태 포함)
         # build_trpg_user_prompt는 game_status 형태를 기대하므로 변환
         temp_session_dict = _convert_session_snapshot_to_game_session(
             session,
@@ -372,7 +389,16 @@ async def play_turn(
         
         user_prompt = session_state_text + "\n" + user_prompt
         
-        # 5) LLM 호출
+        # 이벤트 정보를 프롬프트에 추가
+        if event_result:
+            event_text = f"\n[랜덤 이벤트 발생]\n"
+            event_text += f"종류: {event_result.get('kind', 'unknown')}\n"
+            if event_result.get('kind') == 'combat':
+                event_text += f"적 타입: {event_result.get('enemy_type', 'unknown')}\n"
+                event_text += f"적들: {', '.join([e.get('name', 'Unknown') for e in event_result.get('enemies', [])])}\n"
+            user_prompt = event_text + "\n" + user_prompt
+        
+        # 7) LLM 호출
         llm_client = get_default_llm_client()
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT_TRPG},
@@ -390,7 +416,7 @@ async def play_turn(
             logger.exception(f"LLM call failed: {e}")
             raise HTTPException(status_code=500, detail=f"LLM 호출 실패: {str(e)}")
         
-        # 6) JSON 파싱
+        # 8) JSON 파싱
         raw_text = raw_response
         
         # 1차: 그대로 파싱 시도
@@ -409,8 +435,9 @@ async def play_turn(
                 llm_data = build_fallback_llm_response(raw_text)
         
         # 7) 세션 업데이트
-        # 턴 증가
-        session.turn += 1
+        # 턴 증가 (이벤트로 이미 증가했을 수 있으므로 확인)
+        if event_result is None:
+            session.turn += 1
         
         # 새로운 턴 로그 추가
         new_turns = []

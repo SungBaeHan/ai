@@ -403,7 +403,7 @@
 
         <!-- 소개 박스 -->
         <div id="game-intro" class="game-intro-panel game-inner-width">
-          <div style="font-weight:700; margin-bottom:6px;">소개</div>
+          <div id="game-intro-title" style="font-weight:700; margin-bottom:6px;">소개</div>
           <div id="game-narration" style="opacity:.9"></div> <!-- 내레이션 영역 -->
           <div class="chips">
             <span class="chip">TRPG</span>
@@ -786,6 +786,11 @@
       const j = await r.json();
         console.log('[askLLM] Response JSON:', j);
       
+      // 턴 수가 응답으로 오면 제목 갱신
+      if (j && j.turn !== undefined) {
+        updateScenarioTitle(j.turn);
+      }
+      
       // 게임 턴 API 응답 형식 처리
       if (isGamePage && GAME_ID) {
         // === TRPG 게임 모드 응답 처리 ===
@@ -860,6 +865,20 @@
     let currentSession = null;
 
     // 세션 로딩
+    // 턴 수 표시 업데이트 함수
+    const scenarioTitleEl = document.querySelector('#game-intro-title');
+    
+    function updateScenarioTitle(turn) {
+      if (!scenarioTitleEl) return;
+      
+      const t = Number(turn || 0);
+      if (!t || t <= 0) {
+        scenarioTitleEl.textContent = '소개';
+      } else {
+        scenarioTitleEl.textContent = `소개 - [${t}턴]`;
+      }
+    }
+
     async function loadSession(gameId) {
       try {
         const userInfoV2 = localStorage.getItem(USER_INFO_KEY);
@@ -879,6 +898,12 @@
           throw new Error(`HTTP ${res.status}`);
         }
         const data = await res.json();
+        
+        // 턴 수가 응답으로 오면 제목 갱신
+        if (data && data.turn !== undefined) {
+          updateScenarioTitle(data.turn);
+        }
+        
         return data;
       } catch (error) {
         console.error('[loadSession] Error:', error);
@@ -1184,6 +1209,10 @@
       // 세션 로딩 (초기 로드만 - gameId만 의존성, session/turn_logs는 의존성에 넣지 않음)
       const sessionData = await loadSession(norm);
       if (sessionData) {
+        // 최초 세션 로드 시 턴 수 표시
+        if (sessionData.turn !== undefined) {
+          updateScenarioTitle(sessionData.turn);
+        }
         // 백엔드가 세션 객체를 직접 반환하므로 그대로 사용
         currentSession = sessionData;
         console.log("[DEBUG] Initial session load, turn_logs length:", currentSession.turn_logs.length);
