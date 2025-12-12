@@ -65,6 +65,7 @@ class GameTurnResponse(BaseModel):
     characters_info: list
     session: Optional[Dict[str, Any]] = None  # 세션 전체 (중복 방지)
     new_turns: Optional[List[Dict[str, Any]]] = None  # 새 턴 로그 (호환성)
+    debug_event: Optional[Dict[str, Any]] = None  # 디버그용 (옵션)
 
 
 # ========================================

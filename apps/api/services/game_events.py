@@ -1,6 +1,6 @@
 # apps/api/services/game_events.py
 import random
-from typing import Optional, Literal, Dict, Any, List
+from typing import Optional, Literal, Dict, Any, List, Tuple
 
 AreaType = Literal["town", "field", "dungeon"]
 EnemyType = Literal["bandits", "monsters", "soldiers"]
@@ -17,10 +17,12 @@ def get_area_type(session: dict) -> AreaType:
 def maybe_trigger_random_event(
     session: dict,
     game_meta: dict,
-) -> Optional[Dict[str, Any]]:
+    debug: bool = False,
+) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
     """
     매 턴마다 호출해서 랜덤 이벤트(전투 등)를 결정하는 함수.
-    이벤트가 없으면 None, 있으면 이벤트 정보를 반환한다.
+    - debug=False: (event, None)
+    - debug=True:  (event, debug_info)
     """
     rules = game_meta.get("rules", {})
     event_rules = rules.get("events", {})
@@ -39,9 +41,21 @@ def maybe_trigger_random_event(
     # 1~100 사이 주사위
     roll = random.randint(1, 100)
 
+    debug_info: Optional[Dict[str, Any]] = None
+    if debug:
+        debug_info = {
+            "area": area_type,
+            "base_chance": base_chance,
+            "area_mod": area_mod,
+            "chance": chance,
+            "roll": roll,
+            "triggered": False,
+            "enemy_type": None,
+        }
+
     # 실패 시 이벤트 없음
     if roll > chance:
-        return None
+        return None, debug_info
 
     # 어떤 종류의 전투인지 가중치로 선택
     combat_weights: Dict[str, int] = event_rules.get("combat_weights", {})
@@ -49,7 +63,7 @@ def maybe_trigger_random_event(
 
     enemies: List[Dict[str, Any]] = _build_enemy_group(enemy_type, rules)
 
-    return {
+    event = {
         "kind": "combat",
         "area": area_type,
         "enemy_type": enemy_type,
@@ -57,6 +71,12 @@ def maybe_trigger_random_event(
         "roll": roll,
         "chance": chance,
     }
+
+    if debug_info is not None:
+        debug_info["triggered"] = True
+        debug_info["enemy_type"] = enemy_type
+
+    return event, debug_info
 
 
 def _choose_enemy_type(weights: Dict[str, int]) -> EnemyType:

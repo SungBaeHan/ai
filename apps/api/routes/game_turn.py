@@ -329,7 +329,13 @@ async def play_turn(
         current_turn = int(game_session.get("turn", 0))
         
         # 4) 랜덤 이벤트 판정 & 적용 (매 턴 주사위 굴리는 지점)
-        event_result = maybe_trigger_random_event(game_session, game_doc)
+        # 개발 중에는 debug=True 고정으로 써도 괜찮고,
+        # 나중엔 쿼리파라미터나 환경변수로 꺼도 됨.
+        event_result, event_debug = maybe_trigger_random_event(
+            game_session,
+            game_doc,
+            debug=True,
+        )
         if event_result is not None:
             apply_event_to_session(game_session, event_result)
             # 이벤트 적용 후 턴이 증가했을 수 있으므로 다시 가져옴
@@ -596,6 +602,7 @@ async def play_turn(
             characters_info=characters_info,
             new_turns=[log.model_dump() for log in new_turns],  # 호환성
             session=session_dict,  # 세션 전체 포함 (중복 방지)
+            debug_event=event_debug,  # 디버그 정보 포함
         )
     
     except HTTPException:

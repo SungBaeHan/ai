@@ -791,6 +791,11 @@
         updateScenarioTitle(j.turn);
       }
       
+      // 디버그 출력
+      if (j && j.debug_event) {
+        console.log('[EVENT DEBUG]', j.debug_event);
+      }
+      
       // 게임 턴 API 응답 형식 처리
       if (isGamePage && GAME_ID) {
         // === TRPG 게임 모드 응답 처리 ===
