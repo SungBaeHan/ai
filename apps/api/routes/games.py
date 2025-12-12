@@ -305,6 +305,25 @@ async def create_game(
             else:
                 reg_user = None
             
+            # rules 딕셔너리 생성 및 events 블록 자동 추가
+            rules_dict = payload.rules.model_dump()
+            
+            # rules.events가 없으면 기본값 추가 (기존 events가 있으면 유지)
+            if "events" not in rules_dict or not rules_dict.get("events"):
+                rules_dict["events"] = {
+                    "base_chance": 70,
+                    "area_mod": {
+                        "town": -20,
+                        "field": 0,
+                        "dungeon": 20
+                    },
+                    "combat_weights": {
+                        "bandits": 40,
+                        "monsters": 40,
+                        "soldiers": 20
+                    }
+                }
+            
             # 게임 문서 생성
             game_doc = {
                 "id": new_id,
@@ -315,7 +334,7 @@ async def create_game(
                 "scenario_detail": payload.scenario_detail,
                 "tags": payload.tags or [],
                 "characters": game_characters,
-                "rules": payload.rules.model_dump(),
+                "rules": rules_dict,  # events 블록이 포함된 rules
                 "background_image_path": normalize_asset_path(image_path) if image_path else None,
                 "img_hash": img_hash,
                 "status": "active",
