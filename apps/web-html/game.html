@@ -113,21 +113,28 @@
       border-radius: 16px;
     }
     /* 소개 패널 (이미지+스탯 아래 배치) - 상단 이미지 폭 900px에 맞춤 */
+    /* 노란색 영역 전체 폭에 맞춰 좌우로 넓힘 */
     .game-intro-panel {
       flex-shrink: 0;
       max-height: 110px;  /* 2줄 정도 더 표시 가능하도록 높이 증가 */
       overflow-y: auto;  /* 내용이 넘칠 경우 스크롤 가능 */
       margin-top: 4px;
       max-width: 900px;
+      width: 100%;
       margin-left: auto;
       margin-right: auto;
       background: #0f172a;
       border: 1px solid #1e293b;
       border-radius: 12px;
-      padding: 6px 14px;  /* 패딩 조정 */
+      padding: 6px 0;  /* 좌우 패딩 제거하여 노란색 영역에 닿도록 */
       font-size: 0.85rem;  /* 폰트 크기 조정 */
       scrollbar-width: none;  /* Firefox: 스크롤바 숨김 */
       -ms-overflow-style: none;  /* IE/Edge: 스크롤바 숨김 */
+    }
+    /* 소개 패널 내부 콘텐츠에만 좌우 패딩 적용 */
+    .game-intro-panel > div {
+      padding-left: 14px;
+      padding-right: 14px;
     }
     .game-intro-panel::-webkit-scrollbar {
       display: none;  /* Chrome/Safari: 스크롤바 숨김 */
@@ -171,13 +178,14 @@
     }
     /* 채팅 로그는 스크롤 영역 - 입력창 위까지만 */
     /* 중앙 고정 폭 컨테이너 (상단 이미지 폭 900px에 맞춤) */
+    /* 좌우 패딩 제거하여 말풍선이 노란색 영역 가장자리에 닿도록 */
     .game-chat-log {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
       max-width: 900px;
       margin: 0 auto;
-      padding: 12px 16px 16px;
+      padding: 12px 0 16px;  /* 좌우 패딩 제거 */
       width: 100%;
       /* 스크롤바만 숨기기 (스크롤 기능은 유지) */
       scrollbar-width: none;  /* Firefox: 스크롤바 숨김 */
@@ -237,17 +245,20 @@
       transform: translateY(1px);
     }
     /* 메시지 말풍선 - 부모 컨테이너(900px 고정 폭) 기준으로 정렬 */
+    /* NPC 대화는 왼쪽 가장자리에, 유저 대화는 오른쪽 가장자리에 닿도록 */
     .msg { 
       display:flex; 
       align-items:flex-start; 
       gap:10px; 
       margin:14px 0; 
+      padding: 0 8px;  /* 최소한의 좌우 패딩 (가장자리에 거의 닿도록) */
       animation:fadeInUp .35s ease; 
       justify-content: flex-start; /* NPC 대화: 왼쪽 정렬 */
     }
     .msg.me { 
       flex-direction:row-reverse; 
       justify-content: flex-end; /* 유저 대화: 오른쪽 정렬 */
+      padding: 0 8px;  /* 최소한의 좌우 패딩 */
     }
     .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
     .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
