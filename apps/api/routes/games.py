@@ -17,6 +17,7 @@ from adapters.persistence.mongo import get_db
 from adapters.file_storage.r2_storage import R2Storage
 from apps.api.routes.worlds import get_current_user_v2
 from apps.api.deps.user_snapshot import build_owner_ref_info
+from apps.api.services.game_session import build_initial_characters_info
 from apps.api.utils import build_public_image_url, build_public_image_url_from_path
 from apps.core.utils.assets import normalize_asset_path
 from apps.api.models.games import (
@@ -535,13 +536,39 @@ async def get_or_create_game_session(
     # 3) owner_ref_info 스냅샷 생성
     owner_ref_info = build_owner_ref_info(current_user)
     
-    # 4) 새로운 세션 도큐먼트 구성
+    # 4) NPC / 동료 캐릭터 초기 스냅샷 생성
+    characters_info = build_initial_characters_info(game)
+    
+    # 5) 플레이어 스탯 기본값 계산
+    rules = game.get("rules") or {}
+    rule_attrs = rules.get("attributes") or {}
+    hp_rule = rule_attrs.get("hp") or {}
+    mp_rule = rule_attrs.get("mp") or {}
+    
+    def _init_attr(rule):
+        """속성 초기화 헬퍼"""
+        base = rule.get("base", rule.get("max", 0) or 0)
+        max_ = rule.get("max", base or 0)
+        return {"current": base or max_, "max": max_, "base": base or max_}
+    
+    user_info = {
+        "attributes": {
+            "hp": _init_attr(hp_rule) if hp_rule else {"current": 100, "max": 100, "base": 100},
+            "mp": _init_attr(mp_rule) if mp_rule else {"current": 80, "max": 80, "base": 80},
+        },
+        "items": {
+            "gold": 0,
+            "inventory": [],
+        },
+    }
+    
+    # 6) 새로운 세션 도큐먼트 구성
     new_session = {
         "game_id": game_id,
         "owner_ref_info": owner_ref_info,
         "persona_ref_id": None,  # 페르조나 기능 확장용, 지금은 None
         
-        "characters_info": [],   # 이후 캐릭터 선택 화면에서 채울 예정이면 일단 빈 배열
+        "characters_info": characters_info,  # NPC 스냅샷 포함
         "combat": {
             "in_combat": False,
             "monsters": [],
@@ -550,16 +577,7 @@ async def get_or_create_game_session(
         "story_history": [],
         "turn": 0,
         
-        "user_info": {
-            "attributes": {
-                "hp": {"current": 100, "max": 100, "base": 100},
-                "mp": {"current": 80, "max": 80, "base": 80},
-            },
-            "items": {
-                "gold": 0,
-                "inventory": [],
-            },
-        },
+        "user_info": user_info,
         
         # games 컬렉션의 world_snapshot을 그대로 스냅샷으로 저장
         "world_snapshot": game.get("world_snapshot"),
