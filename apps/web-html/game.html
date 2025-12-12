@@ -45,6 +45,27 @@
       color:#e5e7eb; 
       font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; 
     }
+    /* 페이지 전체를 100vh로 고정 */
+    .game-body {
+      height: 100vh;
+    }
+    /* 루트 컨테이너: 위/가운데/아래 세로 플렉스 */
+    .game-root {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+    /* 상단 HUD + 소개 영역: 내용 높이에 맞게, 스크롤 X */
+    .game-top {
+      flex: 0 0 auto;
+    }
+    /* 가운데 채팅 영역: 남는 공간 다 차지 + 여기만 스크롤 */
+    .game-middle {
+      flex: 1 1 auto;
+      min-height: 0;          /* 중요: 자식이 overflow 할 수 있게 */
+      display: flex;
+      flex-direction: column;
+    }
     .topbar-wrap { display:flex; justify-content:center; border-bottom:1px solid #1b2430; background:#0e141c; position:sticky; top:0; z-index:20; }
     .topbar { width:100%; max-width:980px; display:flex; align-items:center; gap:10px; padding:10px 14px; }
     .back { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:1px solid #223042; background:#0f172a; color:#cbd5e1; cursor:pointer; }
@@ -88,6 +109,10 @@
       height: calc(100vh - 60px); /* topbar 높이 제외 (약 60px) */
       overflow: hidden;       /* 페이지 레벨 스크롤 방지 */
     }
+    /* game-body가 추가된 경우 높이 조정 */
+    .game-page.game-body {
+      height: calc(100vh - 60px);
+    }
     /* 전체 게임 레이아웃: 배경 위에서 중앙 정렬 */
     .game-layout {
       width: 100%;
@@ -95,6 +120,7 @@
       justify-content: center;
     }
     /* ✅ HUD / 소개 / 채팅이 모두 들어가는 중앙 컬럼 */
+    /* game-root 역할도 함께 수행 */
     .game-main-column {
       /* 상단 HUD 카드 폭과 맞춰줄 값 (기존 HUD width 에 맞춰 수정 가능) */
       max-width: 960px;
@@ -102,6 +128,7 @@
       margin: 0 auto;
       display: flex;
       flex-direction: column;
+      height: 100%;  /* game-root 역할 */
     }
     /* 상단 스탯 카드와 소개/채팅이 공유할 가로 폭 래퍼 */
     .game-inner-width {
@@ -148,7 +175,7 @@
       max-height: 110px;  /* 2줄 정도 더 표시 가능하도록 높이 증가 */
       overflow-y: auto;  /* 내용이 넘칠 경우 스크롤 가능 */
       box-sizing: border-box;
-      margin-top: 8px;  /* 좌우 여백은 필요하면 여기서 조절 */
+      margin: 8px auto 0;  /* 가운데 정렬, 상단 여백 */
       background: #0f172a;
       border: 1px solid #1e293b;
       border-radius: 12px;
@@ -187,31 +214,13 @@
     .game-hero-stats div {
       width: 100%;
     }
-    /* 하단: 채팅 영역 전체 */
-    .game-body {
-      flex: 1;                /* 남은 세로 공간 전부 차지 */
-      display: flex;
-      flex-direction: column;
-      min-height: 0;          /* flex 컨테이너 안에서 overflow가 제대로 작동하게 */
-      overflow: hidden;      /* 전체 페이지에서 넘치는 스크롤 방지 */
-      width: 100%;  /* game-main-column 안에서 전체 폭 사용 */
-    }
-    /* 채팅 전체 컨테이너 */
-    .game-chat {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-      width: 100%;  /* game-main-column 안에서 전체 폭 사용 */
-    }
     /* 채팅 영역 자체는 중앙 컬럼 안에서만 동작 */
-    /* 세로 높이는 기존 구조 유지 */
+    /* 가운데 채팅 로그만 스크롤 */
     .game-chat-log {
-      flex: 1;
+      flex: 1 1 auto;
       min-height: 0;
       overflow-y: auto;
-      margin-top: 16px;
-      padding: 0 0 24px 0;
+      padding: 12px 24px 16px;
       /* 스크롤바만 숨기기 (스크롤 기능은 유지) */
       scrollbar-width: none;  /* Firefox: 스크롤바 숨김 */
       -ms-overflow-style: none;  /* IE/Edge: 스크롤바 숨김 */
@@ -225,6 +234,10 @@
     }
     .game-chat-log::-webkit-scrollbar {
       display: none;  /* Chrome/Safari: 스크롤바 숨김 */
+    }
+    /* 하단 입력창: 고정 */
+    .game-bottom {
+      flex: 0 0 auto;
     }
     /* 입력창은 flex 하단에 고정 */
     /* 중앙 컬럼 안에서 전체 폭 사용 */
@@ -367,27 +380,27 @@
     </div>
   </div>
 
-  <div id="game-page" class="game-page game-layout">
+  <div id="game-page" class="game-page game-layout game-body">
     <!-- ✅ 메인 컬럼 래퍼: HUD / 소개 / 채팅을 모두 감싸는 컨테이너 -->
-    <div class="game-main-column">
-      <!-- 상단: 이미지 + 시나리오 + HUD(스탯) -->
-      <section class="game-hero game-top-panel">
-        <div class="game-hero-card top-hud game-inner-width">
-          <img id="hero" class="game-hero-image" alt="cover" src="/assets/img/placeholder.jpg" /> <!-- 히어로 이미지 -->
-          <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
+    <div class="game-main-column game-root">
+      <!-- 상단: HUD + 소개 영역 (고정) -->
+      <div class="game-top">
+        <!-- 상단: 이미지 + 시나리오 + HUD(스탯) -->
+        <section class="game-hero game-top-panel">
+          <div class="game-hero-card top-hud game-inner-width">
+            <img id="hero" class="game-hero-image" alt="cover" src="/assets/img/placeholder.jpg" /> <!-- 히어로 이미지 -->
+            <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
 
-          <!-- ⭐ HUD 스탯 패널 (이미지 위에 오버레이) -->
-          <div id="game-hud" class="game-hero-stats">
-            <div class="game-hud-section">
-              <div class="game-hud-title">상태</div>
-              <div class="game-hud-body">게임을 시작하면 상태가 표시됩니다.</div>
+            <!-- ⭐ HUD 스탯 패널 (이미지 위에 오버레이) -->
+            <div id="game-hud" class="game-hero-stats">
+              <div class="game-hud-section">
+                <div class="game-hud-title">상태</div>
+                <div class="game-hud-body">게임을 시작하면 상태가 표시됩니다.</div>
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <!-- 하단: 채팅 로그 + 입력창 -->
-      <section class="game-body">
         <!-- 소개 박스 -->
         <div id="game-intro" class="game-intro-panel game-inner-width">
           <div style="font-weight:700; margin-bottom:6px;">소개</div>
@@ -398,32 +411,36 @@
           </div>
           <div class="hint">Tip: 메세지를 보내면 게임 턴이 진행됩니다.</div>
         </div>
+      </div> <!-- /game-top -->
 
-        <!-- 채팅 영역 (로그 + 입력창) -->
-        <div class="game-chat">
-          <section id="chat-log" class="game-chat-log game-inner-width">
-            <div id="game-log-messages">
-              <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
-              <div class="chat" id="chat-log-old" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
-            </div>
-            <!-- ⭐ 선택지 버튼은 여기 -->
-            <div id="game-turn-actions" class="game-turn-actions">
-              <!-- JS가 여기 안에 버튼들을 append 하도록 유지 -->
-            </div>
-            <!-- 스크롤 하단 마커 (자동 스크롤용) -->
-            <div id="chat-bottom-marker" style="height: 1px;"></div>
-          </section>
-          <div class="game-chat-input" id="chat-input">
-            <div class="inputIn">
-              <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 (기존) -->
-              <textarea id="user-input" placeholder="메시지 입력…" style="display:none;"></textarea>  <!-- 턴 시스템용 입력창 -->
-              <button id="send">보내기</button>                         <!-- 전송 (기존) -->
-              <button id="send-btn" style="display:none;">보내기</button>  <!-- 턴 시스템용 전송 버튼 -->
-            </div>
+      <!-- 가운데: 채팅 로그만 스크롤 되는 영역 -->
+      <div class="game-middle">
+        <section id="chat-log" class="game-chat-log game-inner-width">
+          <div id="game-log-messages">
+            <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
+            <div class="chat" id="chat-log-old" style="display:none;"></div> <!-- 턴 시스템용 채팅 로그 -->
+          </div>
+          <!-- ⭐ 선택지 버튼은 여기 -->
+          <div id="game-turn-actions" class="game-turn-actions">
+            <!-- JS가 여기 안에 버튼들을 append 하도록 유지 -->
+          </div>
+          <!-- 스크롤 하단 마커 (자동 스크롤용) -->
+          <div id="chat-bottom-marker" style="height: 1px;"></div>
+        </section>
+      </div> <!-- /game-middle -->
+
+      <!-- 하단: 입력창 고정 -->
+      <div class="game-bottom">
+        <div class="game-chat-input" id="chat-input">
+          <div class="inputIn">
+            <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 (기존) -->
+            <textarea id="user-input" placeholder="메시지 입력…" style="display:none;"></textarea>  <!-- 턴 시스템용 입력창 -->
+            <button id="send">보내기</button>                         <!-- 전송 (기존) -->
+            <button id="send-btn" style="display:none;">보내기</button>  <!-- 턴 시스템용 전송 버튼 -->
           </div>
         </div>
-      </section>
-    </div> <!-- /game-main-column -->
+      </div> <!-- /game-bottom -->
+    </div> <!-- /game-main-column /game-root -->
   </div>
 
   <!-- Toast Layer -->
