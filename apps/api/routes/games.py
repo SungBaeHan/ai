@@ -416,19 +416,44 @@ def enrich_game_asset_urls(game: GameResponse) -> GameResponse:
 async def list_games(
     offset: int = Query(0, ge=0, alias="offset"),
     limit: int = Query(20, ge=1, le=200, alias="limit"),
+    q: Optional[str] = Query(None, description="게임 제목/태그/요약 검색어"),
     db: Database = Depends(get_db),
 ):
     """
     게임 목록 조회 (created_at DESC 기준 정렬)
+
+    - 기본: 전체 목록
+    - q 가 있으면 title / tags / scenario_summary 에 대한 부분 일치(case-insensitive) 검색
+
     캐릭터/세계관과 동일한 응답 구조: { total, items, offset, limit }
     """
+    # 검색어 전처리
+    if q is not None:
+        q = q.strip()
+        if q == "":
+            q = None
+
+    # 검색 필터 구성
+    base_query: Dict[str, Any] = {}
+    if q:
+        search_filter: Dict[str, Any] = {
+            "$or": [
+                {"title": {"$regex": q, "$options": "i"}},
+                {"tags": {"$regex": q, "$options": "i"}},
+                {"scenario_summary": {"$regex": q, "$options": "i"}},
+            ]
+        }
+        query: Dict[str, Any] = {**base_query, **search_filter}
+    else:
+        query = base_query
+
     # 전체 개수 조회
-    total = db.games.count_documents({})
+    total = db.games.count_documents(query)
     
     # 게임 목록 조회
     cursor = (
         db.games
-        .find({})
+        .find(query)
         .sort("created_at", -1)
         .skip(offset)
         .limit(limit)

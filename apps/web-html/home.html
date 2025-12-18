@@ -84,6 +84,29 @@
 
   <div class="wrap">
     <h1>캐릭터 선택</h1>
+
+    <!-- 통합 검색바 (캐릭터/세계관/게임 공통) -->
+    <div class="search-bar" style="margin:12px 0 20px; display:flex; gap:8px;">
+      <input
+        id="search-input"
+        type="text"
+        placeholder="이름/태그 검색"
+        style="flex:1; padding:10px 12px; background:#020617; border:1px solid #1f2937; border-radius:10px; color:#e5e7eb; font-size:14px;"
+      />
+      <button
+        id="search-button"
+        style="padding:10px 18px; background:#3b82f6; border:none; border-radius:10px; color:#fff; font-size:14px; font-weight:600; cursor:pointer;"
+      >
+        검색
+      </button>
+      <button
+        id="search-clear"
+        style="padding:10px 14px; background:#111827; border:1px solid #1f2937; border-radius:10px; color:#9ca3af; font-size:13px; cursor:pointer; min-width:40px;"
+      >
+        ✕
+      </button>
+    </div>
+
     <div class="category-tabs">
       <button class="category-tab active" data-category="characters">캐릭터 선택</button>
       <button class="category-tab" data-category="worlds">세계관 선택</button>
@@ -108,9 +131,22 @@
     // API 실패 시 로컬 JSON 대체 경로(있다면 사용됨)
     const CANDIDATES = ['/json/characters.json','/characters.json','/static/characters.json'];
 
+    // 검색/탭 공통 상태
+    let currentCategory = 'characters';        // 'characters' | 'worlds' | 'games'
+    let qInput = '';                           // 입력창 값
+    let qApplied = '';                         // 실제 검색에 사용된 값
+    let searchApplied = false;                 // 검색 실행 여부
+
         // 서버 API에서 캐릭터 목록 로드
-    async function loadFromApi() {
-      const r = await fetch(`${API_BASE_URL}/v1/characters?offset=0&limit=200`, {
+    async function loadFromApi({ q = '', skip = 0, limit = 60 } = {}) {
+      const params = new URLSearchParams();
+      params.set('skip', String(skip));
+      params.set('limit', String(limit));
+      if (q && q.trim().length > 0) {
+        params.set('q', q.trim());
+      }
+
+      const r = await fetch(`${API_BASE_URL}/v1/characters?${params.toString()}`, {
         method: "GET",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -121,8 +157,15 @@
     }
     
     // 서버 API에서 세계관 목록 로드
-    async function loadWorldsFromApi() {
-      const r = await fetch(`${API_BASE_URL}/v1/worlds?offset=0&limit=200`, {
+    async function loadWorldsFromApi({ q = '', offset = 0, limit = 60 } = {}) {
+      const params = new URLSearchParams();
+      params.set('offset', String(offset));
+      params.set('limit', String(limit));
+      if (q && q.trim().length > 0) {
+        params.set('q', q.trim());
+      }
+
+      const r = await fetch(`${API_BASE_URL}/v1/worlds?${params.toString()}`, {
         method: "GET",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -141,8 +184,15 @@
     }
     
     // 서버 API에서 게임 목록 로드
-    async function loadGamesFromApi() {
-      const r = await fetch(`${API_BASE_URL}/v1/games?offset=0&limit=200`, {
+    async function loadGamesFromApi({ q = '', offset = 0, limit = 60 } = {}) {
+      const params = new URLSearchParams();
+      params.set('offset', String(offset));
+      params.set('limit', String(limit));
+      if (q && q.trim().length > 0) {
+        params.set('q', q.trim());
+      }
+
+      const r = await fetch(`${API_BASE_URL}/v1/games?${params.toString()}`, {
         method: "GET",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -168,8 +218,8 @@
       return j.characters || j.items || j || [];
     }
         // 캐릭터 목록 로드 진입점: 1) API 시도 → 2) 실패 시 로컬 JSON들 순차 시도
-    async function loadCharacters() {
-      try { return await loadFromApi(); }
+    async function loadCharacters(q = '') {
+      try { return await loadFromApi({ q }); }
       catch(_) {
         for (const url of CANDIDATES) { try { return await loadFromLocal(url); } catch(__){} }
         return [];
@@ -177,9 +227,9 @@
     }
     
     // 세계관 목록 로드
-    async function loadWorlds() {
+    async function loadWorlds(q = '') {
       try { 
-        const items = await loadWorldsFromApi();
+        const items = await loadWorldsFromApi({ q });
         console.log('[loadWorlds] Success, items:', items.length);
         return items;
       } catch(error) {
@@ -189,9 +239,9 @@
     }
     
     // 게임 목록 로드
-    async function loadGames() {
+    async function loadGames(q = '') {
       try { 
-        const items = await loadGamesFromApi();
+        const items = await loadGamesFromApi({ q });
         console.log('[loadGames] Success, items:', items.length);
         return items;
       } catch(error) {
@@ -371,10 +421,127 @@
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
     }
 
-        // 현재 선택된 카테고리
-    let currentCategory = 'characters';
-    
-    // 카테고리 탭 클릭 핸들러
+    // 현재 선택된 카테고리 (위에서 선언됨)
+
+    // 공통 그리드 렌더링 헬퍼
+    async function fetchAndRender(category, q) {
+      const grid = document.getElementById('grid');
+      if (!grid) return;
+
+      grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
+
+      try {
+        let items = [];
+        const query = (q || '').trim();
+
+        if (category === 'characters') {
+          items = await loadCharacters(query);
+        } else if (category === 'worlds') {
+          items = await loadWorlds(query);
+        } else if (category === 'games') {
+          items = await loadGames(query);
+        }
+
+        console.log('[fetchAndRender] Category:', category, 'q:', query, 'Items:', items.length);
+
+        grid.innerHTML = '';
+
+        if (!items || items.length === 0) {
+          const label = category === 'characters' ? '캐릭터' : (category === 'worlds' ? '세계관' : '게임');
+          const extra = query ? ` 검색어 "${query}" 에 대한 결과가 없습니다.` : ` 표시할 ${label}가 없습니다.`;
+          grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">검색 결과가 없습니다.' +
+                           (query ? `<br/><button id="reset-search" style="margin-top:12px;padding:8px 14px;background:#111827;border:1px solid #1f2937;border-radius:999px;color:#e5e7eb;cursor:pointer;font-size:13px;">검색어 초기화</button>` : '') +
+                           '</div>';
+
+          const resetBtn = document.getElementById('reset-search');
+          if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+              clearSearch(true);
+            });
+          }
+          return;
+        }
+
+        items.forEach((it, index) => {
+          try {
+            let cardElement;
+            if (category === 'characters') {
+              cardElement = card(it);
+            } else if (category === 'worlds') {
+              cardElement = worldCard(it);
+            } else if (category === 'games') {
+              cardElement = gameCard(it);
+            }
+            if (cardElement) {
+              grid.appendChild(cardElement);
+            }
+          } catch (err) {
+            console.error('[fetchAndRender] Error creating card for item', index, ':', err, it);
+          }
+        });
+      } catch (error) {
+        console.error('[fetchAndRender] Failed to load items:', error);
+        grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">검색에 실패했습니다. 잠시 후 다시 시도하세요.</div>';
+      }
+    }
+
+    // 검색 상태 초기화
+    function clearSearch(shouldRefetch = false) {
+      qInput = '';
+      qApplied = '';
+      searchApplied = false;
+
+      const inputEl = document.getElementById('search-input');
+      if (inputEl) inputEl.value = '';
+
+      if (shouldRefetch) {
+        fetchAndRender(currentCategory, '');
+      }
+    }
+
+    function applySearch() {
+      const inputEl = document.getElementById('search-input');
+      if (!inputEl) return;
+
+      qInput = inputEl.value || '';
+      qApplied = (qInput || '').trim();
+      searchApplied = qApplied.length > 0;
+
+      // 검색 시 항상 첫 페이지(현재는 offset=0) 기준으로 다시 로드
+      fetchAndRender(currentCategory, qApplied);
+    }
+
+    // 검색바 이벤트 설정
+    function setupSearchBar() {
+      const inputEl = document.getElementById('search-input');
+      const searchBtn = document.getElementById('search-button');
+      const clearBtn = document.getElementById('search-clear');
+
+      if (inputEl) {
+        inputEl.addEventListener('input', (e) => {
+          qInput = e.target.value;
+        });
+        inputEl.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            applySearch();
+          }
+        });
+      }
+
+      if (searchBtn) {
+        searchBtn.addEventListener('click', () => {
+          applySearch();
+        });
+      }
+
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          clearSearch(true);
+        });
+      }
+    }
+
+        // 카테고리 탭 클릭 핸들러
     function setupCategoryTabs() {
       document.querySelectorAll('.category-tab').forEach(tab => {
         tab.addEventListener('click', async function() {
@@ -397,53 +564,11 @@
             h1.textContent = '게임 선택';
           }
           
-          // 그리드 초기화 및 데이터 로드
-          const grid = document.getElementById('grid');
-          grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
-          
-          try {
-            let items = [];
-            if (category === 'characters') {
-              items = await loadCharacters();
-            } else if (category === 'worlds') {
-              items = await loadWorlds();
-            } else if (category === 'games') {
-              items = await loadGames();
-            }
-            
-            console.log('[Category tab click] Category:', category, 'Items:', items.length, items);
-            
-            // 그리드 초기화
-            grid.innerHTML = '';
-            
-            if (items.length === 0) {
-              const emptyText = category === 'characters' ? '캐릭터' : (category === 'worlds' ? '세계관' : '게임');
-              grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">표시할 ' + emptyText + '가 없습니다.</div>';
-            } else {
-              // 각 아이템을 카드로 변환하여 그리드에 추가
-              items.forEach((it, index) => {
-                try {
-                  console.log('[Rendering] Item', index, ':', it);
-                  let cardElement;
-                  if (category === 'characters') {
-                    cardElement = card(it);
-                  } else if (category === 'worlds') {
-                    cardElement = worldCard(it);
-                  } else if (category === 'games') {
-                    cardElement = gameCard(it);
-                  }
-                  if (cardElement) {
-                    grid.appendChild(cardElement);
-                  }
-                } catch (cardError) {
-                  console.error('[Rendering] Error creating card for item', index, ':', cardError, it);
-                }
-              });
-            }
-          } catch (error) {
-            console.error('[Category tab click] Failed to load items:', error);
-            grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">데이터를 불러오는 중 오류가 발생했습니다: ' + error.message + '</div>';
-          }
+          // 탭 전환 시:
+          // - 이미 검색이 적용된 상태면 같은 qApplied 로 해당 탭을 즉시 검색
+          // - 아직 searchApplied=false 라면 기본 리스트만 로드
+          const query = searchApplied ? qApplied : '';
+          fetchAndRender(currentCategory, query);
         });
       });
     }
@@ -483,16 +608,14 @@
         });
       });
 
-      // 카테고리 탭 설정
+      // 검색바 + 카테고리 탭 설정
+      setupSearchBar();
       setupCategoryTabs();
 
       const grid = document.getElementById('grid');
-            // 캐릭터 데이터 로드 (API 우선)
-      const items = await loadCharacters();
-            // 데이터 없을 때 안내 문구 표시
-      grid.innerHTML = items.length ? '' : '<div style="opacity:.7">표시할 캐릭터가 없습니다.</div>';
-            // 각 아이템을 카드로 변환해 그리드에 추가
-             items.forEach(it => grid.appendChild(card(it)));
+
+      // 초기 상태: 검색어 없이 캐릭터 기본 리스트
+      await fetchAndRender(currentCategory, '');
      })();
    </script>
   <div id="gallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;"></div>

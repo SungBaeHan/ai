@@ -576,16 +576,42 @@ class WorldListResponse(BaseModel):
 async def list_worlds(
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=200),
+    q: Optional[str] = Query(None, description="이름/태그/요약 검색어"),
 ):
     """
     세계관 목록 조회.
-    프론트에서는 /v1/worlds?offset=0&limit=200 으로 호출하고,
+
+    - 기본: created_at DESC 정렬
+    - q 가 있으면 name / tags / summary 에 대한 부분 일치(case-insensitive) 검색
+
+    프론트에서는 /v1/worlds?offset=0&limit=200[&q=검색어] 형태로 호출하고,
     응답은 { total: number, items: World[] } 형태를 기대하고 있음.
     """
     db = get_mongo_db()
     coll = db["worlds"]
+
+    # 검색어 전처리
+    if q is not None:
+        q = q.strip()
+        if q == "":
+            q = None
+
     # 필요하면 status="active" 조건만 주기
-    query = {}  # 예: {"status": "active"}
+    base_query: Dict[str, Any] = {}  # 예: {"status": "active"}
+
+    if q:
+        # name / tags / summary 에 대해 부분 일치 검색
+        search_filter: Dict[str, Any] = {
+            "$or": [
+                {"name": {"$regex": q, "$options": "i"}},
+                {"tags": {"$regex": q, "$options": "i"}},
+                {"summary": {"$regex": q, "$options": "i"}},
+            ]
+        }
+        query: Dict[str, Any] = {**base_query, **search_filter}
+    else:
+        query = base_query
+
     total = await coll.count_documents(query)
     cursor = (
         coll.find(query)
