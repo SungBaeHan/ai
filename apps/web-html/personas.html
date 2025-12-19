@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>페르조나 관리</title>
+  <script src="/js/session.js"></script>
+  <script src="/js/config.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: #0b0f14;
+      color: #e5e7eb;
+    }
+
+    /* Top Navigation */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: #0b1118;
+      border-bottom: 1px solid #18212c;
+    }
+    .navin {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 8px 12px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+    }
+    .tab {
+      text-align: center;
+      padding: 10px 8px;
+      border-radius: 10px;
+      background: #0f172a;
+      color: #a5b4fc;
+      border: 1px solid #1e293b;
+      font-size: 12px;
+      cursor: pointer;
+      user-select: none;
+      text-decoration: none;
+    }
+    .tab.active {
+      background: #1e3a8a;
+      border-color: #3b82f6;
+      color: #e0e7ff;
+    }
+
+    /* Main Content */
+    .wrap {
+      max-width: 1200px;
+      margin: 24px auto 40px;
+      padding: 0 16px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin: 8px 0 24px;
+      color: #f3f4f6;
+    }
+
+    /* Header with Add Button */
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .btn-add {
+      padding: 10px 16px;
+      background: #3b82f6;
+      border: 1px solid #2563eb;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .btn-add:hover {
+      background: #2563eb;
+    }
+    .btn-add:disabled {
+      background: #475569;
+      border-color: #64748b;
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+
+    /* Persona List */
+    .persona-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .persona-card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 16px;
+      transition: border-color 0.15s ease;
+    }
+    .persona-card:hover {
+      border-color: #3b82f6;
+    }
+    .persona-card.default {
+      border-color: #3b82f6;
+      background: #1e3a8a;
+    }
+
+    .persona-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .persona-avatar {
+      width: 64px;
+      height: 64px;
+      border-radius: 8px;
+      background: #1f2937;
+      object-fit: cover;
+      border: 2px solid #334155;
+    }
+
+    .persona-info {
+      flex: 1;
+    }
+
+    .persona-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #f3f4f6;
+      margin-bottom: 4px;
+    }
+
+    .persona-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      background: #3b82f6;
+      color: #fff;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-right: 6px;
+    }
+
+    .persona-gender {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+
+    .persona-bio {
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.5;
+      margin-bottom: 12px;
+      min-height: 40px;
+    }
+
+    .persona-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn-action {
+      flex: 1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      background: #1f2937;
+      color: #e5e7eb;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-action:hover {
+      background: #334155;
+      border-color: #475569;
+    }
+    .btn-action.primary {
+      background: #3b82f6;
+      border-color: #2563eb;
+      color: #fff;
+    }
+    .btn-action.danger {
+      background: #7f1d1d;
+      border-color: #991b1b;
+      color: #fee2e2;
+    }
+
+    /* Empty State */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #94a3b8;
+    }
+    .empty-state h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+      color: #cbd5e1;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .modal-backdrop.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 600px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      border-bottom: 1px solid #1f2937;
+    }
+    .modal-header h2 {
+      margin: 0;
+      font-size: 20px;
+      color: #f3f4f6;
+    }
+    .modal-close {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 24px;
+      cursor: pointer;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-close:hover {
+      color: #e5e7eb;
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #e5e7eb;
+      margin-bottom: 8px;
+    }
+    .form-label .count {
+      float: right;
+      color: #94a3b8;
+      font-weight: normal;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: #1f2937;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    .form-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+
+    .form-textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    .form-select {
+      width: 100%;
+      padding: 10px 12px;
+      background: #1f2937;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-size: 14px;
+      font-family: inherit;
+      cursor: pointer;
+    }
+
+    .form-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .form-checkbox input {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .avatar-selector {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .avatar-preview {
+      width: 80px;
+      height: 80px;
+      border-radius: 8px;
+      background: #1f2937;
+      border: 2px solid #334155;
+      object-fit: cover;
+      cursor: pointer;
+    }
+    .btn-select-image {
+      padding: 10px 16px;
+      background: #1f2937;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn-select-image:hover {
+      background: #334155;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      padding: 20px;
+      border-top: 1px solid #1f2937;
+    }
+    .btn-modal {
+      padding: 10px 20px;
+      border-radius: 6px;
+      border: 1px solid #334155;
+      background: #1f2937;
+      color: #e5e7eb;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .btn-modal:hover {
+      background: #334155;
+    }
+    .btn-modal.primary {
+      background: #3b82f6;
+      border-color: #2563eb;
+      color: #fff;
+    }
+    .btn-modal.primary:hover {
+      background: #2563eb;
+    }
+
+    /* Image Select Modal */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .preset-item {
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 2px solid #334155;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .preset-item:hover {
+      border-color: #3b82f6;
+      transform: scale(1.05);
+    }
+    .preset-item.selected {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+    }
+    .preset-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #0f172a;
+      border: 1px solid #1f2937;
+      color: #e5e7eb;
+      padding: 12px 18px;
+      border-radius: 8px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.2s ease;
+      z-index: 200;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <!-- Top Navigation -->
+  <div class="nav">
+    <div class="navin">
+      <a href="/home.html" class="tab">Logo</a>
+      <a href="/search.html" class="tab">Search</a>
+      <a href="/create/index.html" class="tab">Create</a>
+      <a href="/home.html" class="tab">My List</a>
+      <a href="/my.html" class="tab">My</a>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="header-row">
+      <h1>내 페르조나</h1>
+      <button id="btnAdd" class="btn-add">+ 추가</button>
+    </div>
+
+    <div id="personaList" class="persona-list">
+      <!-- 동적으로 생성 -->
+    </div>
+  </div>
+
+  <!-- Create/Edit Modal -->
+  <div id="formModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modalTitle">페르조나 생성</h2>
+        <button class="modal-close" onclick="closeFormModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <form id="personaForm">
+          <div class="form-group">
+            <label class="form-label">
+              이름
+              <span class="count"><span id="nameCount">0</span>/25</span>
+            </label>
+            <input
+              type="text"
+              id="inputName"
+              class="form-input"
+              maxlength="25"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">성별</label>
+            <select id="selectGender" class="form-select">
+              <option value="male">남성</option>
+              <option value="female">여성</option>
+              <option value="nonbinary">논바이너리</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">
+              소개
+              <span class="count"><span id="bioCount">0</span>/700</span>
+            </label>
+            <textarea
+              id="inputBio"
+              class="form-input form-textarea"
+              maxlength="700"
+            ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">아바타</label>
+            <div class="avatar-selector">
+              <img id="avatarPreview" class="avatar-preview" src="/assets/persona/preset_01.png" alt="아바타" />
+              <button type="button" class="btn-select-image" onclick="openImageModal()">사진 선택</button>
+            </div>
+            <input type="hidden" id="inputImageKey" value="preset_01" />
+          </div>
+
+          <div class="form-group">
+            <div class="form-checkbox">
+              <input type="checkbox" id="checkboxDefault" />
+              <label for="checkboxDefault" class="form-label" style="margin: 0;">기본 페르조나로 설정</label>
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modal" onclick="closeFormModal()">취소</button>
+        <button type="button" class="btn-modal primary" onclick="savePersona()">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Select Modal -->
+  <div id="imageModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>사진 선택</h2>
+        <button class="modal-close" onclick="closeImageModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="presetGrid" class="preset-grid">
+          <!-- 동적으로 생성 -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <script>
+    const API_BASE_URL =
+      window.location.hostname === "arcanaverse.ai" ||
+      window.location.hostname === "www.arcanaverse.ai"
+        ? "https://api.arcanaverse.ai"
+        : "http://localhost:8000";
+
+    let personas = [];
+    let editingPersonaId = null;
+    let presets = [];
+
+    // Load presets
+    async function loadPresets() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/v1/personas/presets`);
+        if (res.ok) {
+          presets = await res.json();
+        }
+      } catch (e) {
+        console.error('Failed to load presets:', e);
+      }
+    }
+
+    // Load personas
+    async function loadPersonas() {
+      try {
+        const token = localStorage.getItem('user_info_v2');
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['X-User-Info-Token'] = token;
+        }
+
+        const res = await fetch(`${API_BASE_URL}/v1/users/me/personas`, {
+          credentials: 'include',
+          headers
+        });
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            showToast('로그인이 필요합니다.');
+            setTimeout(() => window.location.href = '/my.html', 1500);
+            return;
+          }
+          throw new Error(`Failed to load: ${res.status}`);
+        }
+
+        personas = await res.json();
+        renderPersonas();
+        updateAddButton();
+      } catch (e) {
+        console.error('Load error:', e);
+        showToast('페르조나 목록을 불러오는데 실패했습니다.');
+      }
+    }
+
+    // Render personas
+    function renderPersonas() {
+      const container = document.getElementById('personaList');
+      if (personas.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1;">
+            <h3>페르조나가 없습니다</h3>
+            <p>+ 버튼을 눌러 새 페르조나를 만들어주세요.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = personas.map(p => {
+        const genderText = {
+          male: '남성',
+          female: '여성',
+          nonbinary: '논바이너리'
+        }[p.gender] || '논바이너리';
+
+        const imageUrl = `/assets/persona/${p.image_key}.png`;
+
+        return `
+          <div class="persona-card ${p.is_default ? 'default' : ''}">
+            <div class="persona-card-header">
+              <img src="${imageUrl}" alt="${p.name}" class="persona-avatar" onerror="this.src='/assets/persona/preset_01.png'" />
+              <div class="persona-info">
+                <div class="persona-name">
+                  ${p.is_default ? '<span class="persona-badge">기본</span>' : ''}
+                  ${escapeHtml(p.name)}
+                </div>
+                <div class="persona-gender">${genderText}</div>
+              </div>
+            </div>
+            <div class="persona-bio">${escapeHtml(p.bio || '소개가 없습니다.')}</div>
+            <div class="persona-actions">
+              ${!p.is_default ? `<button class="btn-action primary" onclick="setDefault('${p.persona_id}')">기본 지정</button>` : ''}
+              <button class="btn-action" onclick="editPersona('${p.persona_id}')">수정</button>
+              <button class="btn-action danger" onclick="deletePersona('${p.persona_id}')">삭제</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Update add button
+    function updateAddButton() {
+      const btn = document.getElementById('btnAdd');
+      if (personas.length >= 5) {
+        btn.disabled = true;
+        btn.textContent = '최대 5개';
+      } else {
+        btn.disabled = false;
+        btn.textContent = '+ 추가';
+      }
+    }
+
+    // Open form modal
+    function openFormModal(personaId = null) {
+      editingPersonaId = personaId;
+      const modal = document.getElementById('formModal');
+      const title = document.getElementById('modalTitle');
+      const form = document.getElementById('personaForm');
+
+      if (personaId) {
+        const persona = personas.find(p => p.persona_id === personaId);
+        if (!persona) return;
+
+        title.textContent = '페르조나 수정';
+        document.getElementById('inputName').value = persona.name;
+        document.getElementById('selectGender').value = persona.gender;
+        document.getElementById('inputBio').value = persona.bio || '';
+        document.getElementById('inputImageKey').value = persona.image_key;
+        document.getElementById('checkboxDefault').checked = persona.is_default;
+        updateAvatarPreview(persona.image_key);
+      } else {
+        title.textContent = '페르조나 생성';
+        form.reset();
+        document.getElementById('inputImageKey').value = 'preset_01';
+        updateAvatarPreview('preset_01');
+      }
+
+      updateCounts();
+      modal.classList.add('show');
+    }
+
+    // Close form modal
+    function closeFormModal() {
+      document.getElementById('formModal').classList.remove('show');
+      editingPersonaId = null;
+    }
+
+    // Open image modal
+    function openImageModal() {
+      const modal = document.getElementById('imageModal');
+      const grid = document.getElementById('presetGrid');
+      const currentKey = document.getElementById('inputImageKey').value;
+
+      grid.innerHTML = presets.map(preset => {
+        const selected = preset.preset_key === currentKey ? 'selected' : '';
+        return `
+          <div class="preset-item ${selected}" onclick="selectPreset('${preset.preset_key}')">
+            <img src="${preset.url}" alt="${preset.preset_key}" onerror="this.src='/assets/persona/preset_01.png'" />
+          </div>
+        `;
+      }).join('');
+
+      modal.classList.add('show');
+    }
+
+    // Close image modal
+    function closeImageModal() {
+      document.getElementById('imageModal').classList.remove('show');
+    }
+
+    // Select preset
+    function selectPreset(presetKey) {
+      document.getElementById('inputImageKey').value = presetKey;
+      updateAvatarPreview(presetKey);
+      closeImageModal();
+    }
+
+    // Update avatar preview
+    function updateAvatarPreview(imageKey) {
+      document.getElementById('avatarPreview').src = `/assets/persona/${imageKey}.png`;
+    }
+
+    // Update counts
+    function updateCounts() {
+      const name = document.getElementById('inputName').value;
+      const bio = document.getElementById('inputBio').value;
+      document.getElementById('nameCount').textContent = name.length;
+      document.getElementById('bioCount').textContent = bio.length;
+    }
+
+    // Save persona
+    async function savePersona() {
+      const name = document.getElementById('inputName').value.trim();
+      const gender = document.getElementById('selectGender').value;
+      const bio = document.getElementById('inputBio').value.trim();
+      const imageKey = document.getElementById('inputImageKey').value;
+      const isDefault = document.getElementById('checkboxDefault').checked;
+
+      if (!name) {
+        showToast('이름을 입력해주세요.');
+        return;
+      }
+
+      const token = localStorage.getItem('user_info_v2');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['X-User-Info-Token'] = token;
+      }
+
+      const payload = {
+        name,
+        gender,
+        bio,
+        image_key: imageKey,
+        is_default: isDefault
+      };
+
+      try {
+        let res;
+        if (editingPersonaId) {
+          res = await fetch(`${API_BASE_URL}/v1/users/me/personas/${editingPersonaId}`, {
+            method: 'PUT',
+            headers,
+            credentials: 'include',
+            body: JSON.stringify(payload)
+          });
+        } else {
+          if (personas.length >= 5) {
+            showToast('최대 5개까지 생성 가능합니다.');
+            return;
+          }
+          res = await fetch(`${API_BASE_URL}/v1/users/me/personas`, {
+            method: 'POST',
+            headers,
+            credentials: 'include',
+            body: JSON.stringify(payload)
+          });
+        }
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (res.status === 409) {
+            showToast(data.detail || '최대 5개까지 생성 가능합니다.');
+          } else {
+            showToast(data.detail || '저장에 실패했습니다.');
+          }
+          return;
+        }
+
+        showToast(editingPersonaId ? '수정되었습니다.' : '생성되었습니다.');
+        closeFormModal();
+        await loadPersonas();
+      } catch (e) {
+        console.error('Save error:', e);
+        showToast('저장 중 오류가 발생했습니다.');
+      }
+    }
+
+    // Set default
+    async function setDefault(personaId) {
+      const token = localStorage.getItem('user_info_v2');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['X-User-Info-Token'] = token;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/v1/users/me/personas/${personaId}/default`, {
+          method: 'PATCH',
+          headers,
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to set default');
+        }
+
+        showToast('기본 페르조나로 설정되었습니다.');
+        await loadPersonas();
+      } catch (e) {
+        console.error('Set default error:', e);
+        showToast('설정에 실패했습니다.');
+      }
+    }
+
+    // Edit persona
+    function editPersona(personaId) {
+      openFormModal(personaId);
+    }
+
+    // Delete persona
+    async function deletePersona(personaId) {
+      if (!confirm('정말 삭제하시겠습니까?')) return;
+
+      const token = localStorage.getItem('user_info_v2');
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['X-User-Info-Token'] = token;
+      }
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/v1/users/me/personas/${personaId}`, {
+          method: 'DELETE',
+          headers,
+          credentials: 'include'
+        });
+
+        if (!res.ok) {
+          throw new Error('Failed to delete');
+        }
+
+        showToast('삭제되었습니다.');
+        await loadPersonas();
+      } catch (e) {
+        console.error('Delete error:', e);
+        showToast('삭제에 실패했습니다.');
+      }
+    }
+
+    // Show toast
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    // Escape HTML
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Event listeners
+    document.getElementById('btnAdd').addEventListener('click', () => openFormModal());
+    document.getElementById('inputName').addEventListener('input', updateCounts);
+    document.getElementById('inputBio').addEventListener('input', updateCounts);
+
+    // Close modals on backdrop click
+    document.getElementById('formModal').addEventListener('click', (e) => {
+      if (e.target.id === 'formModal') closeFormModal();
+    });
+    document.getElementById('imageModal').addEventListener('click', (e) => {
+      if (e.target.id === 'imageModal') closeImageModal();
+    });
+
+    // Initialize
+    (async () => {
+      await loadPresets();
+      await loadPersonas();
+    })();
+  </script>
+</body>
+</html>
