@@ -152,8 +152,11 @@ docker-compose down -v
 
 ## 라이선스
 
-(라이선스 정보 추가)
+This repository is shared for demonstration and learning purposes.
+Commercial use requires permission.
 
+이 저장소는 데모 및 학습 목적을 위해 공개되었습니다.
+상업적 사용을 위해서는 별도의 허가가 필요합니다.
 
 
 
