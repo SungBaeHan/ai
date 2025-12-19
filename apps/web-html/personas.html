@@ -410,6 +410,9 @@
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 12px;
+      max-height: 500px;
+      overflow-y: auto;
+      padding: 4px;
     }
     .preset-item {
       aspect-ratio: 1;
@@ -576,15 +579,44 @@
     let editingPersonaId = null;
     let presets = [];
 
+    // Fallback presets (16개: 남성 8개, 여성 8개)
+    const FALLBACK_PRESETS = [
+      { preset_key: "preset_01", gender: "male", url: "/assets/persona/preset_01.png" },
+      { preset_key: "preset_02", gender: "male", url: "/assets/persona/preset_02.png" },
+      { preset_key: "preset_03", gender: "male", url: "/assets/persona/preset_03.png" },
+      { preset_key: "preset_04", gender: "male", url: "/assets/persona/preset_04.png" },
+      { preset_key: "preset_05", gender: "female", url: "/assets/persona/preset_05.png" },
+      { preset_key: "preset_06", gender: "female", url: "/assets/persona/preset_06.png" },
+      { preset_key: "preset_07", gender: "female", url: "/assets/persona/preset_07.png" },
+      { preset_key: "preset_08", gender: "female", url: "/assets/persona/preset_08.png" },
+      { preset_key: "preset_09", gender: "male", url: "/assets/persona/preset_09.png" },
+      { preset_key: "preset_10", gender: "male", url: "/assets/persona/preset_10.png" },
+      { preset_key: "preset_11", gender: "female", url: "/assets/persona/preset_11.png" },
+      { preset_key: "preset_12", gender: "female", url: "/assets/persona/preset_12.png" },
+      { preset_key: "preset_13", gender: "male", url: "/assets/persona/preset_13.png" },
+      { preset_key: "preset_14", gender: "female", url: "/assets/persona/preset_14.png" },
+      { preset_key: "preset_15", gender: "male", url: "/assets/persona/preset_15.png" },
+      { preset_key: "preset_16", gender: "female", url: "/assets/persona/preset_16.png" },
+    ];
+
     // Load presets
     async function loadPresets() {
       try {
         const res = await fetch(`${API_BASE_URL}/v1/personas/presets`);
         if (res.ok) {
           presets = await res.json();
+        } else {
+          console.warn('Failed to load presets from API, using fallback');
+          presets = FALLBACK_PRESETS;
         }
       } catch (e) {
         console.error('Failed to load presets:', e);
+        presets = FALLBACK_PRESETS;
+      }
+      
+      // Ensure presets are loaded
+      if (!presets || presets.length === 0) {
+        presets = FALLBACK_PRESETS;
       }
     }
 
@@ -734,11 +766,21 @@
       const grid = document.getElementById('presetGrid');
       const currentKey = document.getElementById('inputImageKey').value;
 
+      // Ensure presets are loaded
+      if (!presets || presets.length === 0) {
+        presets = FALLBACK_PRESETS;
+      }
+
       grid.innerHTML = presets.map(preset => {
         const selected = preset.preset_key === currentKey ? 'selected' : '';
+        const genderBadge = preset.gender === 'male' ? '👨' : preset.gender === 'female' ? '👩' : '👤';
         return `
-          <div class="preset-item ${selected}" onclick="selectPreset('${preset.preset_key}')">
-            <img src="${preset.url}" alt="${preset.preset_key}" onerror="this.src='/assets/persona/preset_01.png'" />
+          <div class="preset-item ${selected}" onclick="selectPreset('${preset.preset_key}')" title="${preset.preset_key}">
+            <img 
+              src="${preset.url}" 
+              alt="${preset.preset_key}" 
+              onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzFmMjkzNyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE0IiBmaWxsPSIjNjQ3NDhiIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+${genderBadge}</dGV4dD48L3N2Zz4='"
+            />
           </div>
         `;
       }).join('');
