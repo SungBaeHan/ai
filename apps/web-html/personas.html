@@ -687,10 +687,13 @@
         if (imageKey && imageKey.startsWith('preset_')) {
           try {
             const num = parseInt(imageKey.replace('preset_', ''));
+            // 기존 매핑: preset_01-04=male, preset_05-08=female, preset_09-10=male, preset_11-12=female, preset_13=male, preset_14=female, preset_15=male, preset_16=female
             if (num <= 4 || num === 9 || num === 10 || num === 13 || num === 15) {
-              imageKey = `M${((num - 1) % 8) + 1}`.padStart(3, '0').replace('0', '');
+              const mIndex = num <= 4 ? num : (num === 9 ? 5 : num === 10 ? 6 : num === 13 ? 7 : 8);
+              imageKey = `M${String(mIndex).padStart(2, '0')}`;
             } else {
-              imageKey = `F${((num - 1) % 8) + 1}`.padStart(3, '0').replace('0', '');
+              const fIndex = num <= 8 ? num - 4 : (num === 11 ? 3 : num === 12 ? 4 : num === 14 ? 5 : 6);
+              imageKey = `F${String(fIndex).padStart(2, '0')}`;
             }
           } catch {
             imageKey = 'F01';
