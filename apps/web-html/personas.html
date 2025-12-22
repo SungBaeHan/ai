@@ -351,15 +351,14 @@
       color: #64748b;
       font-size: 12px;
       text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
     }
     .avatar-preview:before {
       content: "이미지";
-      display: block;
+      white-space: nowrap;
     }
-    .avatar-preview[src]:not([src=""]) {
-      background: transparent;
-    }
-    .avatar-preview[src]:not([src=""]):before {
+    .avatar-preview.has-image:before {
       display: none;
     }
     .btn-select-image {
@@ -529,7 +528,7 @@
           <div class="form-group">
             <label class="form-label">아바타</label>
             <div class="avatar-selector">
-              <div id="avatarPreview" class="avatar-preview" style="background: #1f2937; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 12px;">이미지</div>
+              <div id="avatarPreview" class="avatar-preview"></div>
               <button type="button" class="btn-select-image" onclick="openImageModal()">사진 선택</button>
             </div>
             <input type="hidden" id="inputImageKey" value="F01" />
@@ -772,7 +771,8 @@
         title.textContent = '페르조나 생성';
         form.reset();
         document.getElementById('inputImageKey').value = 'F01';
-        updateAvatarPreview('F01');
+        // 새로 열 때는 아바타 미리보기를 초기화 (이미지 없이)
+        resetAvatarPreview();
       }
 
       updateCounts();
@@ -829,6 +829,19 @@
       closeImageModal();
     }
 
+    // Reset avatar preview (초기 상태로 되돌림)
+    function resetAvatarPreview() {
+      const preview = document.getElementById('avatarPreview');
+      preview.innerHTML = '';
+      preview.className = 'avatar-preview'; // has-image 클래스 제거하여 :before가 다시 나타나도록
+      preview.style.background = '#1f2937';
+      preview.style.color = '#64748b';
+      preview.style.display = 'flex';
+      preview.style.alignItems = 'center';
+      preview.style.justifyContent = 'center';
+      preview.style.fontSize = '12px';
+    }
+
     // Update avatar preview
     function updateAvatarPreview(imageKey) {
       const preview = document.getElementById('avatarPreview');
@@ -842,26 +855,16 @@
         img.style.objectFit = 'cover';
         img.style.borderRadius = '8px';
         img.onerror = function() {
-          preview.innerHTML = '이미지';
-          preview.style.background = '#1f2937';
-          preview.style.color = '#64748b';
-          preview.style.display = 'flex';
-          preview.style.alignItems = 'center';
-          preview.style.justifyContent = 'center';
-          preview.style.fontSize = '12px';
+          resetAvatarPreview();
         };
         img.onload = function() {
           preview.style.background = 'transparent';
+          preview.classList.add('has-image');
         };
         preview.appendChild(img);
+        preview.classList.add('has-image');
       } else {
-        preview.innerHTML = '이미지';
-        preview.style.background = '#1f2937';
-        preview.style.color = '#64748b';
-        preview.style.display = 'flex';
-        preview.style.alignItems = 'center';
-        preview.style.justifyContent = 'center';
-        preview.style.fontSize = '12px';
+        resetAvatarPreview();
       }
     }
 
