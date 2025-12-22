@@ -23,27 +23,27 @@ router = APIRouter(tags=["personas"])
 # ================================
 
 PERSONA_PRESETS: List[Dict[str, str]] = [
-    # 기본 16개 프리셋 (키/성별/URL)
-    {"preset_key": "preset_01", "gender": "male", "url": "/assets/persona/preset_01.png"},
-    {"preset_key": "preset_02", "gender": "male", "url": "/assets/persona/preset_02.png"},
-    {"preset_key": "preset_03", "gender": "male", "url": "/assets/persona/preset_03.png"},
-    {"preset_key": "preset_04", "gender": "male", "url": "/assets/persona/preset_04.png"},
-    {"preset_key": "preset_05", "gender": "female", "url": "/assets/persona/preset_05.png"},
-    {"preset_key": "preset_06", "gender": "female", "url": "/assets/persona/preset_06.png"},
-    {"preset_key": "preset_07", "gender": "female", "url": "/assets/persona/preset_07.png"},
-    {"preset_key": "preset_08", "gender": "female", "url": "/assets/persona/preset_08.png"},
-    {"preset_key": "preset_09", "gender": "male", "url": "/assets/persona/preset_09.png"},
-    {"preset_key": "preset_10", "gender": "male", "url": "/assets/persona/preset_10.png"},
-    {"preset_key": "preset_11", "gender": "female", "url": "/assets/persona/preset_11.png"},
-    {"preset_key": "preset_12", "gender": "female", "url": "/assets/persona/preset_12.png"},
-    {"preset_key": "preset_13", "gender": "male", "url": "/assets/persona/preset_13.png"},
-    {"preset_key": "preset_14", "gender": "female", "url": "/assets/persona/preset_14.png"},
-    {"preset_key": "preset_15", "gender": "male", "url": "/assets/persona/preset_15.png"},
-    {"preset_key": "preset_16", "gender": "female", "url": "/assets/persona/preset_16.png"},
+    # 기본 16개 프리셋 (F01-F08: 여성, M01-M08: 남성)
+    {"preset_key": "F01", "gender": "female", "url": "/assets/persona/F01.png"},
+    {"preset_key": "F02", "gender": "female", "url": "/assets/persona/F02.png"},
+    {"preset_key": "F03", "gender": "female", "url": "/assets/persona/F03.png"},
+    {"preset_key": "F04", "gender": "female", "url": "/assets/persona/F04.png"},
+    {"preset_key": "F05", "gender": "female", "url": "/assets/persona/F05.png"},
+    {"preset_key": "F06", "gender": "female", "url": "/assets/persona/F06.png"},
+    {"preset_key": "F07", "gender": "female", "url": "/assets/persona/F07.png"},
+    {"preset_key": "F08", "gender": "female", "url": "/assets/persona/F08.png"},
+    {"preset_key": "M01", "gender": "male", "url": "/assets/persona/M01.png"},
+    {"preset_key": "M02", "gender": "male", "url": "/assets/persona/M02.png"},
+    {"preset_key": "M03", "gender": "male", "url": "/assets/persona/M03.png"},
+    {"preset_key": "M04", "gender": "male", "url": "/assets/persona/M04.png"},
+    {"preset_key": "M05", "gender": "male", "url": "/assets/persona/M05.png"},
+    {"preset_key": "M06", "gender": "male", "url": "/assets/persona/M06.png"},
+    {"preset_key": "M07", "gender": "male", "url": "/assets/persona/M07.png"},
+    {"preset_key": "M08", "gender": "male", "url": "/assets/persona/M08.png"},
 ]
 
 MAX_PERSONAS = 5
-VALID_PRESET_KEYS = [f"preset_{i:02d}" for i in range(1, 17)]
+VALID_PRESET_KEYS = [f"F{i:02d}" for i in range(1, 9)] + [f"M{i:02d}" for i in range(1, 9)]
 
 
 class PersonaBase(BaseModel):
@@ -52,7 +52,7 @@ class PersonaBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=25, description="페르소나 이름/호칭")
     gender: Literal["male", "female", "nonbinary"] = "nonbinary"
     bio: str = Field("", max_length=700, description="소개 텍스트")
-    image_key: str = Field(..., description="프리셋 이미지 키 (preset_01 ~ preset_16)")
+    image_key: str = Field(..., description="프리셋 이미지 키 (F01~F08: 여성, M01~M08: 남성)")
     is_default: bool = False
 
     @field_validator("image_key")
@@ -147,9 +147,23 @@ def _normalize_persona_doc(doc: Dict[str, Any]) -> PersonaOut:
     if not image_key and "image" in doc:
         image_obj = doc.get("image", {})
         if isinstance(image_obj, dict):
-            image_key = image_obj.get("preset_key") or "preset_01"
-    if not image_key:
-        image_key = "preset_01"
+            old_key = image_obj.get("preset_key")
+            # 기존 preset_XX 형식을 F01/M01 형식으로 변환 (간단한 매핑)
+            if old_key and old_key.startswith("preset_"):
+                try:
+                    num = int(old_key.replace("preset_", ""))
+                    # 기존 매핑: preset_01-04=male, preset_05-08=female, preset_09-10=male, preset_11-12=female, preset_13=male, preset_14=female, preset_15=male, preset_16=female
+                    # 새 매핑: F01-F08=female, M01-M08=male
+                    if num <= 4 or num == 9 or num == 10 or num == 13 or num == 15:
+                        image_key = f"M{((num - 1) % 8) + 1:02d}"
+                    else:
+                        image_key = f"F{((num - 1) % 8) + 1:02d}"
+                except:
+                    image_key = "F01"
+            else:
+                image_key = old_key or "F01"
+    if not image_key or image_key not in VALID_PRESET_KEYS:
+        image_key = "F01"
     
     return PersonaOut(
         persona_id=doc["persona_id"],

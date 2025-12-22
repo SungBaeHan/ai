@@ -532,7 +532,7 @@
               <div id="avatarPreview" class="avatar-preview" style="background: #1f2937; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 12px;">이미지</div>
               <button type="button" class="btn-select-image" onclick="openImageModal()">사진 선택</button>
             </div>
-            <input type="hidden" id="inputImageKey" value="preset_01" />
+            <input type="hidden" id="inputImageKey" value="F01" />
           </div>
 
           <div class="form-group">
@@ -579,25 +579,35 @@
     let editingPersonaId = null;
     let presets = [];
 
-    // Fallback presets (16개: 남성 8개, 여성 8개)
+    // Fallback presets (16개: F01-F08 여성, M01-M08 남성)
     const FALLBACK_PRESETS = [
-      { preset_key: "preset_01", gender: "male", url: "/assets/persona/preset_01.png" },
-      { preset_key: "preset_02", gender: "male", url: "/assets/persona/preset_02.png" },
-      { preset_key: "preset_03", gender: "male", url: "/assets/persona/preset_03.png" },
-      { preset_key: "preset_04", gender: "male", url: "/assets/persona/preset_04.png" },
-      { preset_key: "preset_05", gender: "female", url: "/assets/persona/preset_05.png" },
-      { preset_key: "preset_06", gender: "female", url: "/assets/persona/preset_06.png" },
-      { preset_key: "preset_07", gender: "female", url: "/assets/persona/preset_07.png" },
-      { preset_key: "preset_08", gender: "female", url: "/assets/persona/preset_08.png" },
-      { preset_key: "preset_09", gender: "male", url: "/assets/persona/preset_09.png" },
-      { preset_key: "preset_10", gender: "male", url: "/assets/persona/preset_10.png" },
-      { preset_key: "preset_11", gender: "female", url: "/assets/persona/preset_11.png" },
-      { preset_key: "preset_12", gender: "female", url: "/assets/persona/preset_12.png" },
-      { preset_key: "preset_13", gender: "male", url: "/assets/persona/preset_13.png" },
-      { preset_key: "preset_14", gender: "female", url: "/assets/persona/preset_14.png" },
-      { preset_key: "preset_15", gender: "male", url: "/assets/persona/preset_15.png" },
-      { preset_key: "preset_16", gender: "female", url: "/assets/persona/preset_16.png" },
+      { preset_key: "F01", gender: "female", url: "/assets/persona/F01.png" },
+      { preset_key: "F02", gender: "female", url: "/assets/persona/F02.png" },
+      { preset_key: "F03", gender: "female", url: "/assets/persona/F03.png" },
+      { preset_key: "F04", gender: "female", url: "/assets/persona/F04.png" },
+      { preset_key: "F05", gender: "female", url: "/assets/persona/F05.png" },
+      { preset_key: "F06", gender: "female", url: "/assets/persona/F06.png" },
+      { preset_key: "F07", gender: "female", url: "/assets/persona/F07.png" },
+      { preset_key: "F08", gender: "female", url: "/assets/persona/F08.png" },
+      { preset_key: "M01", gender: "male", url: "/assets/persona/M01.png" },
+      { preset_key: "M02", gender: "male", url: "/assets/persona/M02.png" },
+      { preset_key: "M03", gender: "male", url: "/assets/persona/M03.png" },
+      { preset_key: "M04", gender: "male", url: "/assets/persona/M04.png" },
+      { preset_key: "M05", gender: "male", url: "/assets/persona/M05.png" },
+      { preset_key: "M06", gender: "male", url: "/assets/persona/M06.png" },
+      { preset_key: "M07", gender: "male", url: "/assets/persona/M07.png" },
+      { preset_key: "M08", gender: "male", url: "/assets/persona/M08.png" },
     ];
+
+    // Shuffle array function (Fisher-Yates)
+    function shuffleArray(array) {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    }
 
     // Load presets
     async function loadPresets() {
@@ -672,12 +682,26 @@
           nonbinary: '논바이너리'
         }[p.gender] || '논바이너리';
 
-        const imageUrl = `/assets/persona/${p.image_key}.png`;
+        // image_key가 기존 preset_XX 형식이면 새 형식으로 변환
+        let imageKey = p.image_key;
+        if (imageKey && imageKey.startsWith('preset_')) {
+          try {
+            const num = parseInt(imageKey.replace('preset_', ''));
+            if (num <= 4 || num === 9 || num === 10 || num === 13 || num === 15) {
+              imageKey = `M${((num - 1) % 8) + 1}`.padStart(3, '0').replace('0', '');
+            } else {
+              imageKey = `F${((num - 1) % 8) + 1}`.padStart(3, '0').replace('0', '');
+            }
+          } catch {
+            imageKey = 'F01';
+          }
+        }
+        const imageUrl = `/assets/persona/${imageKey}.png`;
 
         return `
           <div class="persona-card ${p.is_default ? 'default' : ''}">
             <div class="persona-card-header">
-              <img src="${imageUrl}" alt="${p.name}" class="persona-avatar" onerror="this.src='/assets/persona/preset_01.png'" />
+              <img src="${imageUrl}" alt="${p.name}" class="persona-avatar" onerror="this.src='/assets/persona/F01.png'" />
               <div class="persona-info">
                 <div class="persona-name">
                   ${p.is_default ? '<span class="persona-badge">기본</span>' : ''}
@@ -730,24 +754,8 @@
       } else {
         title.textContent = '페르조나 생성';
         form.reset();
-        document.getElementById('inputImageKey').value = 'preset_01';
-        updateAvatarPreview('preset_01');
-        // Set initial image
-        const preview = document.getElementById('avatarPreview');
-        preview.innerHTML = '';
-        preview.style.background = 'transparent';
-        const img = document.createElement('img');
-        img.src = `/assets/persona/preset_01.png`;
-        img.style.width = '100%';
-        img.style.height = '100%';
-        img.style.objectFit = 'cover';
-        img.style.borderRadius = '8px';
-        img.onerror = function() {
-          preview.innerHTML = '이미지';
-          preview.style.background = '#1f2937';
-          preview.style.color = '#64748b';
-        };
-        preview.appendChild(img);
+        document.getElementById('inputImageKey').value = 'F01';
+        updateAvatarPreview('F01');
       }
 
       updateCounts();
@@ -771,7 +779,10 @@
         presets = FALLBACK_PRESETS;
       }
 
-      grid.innerHTML = presets.map(preset => {
+      // 랜덤하게 섞어서 4x4 그리드에 표시
+      const shuffledPresets = shuffleArray(presets);
+
+      grid.innerHTML = shuffledPresets.map(preset => {
         const selected = preset.preset_key === currentKey ? 'selected' : '';
         const genderBadge = preset.gender === 'male' ? '👨' : preset.gender === 'female' ? '👩' : '👤';
         return `
