@@ -575,6 +575,20 @@
         ? "https://api.arcanaverse.ai"
         : "http://localhost:8000";
 
+    // R2 Public URL (페르조나 이미지용)
+    const R2_BASE = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
+
+    // 페르조나 이미지 URL 정규화 함수
+    function resolvePersonaUrl(u) {
+      if (!u) return "";
+      // 이미 절대 URL이면 그대로 반환
+      if (u.startsWith("http://") || u.startsWith("https://")) return u;
+      // 상대 경로(/assets/...)를 R2 절대 URL로 변환
+      if (u.startsWith("/")) return `${R2_BASE}${u}`;
+      // /로 시작하지 않으면 /assets/persona/를 prefix로 추가
+      return `${R2_BASE}/assets/persona/${u}`;
+    }
+
     let personas = [];
     let editingPersonaId = null;
     let presets = [];
@@ -699,12 +713,12 @@
             imageKey = 'F01';
           }
         }
-        const imageUrl = `/assets/persona/${imageKey}.png`;
+        const imageUrl = resolvePersonaUrl(`/assets/persona/${imageKey}.png`);
 
         return `
           <div class="persona-card ${p.is_default ? 'default' : ''}">
             <div class="persona-card-header">
-              <img src="${imageUrl}" alt="${p.name}" class="persona-avatar" onerror="this.src='/assets/persona/F01.png'" />
+              <img src="${imageUrl}" alt="${p.name}" class="persona-avatar" onerror="this.src='${resolvePersonaUrl('/assets/persona/F01.png')}'" />
               <div class="persona-info">
                 <div class="persona-name">
                   ${p.is_default ? '<span class="persona-badge">기본</span>' : ''}
@@ -788,10 +802,11 @@
       grid.innerHTML = shuffledPresets.map(preset => {
         const selected = preset.preset_key === currentKey ? 'selected' : '';
         const genderBadge = preset.gender === 'male' ? '👨' : preset.gender === 'female' ? '👩' : '👤';
+        const presetImageUrl = resolvePersonaUrl(preset.url);
         return `
           <div class="preset-item ${selected}" onclick="selectPreset('${preset.preset_key}')" title="${preset.preset_key}">
             <img 
-              src="${preset.url}" 
+              src="${presetImageUrl}" 
               alt="${preset.preset_key}" 
               onerror="this.onerror=null; this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzFmMjkzNyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE0IiBmaWxsPSIjNjQ3NDhiIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkeT0iLjNlbSI+${genderBadge}</dGV4dD48L3N2Zz4='"
             />
@@ -821,7 +836,7 @@
       
       if (imageKey) {
         const img = document.createElement('img');
-        img.src = `/assets/persona/${imageKey}.png`;
+        img.src = resolvePersonaUrl(`/assets/persona/${imageKey}.png`);
         img.style.width = '100%';
         img.style.height = '100%';
         img.style.objectFit = 'cover';
