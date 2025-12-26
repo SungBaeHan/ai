@@ -11,9 +11,9 @@
 
 import time
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from fastapi import APIRouter, Query, HTTPException, UploadFile, File, Form, Depends, Request
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from adapters.persistence.factory import get_character_repo
 from adapters.persistence.mongo import get_db
 from src.domain.character import Character
@@ -283,6 +283,17 @@ class CharacterMeta(BaseModel):
     created_at: Optional[int] = None
     updated_at: Optional[int] = None
     reg_user: Optional[str] = Field(default=None, description="등록한 사용자의 google_id 또는 email")
+    gender: Optional[Literal["male", "female", "none"]] = Field(default="none", description="성별: male/female/none")
+    
+    @field_validator('gender')
+    @classmethod
+    def validate_gender(cls, v):
+        """gender 값 검증"""
+        if v is None:
+            return "none"
+        if v not in ["male", "female", "none"]:
+            raise ValueError("gender must be one of: male, female, none")
+        return v
 
 @router.post("/ai-detail", response_model=CharacterDetailResponse, summary="AI로 캐릭터 상세 생성")
 async def ai_generate_character_detail(payload: CharacterBaseInfo):
@@ -578,6 +589,9 @@ async def create_character(
                 for ex in payload.examples
             ]
             
+            # gender 필드 처리: 없으면 "none" 기본값
+            gender_value = payload.gender if payload.gender else "none"
+            
             doc = {
                 "id": new_id,
                 "name": payload.name.strip(),
@@ -598,6 +612,7 @@ async def create_character(
                 "scenario": payload.scenario or "",
                 "system_prompt": payload.system_prompt or "",
                 "status": payload.status or "active",
+                "gender": gender_value,  # 성별 필드
                 "reg_user": reg_user,  # 등록자 식별자
                 "created_at": now,
                 "updated_at": now,

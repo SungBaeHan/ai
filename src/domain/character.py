@@ -34,6 +34,7 @@ class Character:
     src_file: Optional[str] = None
     img_hash: Optional[str] = None
     updated_at: Optional[int] = None
+    gender: Optional[str] = None  # male/female/none
     
     def to_dict(self) -> dict:
         """도메인 엔티티를 딕셔너리로 변환"""
@@ -65,6 +66,8 @@ class Character:
             result["img_hash"] = self.img_hash
         if self.updated_at is not None:
             result["updated_at"] = self.updated_at
+        if self.gender is not None:
+            result["gender"] = self.gender
         return result
     
     @classmethod
@@ -91,4 +94,5 @@ class Character:
             src_file=data.get("src_file"),
             img_hash=data.get("img_hash"),
             updated_at=data.get("updated_at"),
+            gender=data.get("gender"),
         )

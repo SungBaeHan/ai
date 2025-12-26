@@ -336,6 +336,15 @@ create/character.html - 캐릭터 생성 화면
         </label>
 
         <label>
+          성별
+          <select data-field="gender">
+            <option value="none">무성</option>
+            <option value="male">남</option>
+            <option value="female">여</option>
+          </select>
+        </label>
+
+        <label>
           아키타입 / 직업
           <input type="text" data-field="archetype" placeholder="예: 모험가, 마법사" />
         </label>
@@ -660,6 +669,7 @@ create/character.html - 캐릭터 생성 화면
     // 메타데이터 수집 함수
     function collectCharacterMetaFromForm(overrides = {}) {
       const name = getInputValue('[data-field="name"]');
+      const gender = getInputValue('[data-field="gender"]') || 'none';
       const archetype = getInputValue('[data-field="archetype"]');
       const world = getInputValue('[data-field="world"]');
       const summary = getInputValue('[data-field="summary"]');
@@ -690,6 +700,7 @@ create/character.html - 캐릭터 생성 화면
       
       const meta = {
         name,
+        gender: gender || 'none',
         archetype,
         world,
         summary,
@@ -873,6 +884,14 @@ create/character.html - 캐릭터 생성 화면
           if (data.name) {
             const el = document.querySelector('[data-field="name"]');
             if (el) el.value = data.name;
+          }
+          if (data.gender) {
+            const el = document.querySelector('[data-field="gender"]');
+            if (el) el.value = data.gender;
+          } else {
+            // gender가 없으면 기본값 "none" 설정
+            const el = document.querySelector('[data-field="gender"]');
+            if (el) el.value = 'none';
           }
           if (data.archetype) {
             const el = document.querySelector('[data-field="archetype"]');
