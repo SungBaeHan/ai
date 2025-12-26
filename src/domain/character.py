@@ -35,6 +35,7 @@ class Character:
     img_hash: Optional[str] = None
     updated_at: Optional[int] = None
     gender: Optional[str] = None  # male/female/none
+    creator: Optional[str] = None  # users._id (ObjectId as string)
     
     def to_dict(self) -> dict:
         """도메인 엔티티를 딕셔너리로 변환"""
@@ -68,11 +69,28 @@ class Character:
             result["updated_at"] = self.updated_at
         if self.gender is not None:
             result["gender"] = self.gender
+        if self.creator is not None:
+            result["creator"] = self.creator
         return result
     
     @classmethod
     def from_dict(cls, data: dict) -> "Character":
         """딕셔너리에서 도메인 엔티티 생성"""
+        # creator가 ObjectId인 경우 문자열로 변환
+        creator = data.get("creator")
+        if creator is not None:
+            # ObjectId인 경우 문자열로 변환
+            try:
+                from bson import ObjectId
+                if isinstance(creator, ObjectId):
+                    creator = str(creator)
+                elif not isinstance(creator, str):
+                    creator = str(creator)
+            except ImportError:
+                # bson이 없는 환경에서는 그대로 사용
+                if not isinstance(creator, str):
+                    creator = str(creator) if creator is not None else None
+        
         return cls(
             id=data.get("id"),
             name=data.get("name", ""),
@@ -95,4 +113,5 @@ class Character:
             img_hash=data.get("img_hash"),
             updated_at=data.get("updated_at"),
             gender=data.get("gender"),
+            creator=creator,
         )

@@ -116,6 +116,9 @@ def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = 
             items = result.get("items", [])
             for it in items:
                 it["image"] = normalize_image(it.get("image"))
+                # creator ObjectId를 문자열로 변환
+                if "creator" in it and it["creator"] is not None:
+                    it["creator"] = str(it["creator"])
             return {
                 "items": items,
                 "total": result.get("total", len(items)),
@@ -145,6 +148,9 @@ def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = 
     for doc in cursor:
         doc.pop("_id", None)  # _id 제거
         doc["image"] = normalize_image(doc.get("image"))
+        # creator ObjectId를 문자열로 변환
+        if "creator" in doc and doc["creator"] is not None:
+            doc["creator"] = str(doc["creator"])
         # 프론트엔드 호환성을 위해 summary를 shortBio로도 매핑
         if "summary" in doc and "shortBio" not in doc:
             doc["shortBio"] = doc["summary"]
@@ -181,6 +187,7 @@ def get_one(character_id: str):
     
     char_dict = char.to_dict()
     char_dict["image"] = normalize_image(char_dict.get("image"))
+    # creator는 이미 문자열로 변환되어 있음 (Character.to_dict에서)
     # 프론트엔드 호환성을 위해 summary를 shortBio로도 매핑
     if "summary" in char_dict and "shortBio" not in char_dict:
         char_dict["shortBio"] = char_dict["summary"]
@@ -194,6 +201,72 @@ def get_count():
     """등록된 캐릭터 총 수 반환"""
     # Repository 인터페이스를 통한 조회
     return {"count": repo.count()}
+
+@router.get("/my", summary="내가 만든 캐릭터 목록")
+def get_my_characters(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1),
+    q: str = Query(None),
+    db = Depends(get_db),
+    current_user = Depends(get_current_user_v2),
+):
+    """
+    현재 로그인한 사용자가 만든 캐릭터 목록 조회
+    - creator == current_user._id 조건으로 필터링
+    - 로그인 필수
+    """
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    
+    # user_id를 ObjectId로 변환
+    user_id_str = current_user.get("user_id")
+    if not user_id_str:
+        raise HTTPException(status_code=401, detail="사용자 정보를 찾을 수 없습니다.")
+    
+    try:
+        creator_id = ObjectId(user_id_str)
+    except Exception:
+        raise HTTPException(status_code=400, detail="유효하지 않은 사용자 ID입니다.")
+    
+    # 필터 쿼리 구성
+    filter_query = {"creator": creator_id}
+    
+    # 검색어가 있으면 추가 필터
+    if q:
+        filter_query["$and"] = [
+            {"creator": creator_id},
+            {
+                "$or": [
+                    {"name": {"$regex": q, "$options": "i"}},
+                    {"tags": {"$regex": q, "$options": "i"}},
+                    {"summary": {"$regex": q, "$options": "i"}},
+                ]
+            }
+        ]
+    
+    # MongoDB 쿼리
+    cursor = db.characters.find(filter_query).sort([
+        ("created_at", -1),
+        ("id", -1),
+    ]).skip(skip).limit(limit)
+    
+    items = []
+    for doc in cursor:
+        doc.pop("_id", None)  # _id 제거
+        doc["image"] = normalize_image(doc.get("image"))
+        # creator ObjectId를 문자열로 변환
+        if "creator" in doc and doc["creator"] is not None:
+            doc["creator"] = str(doc["creator"])
+        # 프론트엔드 호환성을 위해 summary를 shortBio로도 매핑
+        if "summary" in doc and "shortBio" not in doc:
+            doc["shortBio"] = doc["summary"]
+        # detail을 longBio로도 매핑
+        if "detail" in doc and "longBio" not in doc:
+            doc["longBio"] = doc["detail"]
+        items.append(doc)
+    
+    total = db.characters.count_documents(filter_query)
+    return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 # === 이미지 업로드 ===
 @router.post("/upload-image", summary="캐릭터 이미지 업로드")
@@ -592,6 +665,17 @@ async def create_character(
             # gender 필드 처리: 없으면 "none" 기본값
             gender_value = payload.gender if payload.gender else "none"
             
+            # --- creator 필드 세팅 (보안: payload의 creator는 무시, 서버에서만 설정) ---
+            creator_id = None
+            user_id_str = current_user.get("user_id")
+            if user_id_str:
+                try:
+                    # user_id를 ObjectId로 변환하여 저장
+                    creator_id = ObjectId(user_id_str)
+                except Exception:
+                    logger.warning(f"Invalid user_id format: {user_id_str}")
+                    creator_id = None
+            
             doc = {
                 "id": new_id,
                 "name": payload.name.strip(),
@@ -613,6 +697,7 @@ async def create_character(
                 "system_prompt": payload.system_prompt or "",
                 "status": payload.status or "active",
                 "gender": gender_value,  # 성별 필드
+                "creator": creator_id,  # 생성자 사용자 ID (ObjectId)
                 "reg_user": reg_user,  # 등록자 식별자
                 "created_at": now,
                 "updated_at": now,
