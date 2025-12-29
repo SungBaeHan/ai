@@ -23,6 +23,7 @@ from langchain_openai import ChatOpenAI
 from apps.api.dependencies.auth import get_optional_user, User
 from apps.api.core.user_info_token import decode_user_info_token
 from adapters.persistence.mongo.factory import get_mongo_client
+from apps.api.routes.worlds import get_current_user_v2
 from bson import ObjectId
 from datetime import datetime, timezone
 import json
@@ -492,77 +493,8 @@ async def ai_generate_character_detail(payload: CharacterBaseInfo):
         logger.exception("AI generation failed")
         raise HTTPException(status_code=500, detail="캐릭터 상세 설정 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
 
-# === 사용자 인증 의존성 (validate-session과 동일한 로직) ===
-def get_current_user_from_token(token: str):
-    """
-    user_info_v2 토큰을 검증하고 사용자 정보를 반환하는 함수.
-    validate-session 엔드포인트와 완전히 동일한 로직을 사용.
-    """
-    try:
-        info = decode_user_info_token(token)
-    except ValueError:
-        return None
-
-    now = datetime.now(timezone.utc)
-    if info.expired_at < now:
-        return None
-
-    db = get_mongo_client()
-    users = db.users
-
-    try:
-        user = users.find_one({"_id": ObjectId(info.user_id)})
-    except Exception:
-        return None
-
-    if not user:
-        return None
-
-    # last_login_at 이 DB 값과 다르면, 이전 세션 토큰 → 무효
-    db_last_login = user.get("last_login_at")
-    if db_last_login is None:
-        return None
-
-    # timezone 정보가 없으면 UTC로 가정
-    if isinstance(db_last_login, datetime):
-        if db_last_login.tzinfo is None:
-            db_last_login = db_last_login.replace(tzinfo=timezone.utc)
-    else:
-        return None
-
-    # last_login_at 비교 (마이크로초 단위 차이 무시)
-    if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
-        return None
-
-    # 사용자 정보 반환 (dict 형태, validate-session과 동일한 구조)
-    return {
-        "user_id": str(user["_id"]),
-        "email": user.get("email", info.email),
-        "display_name": user.get("display_name", info.display_name),
-        "google_id": user.get("google_id"),
-        "sub": user.get("google_id"),
-        "is_use": user.get("is_use", "Y"),
-        "is_lock": user.get("is_lock", "N"),
-    }
-
-def get_current_user_v2(request: Request):
-    """
-    Request에서 user_info_v2 토큰을 읽어서 사용자 정보를 반환하는 의존성 함수.
-    validate-session과 동일한 로직을 사용.
-    """
-    # Authorization 헤더 또는 X-User-Info-Token 헤더에서 토큰 추출
-    token = None
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-    else:
-        # 별도 헤더에서 토큰 읽기 시도
-        token = request.headers.get("X-User-Info-Token")
-    
-    if not token:
-        return None
-    
-    return get_current_user_from_token(token)
+# === 사용자 인증 의존성은 worlds.py에서 import ===
+# get_current_user_v2는 worlds.py에서 import하여 사용
 
 @router.post("", summary="캐릭터 생성")
 async def create_character(
