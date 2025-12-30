@@ -327,30 +327,11 @@ class ChatIn(BaseModel):
 
 router = APIRouter()
 
-def get_auth_token_from_request(request: Request) -> str:
-    """
-    Request에서 인증 토큰을 추출합니다.
-    Authorization 헤더 또는 X-User-Info-Token 헤더에서 읽습니다.
-    
-    토큰이 없으면 HTTPException(401)을 발생시킵니다.
-    """
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        return auth_header.split(" ")[1]
-    
-    token = request.headers.get("X-User-Info-Token")
-    if token:
-        return token
-    
-    raise HTTPException(status_code=401, detail="Authentication required")
-
-
-def get_current_user_dependency(request: Request) -> dict:
+async def get_current_user_dependency(request: Request) -> dict:
     """
     FastAPI dependency function for getting current user from request.
     """
-    token = get_auth_token_from_request(request)
-    return get_current_user_from_token(token)
+    return get_current_user_from_token(request)
 
 
 @router.post("/")
