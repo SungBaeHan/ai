@@ -327,8 +327,34 @@ class ChatIn(BaseModel):
 
 router = APIRouter()
 
+def get_auth_token_from_request(request: Request) -> str:
+    """
+    Request에서 인증 토큰을 추출합니다.
+    Authorization 헤더 또는 X-User-Info-Token 헤더에서 읽습니다.
+    
+    토큰이 없으면 HTTPException(401)을 발생시킵니다.
+    """
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        return auth_header.split(" ")[1]
+    
+    token = request.headers.get("X-User-Info-Token")
+    if token:
+        return token
+    
+    raise HTTPException(status_code=401, detail="Authentication required")
+
+
+def get_current_user_dependency(request: Request) -> dict:
+    """
+    FastAPI dependency function for getting current user from request.
+    """
+    token = get_auth_token_from_request(request)
+    return get_current_user_from_token(token)
+
+
 @router.post("/")
-async def chat(req: Request):
+async def chat(req: Request, current_user: dict = Depends(get_current_user_dependency)):
     """
     /v1/chat 엔드포인트 (TRPG + QA 겸용)
     - OpenAI로 강제 통일 (gpt-4o-mini, max_tokens=32)
@@ -336,6 +362,7 @@ async def chat(req: Request):
     - Cloudflare 524 방지를 위해:
       * 전체 LLM 호출을 25초로 제한
       * 에러/타임아웃 시 HTTP 500 으로 바로 응답
+    - 인증 필수: current_user dependency로 user_id 보장
     """
     # 트레이스 ID 생성
     trace_id = make_trace_id()
@@ -345,23 +372,11 @@ async def chat(req: Request):
     db_env = os.getenv("MONGO_DB", "arcanaverse")
     db_name = db.name
     
-    # 사용자 ID 추출 시도 (user_info_v2 토큰에서)
-    user_id = None
-    try:
-        auth_header = req.headers.get("Authorization")
-        token = None
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-        else:
-            # X-User-Info-Token 헤더에서도 시도
-            token = req.headers.get("X-User-Info-Token")
-        
-        if token:
-            current_user_dict = get_current_user_from_token(token)
-            if current_user_dict:
-                user_id = current_user_dict.get("google_id")
-    except Exception:
-        pass  # 사용자 ID 추출 실패 시 None 유지
+    # current_user에서 user_id 추출 (dependency에서 보장됨)
+    user_id = current_user.get("google_id")
+    if not user_id:
+        logger.error("[CHAT][FATAL] trace=%s missing google_id in current_user – chat persistence aborted", trace_id)
+        raise HTTPException(status_code=500, detail="User identity missing (no google_id)")
     
     try:
         # 1) 요청 파싱
