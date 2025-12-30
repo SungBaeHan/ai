@@ -12,7 +12,7 @@ from bson import ObjectId
 logger = logging.getLogger(__name__)
 
 
-async def persist_character_chat(
+def persist_character_chat(
     db: Database,
     trace_id: str,
     user_id: str,
