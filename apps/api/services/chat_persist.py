@@ -50,8 +50,8 @@ def persist_character_chat(
         character_id_str = str(character_id)
         writes = {}
         
-        # 1) chat_session 컬렉션에 세션 저장/업데이트 (upsert)
-        session_col = db["chat_session"]
+        # 1) characters_session 컬렉션에 세션 저장/업데이트 (upsert)
+        session_col = db["characters_session"]
         session_filter = {
             "user_id": user_id,
             "chat_type": "character",
@@ -79,7 +79,7 @@ def persist_character_chat(
             "upserted_id": str(session_result.upserted_id) if session_result.upserted_id else None,
         }
         logger.info(
-            "[CHAT][DB] trace=%s col=chat_session op=update_one matched=%d modified=%d upserted_id=%s",
+            "[CHAT][DB] trace=%s col=characters_session op=update_one matched=%d modified=%d upserted_id=%s",
             trace_id,
             session_result.matched_count,
             session_result.modified_count,
@@ -92,8 +92,8 @@ def persist_character_chat(
             raise Exception("Failed to create/find session after upsert")
         session_id = session_doc["_id"]
         
-        # 2) chat_message 컬렉션에 사용자 메시지 저장
-        message_col = db["chat_message"]
+        # 2) characters_message 컬렉션에 사용자 메시지 저장
+        message_col = db["characters_message"]
         user_message_doc = {
             "session_id": session_id,
             "user_id": user_id,
@@ -106,12 +106,12 @@ def persist_character_chat(
             "inserted_id": str(user_msg_result.inserted_id),
         }
         logger.info(
-            "[CHAT][DB] trace=%s col=chat_message op=insert_one role=user inserted_id=%s",
+            "[CHAT][DB] trace=%s col=characters_message op=insert_one role=user inserted_id=%s",
             trace_id,
             str(user_msg_result.inserted_id),
         )
         
-        # 3) chat_message 컬렉션에 어시스턴트 메시지 저장
+        # 3) characters_message 컬렉션에 어시스턴트 메시지 저장
         assistant_message_doc = {
             "session_id": session_id,
             "user_id": user_id,
@@ -124,13 +124,13 @@ def persist_character_chat(
             "inserted_id": str(assistant_msg_result.inserted_id),
         }
         logger.info(
-            "[CHAT][DB] trace=%s col=chat_message op=insert_one role=assistant inserted_id=%s",
+            "[CHAT][DB] trace=%s col=characters_message op=insert_one role=assistant inserted_id=%s",
             trace_id,
             str(assistant_msg_result.inserted_id),
         )
         
-        # 4) chat_event 컬렉션에 이벤트 저장 (선택사항)
-        event_col = db["chat_event"]
+        # 4) characters_event 컬렉션에 이벤트 저장 (선택사항)
+        event_col = db["characters_event"]
         event_doc = {
             "session_id": session_id,
             "user_id": user_id,
@@ -147,7 +147,7 @@ def persist_character_chat(
             "inserted_id": str(event_result.inserted_id),
         }
         logger.info(
-            "[CHAT][DB] trace=%s col=chat_event op=insert_one inserted_id=%s",
+            "[CHAT][DB] trace=%s col=characters_event op=insert_one inserted_id=%s",
             trace_id,
             str(event_result.inserted_id),
         )
