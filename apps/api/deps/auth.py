@@ -28,6 +28,59 @@ def _prefix(token: str, n: int = 12) -> str:
         return "<?>"
 
 
+async def _decode_jwt_access_token(token: str, request: Request) -> dict | None:
+    """
+    JWT 토큰을 검증하고 사용자 정보를 반환합니다.
+    validate-session에서 사용하는 JWT 검증 로직과 동일하게 맞춘다.
+    """
+    from apps.api.routes.auth import decode_jwt_token
+    from adapters.persistence.mongo.factory import get_mongo_client
+    
+    # JWT 디코드
+    try:
+        payload = decode_jwt_token(token)
+    except Exception as e:
+        logger.warning("[AUTH][TRACE] jwt_decode_failed path=%s err=%s", getattr(request.url, "path", "<?>"), str(e))
+        return None
+    
+    if not payload:
+        logger.warning("[AUTH][TRACE] jwt_decode_returned_none path=%s", getattr(request.url, "path", "<?>"))
+        return None
+    
+    # JWT의 sub (Google user ID)로 MongoDB에서 user 조회
+    db = get_mongo_client()
+    users = db.users
+    
+    google_id = payload.get('sub')
+    if not google_id:
+        logger.warning("[AUTH][TRACE] jwt_no_sub_in_payload path=%s", getattr(request.url, "path", "<?>"))
+        return None
+    
+    # google_id 또는 email로 user 조회
+    user = users.find_one({
+        "$or": [
+            {"google_id": google_id},
+            {"email": payload.get('email')}
+        ]
+    })
+    
+    if not user:
+        logger.warning("[AUTH][TRACE] jwt_user_not_found path=%s google_id=%s", getattr(request.url, "path", "<?>"), google_id)
+        return None
+    
+    # 사용자 정보 반환 (validate-session과 동일한 구조)
+    return {
+        'user_id': str(user['_id']),  # MongoDB ObjectId를 문자열로 변환
+        'sub': google_id,
+        'email': user.get('email', payload.get('email')),
+        'display_name': user.get('display_name', payload.get('name')),
+        'google_id': user.get('google_id', google_id),
+        'member_level': user.get('member_level', 1),
+        'is_use': 'Y' if user.get('is_use', 'Y') == 'Y' else 'N',
+        'is_lock': 'Y' if user.get('is_lock', 'N') == 'Y' else 'N',
+    }
+
+
 async def get_current_user_from_token(request: Request) -> dict:
     """
     Request에서 토큰을 추출하고 검증하여 사용자 정보를 반환합니다.
@@ -74,13 +127,19 @@ async def get_current_user_from_token(request: Request) -> dict:
         _prefix(token),
     )
 
-    # user_info_v2 토큰 검증 (현재 프로젝트는 user_info_v2만 사용)
-    # JWT 토큰은 현재 사용하지 않지만, 추적을 위해 분기 로그를 남김
+    # JWT 또는 user_info_v2 토큰 검증
     try:
         if is_jwt:
-            logger.warning("[AUTH][TRACE] jwt_token_detected_but_not_supported path=%s prefix=%s", getattr(request.url, "path", "<?>"), _prefix(token))
-            # JWT는 현재 프로젝트에서 지원하지 않음
-            raise HTTPException(status_code=401, detail="JWT tokens are not supported, use user_info_v2 token")
+            logger.info(
+                "[AUTH][TRACE] jwt_token_detected_and_supported path=%s prefix=%s",
+                getattr(request.url, "path", "<?>"),
+                _prefix(token),
+            )
+            user = await _decode_jwt_access_token(token, request)
+            if not user:
+                raise HTTPException(status_code=401, detail="Invalid JWT token")
+            logger.info("[AUTH][TRACE] jwt_decode_ok path=%s user_id=%s", getattr(request.url, "path", "<?>"), user.get("user_id", "<?>"))
+            return user
         else:
             # user_info_v2 토큰 검증
             logger.info("[AUTH][TRACE] using_user_info_v2_decoder path=%s", getattr(request.url, "path", "<?>"))
