@@ -36,18 +36,20 @@ async def extract_token(request: Request) -> str:
     auth_header_exists = "Authorization" in request.headers
     x_auth_header_exists = "X-Authorization" in request.headers
     x_access_token_exists = "X-Access-Token" in request.headers
+    x_user_info_token_exists = "X-User-Info-Token" in request.headers
     cookie_access_token_exists = "access_token" in request.cookies
     cookie_token_exists = "token" in request.cookies
     cookie_session_exists = "session" in request.cookies
     
-    # JSON body 체크는 나중에 필요시 수행
+    # JSON body 체크는 safe_json 호출 시 수행
     body_token_exists = False
     
     logger.info(
-        "[AUTH][TOKEN_SRC] auth_header=%s x_auth=%s x_access=%s cookie_access=%s cookie_token=%s cookie_session=%s body_token=%s",
+        "[AUTH][TOKEN_SRC] auth_header=%s x_auth=%s x_access=%s x_user_info=%s cookie_access=%s cookie_token=%s cookie_session=%s body_token=%s",
         auth_header_exists,
         x_auth_header_exists,
         x_access_token_exists,
+        x_user_info_token_exists,
         cookie_access_token_exists,
         cookie_token_exists,
         cookie_session_exists,
