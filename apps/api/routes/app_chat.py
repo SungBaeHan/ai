@@ -7,7 +7,7 @@ import asyncio
 import logging
 from typing import Dict, List, Any, Optional
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -18,7 +18,7 @@ from adapters.external.embedding.sentence_transformer import embed
 from apps.api.utils.trace import make_trace_id
 from apps.api.services.chat_persist import persist_character_chat
 from adapters.persistence.mongo import get_db
-from apps.api.core.user_info_token import decode_user_info_token
+from apps.api.routes.worlds import get_current_user_from_token
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
