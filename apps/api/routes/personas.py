@@ -13,7 +13,7 @@ from adapters.file_storage.r2_storage import R2Storage
 from adapters.persistence.mongo.factory import get_mongo_client
 from adapters.persistence.mongo import get_db
 from apps.api.routes.worlds import get_current_user_v2
-from apps.api.utils import build_public_image_url
+from apps.api.utils.common import build_public_image_url
 
 
 router = APIRouter(tags=["personas"])

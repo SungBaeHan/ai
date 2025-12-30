@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 from adapters.persistence.factory import get_character_repo
 from adapters.persistence.mongo import get_db
 from src.domain.character import Character
-from apps.api.utils import build_public_image_url
+from apps.api.utils.common import build_public_image_url
 from adapters.file_storage.r2_storage import R2Storage
 from langchain_openai import ChatOpenAI
 from apps.api.dependencies.auth import get_optional_user, User

@@ -17,7 +17,7 @@ from adapters.file_storage.r2_storage import R2Storage
 from langchain_openai import ChatOpenAI
 from apps.api.core.user_info_token import decode_user_info_token
 from adapters.persistence.mongo.factory import get_mongo_client
-from apps.api.utils import build_public_image_url
+from apps.api.utils.common import build_public_image_url
 from bson import ObjectId
 from datetime import datetime, timezone
 from fastapi.encoders import jsonable_encoder

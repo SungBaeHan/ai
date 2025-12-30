@@ -18,7 +18,7 @@ from adapters.file_storage.r2_storage import R2Storage
 from apps.api.routes.worlds import get_current_user_v2
 from apps.api.deps.user_snapshot import build_owner_ref_info
 from apps.api.services.game_session import build_initial_characters_info
-from apps.api.utils import build_public_image_url, build_public_image_url_from_path
+from apps.api.utils.common import build_public_image_url, build_public_image_url_from_path
 from apps.core.utils.assets import normalize_asset_path
 from apps.api.models.games import (
     GameCreateRequest,

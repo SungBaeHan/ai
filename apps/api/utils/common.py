@@ -1,4 +1,4 @@
-# apps/api/utils.py
+# apps/api/utils/common.py
 """
 공통 유틸리티 함수
 """
@@ -101,5 +101,4 @@ def build_public_image_url_from_path(path: Optional[str]) -> Optional[str]:
 def build_r2_public_url(key_or_path: Optional[str]) -> Optional[str]:
     """Deprecated: build_public_image_url()를 사용하세요."""
     return build_public_image_url(key_or_path)
-
 
