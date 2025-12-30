@@ -15,6 +15,19 @@ from adapters.persistence.mongo.factory import get_mongo_client
 logger = logging.getLogger(__name__)
 
 
+def _looks_like_jwt(token: str) -> bool:
+    """JWT 토큰인지 확인 (header.payload.signature 형태)"""
+    return token.count(".") == 2
+
+
+def _prefix(token: str, n: int = 12) -> str:
+    """토큰의 앞 n자를 반환합니다."""
+    try:
+        return token[:n]
+    except Exception:
+        return "<?>"
+
+
 async def get_current_user_from_token(request: Request) -> dict:
     """
     Request에서 토큰을 추출하고 검증하여 사용자 정보를 반환합니다.
@@ -44,23 +57,60 @@ async def get_current_user_from_token(request: Request) -> dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("[AUTH][ERROR] Failed to extract token: %s", str(e))
+        logger.exception("[AUTH][TRACE][ERROR] extract_token_failed path=%s err=%s", getattr(request.url, "path", "<?>"), str(e))
         raise HTTPException(status_code=401, detail="Failed to extract token")
     
-    # 토큰 디코드
+    if not token:
+        logger.warning("[AUTH][TRACE] no_token path=%s", getattr(request.url, "path", "<?>"))
+        raise HTTPException(status_code=401, detail="Missing token")
+
+    # ✅ 여기서 어떤 토큰이 들어왔는지 찍기
+    is_jwt = _looks_like_jwt(token)
+    logger.info(
+        "[AUTH][TRACE] token_received path=%s is_jwt=%s len=%s prefix=%s",
+        getattr(request.url, "path", "<?>"),
+        is_jwt,
+        len(token),
+        _prefix(token),
+    )
+
+    # user_info_v2 토큰 검증 (현재 프로젝트는 user_info_v2만 사용)
+    # JWT 토큰은 현재 사용하지 않지만, 추적을 위해 분기 로그를 남김
     try:
-        info = decode_user_info_token(token)
+        if is_jwt:
+            logger.warning("[AUTH][TRACE] jwt_token_detected_but_not_supported path=%s prefix=%s", getattr(request.url, "path", "<?>"), _prefix(token))
+            # JWT는 현재 프로젝트에서 지원하지 않음
+            raise HTTPException(status_code=401, detail="JWT tokens are not supported, use user_info_v2 token")
+        else:
+            # user_info_v2 토큰 검증
+            logger.info("[AUTH][TRACE] using_user_info_v2_decoder path=%s", getattr(request.url, "path", "<?>"))
+            info = decode_user_info_token(token)
+            logger.info("[AUTH][TRACE] user_info_v2_decode_ok path=%s user_id=%s", getattr(request.url, "path", "<?>"), getattr(info, "user_id", None))
+    except HTTPException:
+        raise
     except ValueError as e:
-        logger.warning("[AUTH][ERROR] Token decode failed: %s", str(e))
+        logger.exception(
+            "[AUTH][TRACE][ERROR] decode_failed path=%s is_jwt=%s prefix=%s err=%s",
+            getattr(request.url, "path", "<?>"),
+            is_jwt,
+            _prefix(token),
+            str(e),
+        )
         raise HTTPException(status_code=401, detail="Invalid or malformed token")
     except Exception as e:
-        logger.exception("[AUTH][ERROR] Token decode error: %s", str(e))
+        logger.exception(
+            "[AUTH][TRACE][ERROR] decode_error path=%s is_jwt=%s prefix=%s err=%s",
+            getattr(request.url, "path", "<?>"),
+            is_jwt,
+            _prefix(token),
+            str(e),
+        )
         raise HTTPException(status_code=401, detail="Invalid or malformed token")
 
     # 토큰 만료 확인
     now = datetime.now(timezone.utc)
     if info.expired_at < now:
-        logger.warning("[AUTH][ERROR] Token expired: expired_at=%s, now=%s", info.expired_at, now)
+        logger.warning("[AUTH][TRACE][ERROR] token_expired path=%s expired_at=%s now=%s", getattr(request.url, "path", "<?>"), info.expired_at, now)
         raise HTTPException(status_code=401, detail="Token expired")
 
     # 사용자 조회
@@ -70,17 +120,21 @@ async def get_current_user_from_token(request: Request) -> dict:
     try:
         user = users.find_one({"_id": ObjectId(info.user_id)})
     except Exception as e:
-        logger.warning("[AUTH][ERROR] Invalid user_id in token: %s", str(e))
+        logger.warning("[AUTH][TRACE][ERROR] invalid_user_id path=%s user_id=%s err=%s", getattr(request.url, "path", "<?>"), getattr(info, "user_id", None), str(e))
         raise HTTPException(status_code=401, detail="Invalid user ID in token")
 
     if not user:
-        logger.warning("[AUTH][ERROR] User not found: user_id=%s", info.user_id)
+        logger.warning(
+            "[AUTH][TRACE][ERROR] user_none_after_decode path=%s user_id=%s",
+            getattr(request.url, "path", "<?>"),
+            getattr(info, "user_id", None),
+        )
         raise HTTPException(status_code=401, detail="User not found")
 
     # last_login_at 검증 (세션 토큰 무효화 체크)
     db_last_login = user.get("last_login_at")
     if db_last_login is None:
-        logger.warning("[AUTH][ERROR] User session invalid: no last_login_at for user_id=%s", info.user_id)
+        logger.warning("[AUTH][TRACE][ERROR] no_last_login_at path=%s user_id=%s", getattr(request.url, "path", "<?>"), str(user.get("_id", "<?>")))
         raise HTTPException(status_code=401, detail="User session invalid (no last_login_at)")
 
     # timezone 정보가 없으면 UTC로 가정
@@ -88,19 +142,22 @@ async def get_current_user_from_token(request: Request) -> dict:
         if db_last_login.tzinfo is None:
             db_last_login = db_last_login.replace(tzinfo=timezone.utc)
     else:
-        logger.warning("[AUTH][ERROR] Invalid last_login_at format: %s", type(db_last_login))
+        logger.warning("[AUTH][TRACE][ERROR] invalid_last_login_at_format path=%s user_id=%s type=%s", getattr(request.url, "path", "<?>"), str(user.get("_id", "<?>")), type(db_last_login))
         raise HTTPException(status_code=401, detail="Invalid last_login_at format")
 
     # last_login_at 비교 (마이크로초 단위 차이 무시)
     if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
         logger.warning(
-            "[AUTH][ERROR] User session invalid: last_login_at mismatch. db=%s, token=%s",
+            "[AUTH][TRACE][ERROR] last_login_at_mismatch path=%s user_id=%s db=%s token=%s",
+            getattr(request.url, "path", "<?>"),
+            str(user.get("_id", "<?>")),
             db_last_login,
             info.last_login_at,
         )
         raise HTTPException(status_code=401, detail="User session invalid (last_login_at mismatch)")
 
     # 사용자 정보 반환 (dict 형태, validate-session과 동일한 구조)
+    logger.info("[AUTH][TRACE] auth_success path=%s user_id=%s", getattr(request.url, "path", "<?>"), str(user.get("_id", "<?>")))
     return {
         "user_id": str(user["_id"]),
         "email": user.get("email", info.email),
