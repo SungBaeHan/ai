@@ -15,6 +15,11 @@ from qdrant_client import QdrantClient
 # from langchain_ollama import ChatOllama  # OpenAI로 통일하여 주석 처리
 from langchain_openai import ChatOpenAI
 from adapters.external.embedding.sentence_transformer import embed
+from apps.api.utils.trace import make_trace_id
+from apps.api.services.chat_persist import persist_character_chat
+from adapters.persistence.mongo import get_db
+from apps.api.core.user_info_token import decode_user_info_token
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
@@ -332,7 +337,32 @@ async def chat(req: Request):
       * 전체 LLM 호출을 25초로 제한
       * 에러/타임아웃 시 HTTP 500 으로 바로 응답
     """
-    logger.info("[TRPG] /v1/chat endpoint called")
+    # 트레이스 ID 생성
+    trace_id = make_trace_id()
+    
+    # MongoDB 연결 정보 (진입 로그용)
+    db = get_db()
+    db_env = os.getenv("MONGO_DB", "arcanaverse")
+    db_name = db.name
+    
+    # 사용자 ID 추출 시도 (user_info_v2 토큰에서)
+    user_id = None
+    try:
+        auth_header = req.headers.get("Authorization")
+        token = None
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+        else:
+            # X-User-Info-Token 헤더에서도 시도
+            token = req.headers.get("X-User-Info-Token")
+        
+        if token:
+            current_user_dict = get_current_user_from_token(token)
+            if current_user_dict:
+                user_id = current_user_dict.get("google_id")
+    except Exception:
+        pass  # 사용자 ID 추출 실패 시 None 유지
+    
     try:
         # 1) 요청 파싱
         try:
@@ -358,6 +388,21 @@ async def chat(req: Request):
         character = data.get("character") or None
         character_id = data.get("character_id") or (
             (character.get("id") if isinstance(character, dict) else None)
+        )
+        
+        # 진입 로그
+        msg_len = len(q) if q else 0
+        char_id_str = str(character_id) if character_id else None
+        mode_str = mode if mode else "qa"
+        logger.info(
+            "[CHAT][IN] trace=%s user=%s mode=%s char=%s msg_len=%d db_env=%s db=%s",
+            trace_id,
+            user_id or "none",
+            mode_str,
+            char_id_str or "none",
+            msg_len,
+            db_env,
+            db_name,
         )
 
         sid = get_or_create_sid(req)
@@ -438,9 +483,35 @@ async def chat(req: Request):
             ]
         )
         sess[key] = sess[key][-MAX_TURNS * 2 :]
+        
+        # 7) 캐릭터 채팅 저장 분기
+        should_persist = (
+            user_id and
+            character_id and
+            mode in ["trpg", "qa"]  # 캐릭터 채팅 모드일 때만 저장
+        )
+        
+        if should_persist:
+            logger.info("[CHAT][BRANCH] trace=%s -> character_chat_save", trace_id)
+            try:
+                persist_result = persist_character_chat(
+                    db=db,
+                    trace_id=trace_id,
+                    user_id=str(user_id),
+                    character_id=str(character_id),
+                    payload={"message": q, "mode": mode},
+                    llm_answer=text,
+                )
+                logger.info("[CHAT][PERSIST] trace=%s result=%s", trace_id, persist_result.get("ok", False))
+            except Exception as persist_error:
+                logger.exception("[CHAT][PERSIST][ERR] trace=%s error=%s", trace_id, str(persist_error))
+                # 저장 실패해도 응답은 정상 반환 (기존 동작 유지)
+        else:
+            skip_reason = "no_user_id" if not user_id else ("missing_char_id" if not character_id else f"mode_not_supported={mode}")
+            logger.warning("[CHAT][BRANCH] trace=%s SKIP reason=%s", trace_id, skip_reason)
 
         return JSONResponse(
-            {"answer": text, "sid": sid},
+            {"trace_id": trace_id, "answer": text, "sid": sid},
             headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"},
         )
 

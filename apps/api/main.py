@@ -66,10 +66,10 @@ if ASSETS_DIR.is_dir():
     persona_dir = ASSETS_DIR / "persona"
     if persona_dir.is_dir():
         app.mount("/assets/persona", StaticFiles(directory=str(persona_dir)), name="persona-assets")
-        print(f"[INFO] Mounted /assets/persona from {persona_dir}")
+        logger.info(f"[INFO] Mounted /assets/persona from {persona_dir}")
     else:
-        print(f"[WARN] Persona directory not found: {persona_dir}")
-    print(f"[INFO] Assets directory exists: {ASSETS_DIR}")
+        logger.warning(f"[CHAT][PERSONA] trace=startup persona_missing path={persona_dir}")
+    logger.info(f"[INFO] Assets directory exists: {ASSETS_DIR}")
 if JSON_DIR.is_dir():
     app.mount("/json", StaticFiles(directory=str(JSON_DIR)), name="json")  # 홈/챗 폴백 JSON용
 
@@ -145,6 +145,45 @@ async def general_exception_handler(request: Request, exc: Exception):
 # === Startup Hook ===
 @app.on_event("startup")
 async def _on_startup():
+    # MongoDB 연결 정보 로그 출력
+    try:
+        from adapters.persistence.mongo import get_db
+        db = get_db()
+        db_env = os.getenv("MONGO_DB", "arcanaverse")
+        mongo_uri = os.getenv("MONGO_URI", "")
+        
+        # URI 마스킹 (user/password 제거)
+        if mongo_uri:
+            try:
+                # user:password@host 형태를 user:***@host로 마스킹
+                if "@" in mongo_uri:
+                    parts = mongo_uri.split("@")
+                    if "://" in parts[0]:
+                        scheme_userpass = parts[0]
+                        host_part = "@".join(parts[1:])
+                        if ":" in scheme_userpass.split("://")[1]:
+                            scheme = scheme_userpass.split("://")[0]
+                            userpass = scheme_userpass.split("://")[1]
+                            user = userpass.split(":")[0]
+                            masked_uri = f"{scheme}://{user}:***@{host_part}"
+                        else:
+                            masked_uri = mongo_uri
+                    else:
+                        masked_uri = mongo_uri
+                else:
+                    masked_uri = mongo_uri
+            except Exception:
+                masked_uri = "***"
+        else:
+            masked_uri = "not_set"
+        
+        logger.info(f"[BOOT] DB_NAME env={db_env}")
+        logger.info(f"[BOOT] Mongo db.name={db.name}")
+        logger.info(f"[BOOT] Mongo URI (masked)={masked_uri}")
+    except Exception as e:
+        logger.warning(f"[BOOT] Failed to log MongoDB connection info: {e}")
+    
+    # 인덱스 초기화
     try:
         init_mongo_indexes()
     except Exception:
