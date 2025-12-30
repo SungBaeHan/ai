@@ -149,14 +149,14 @@ def get_next_world_id(db):
 # 하위 호환을 위해 re-export
 from apps.api.deps.auth import get_current_user_from_token
 
-def get_current_user_v2(request: Request):
+async def get_current_user_v2(request: Request):
     """
     Request에서 user_info_v2 토큰을 읽어서 사용자 정보를 반환하는 의존성 함수.
     validate-session과 동일한 로직을 사용.
     
     Deprecated: apps.api.deps.auth.get_current_user_from_token을 직접 사용하세요.
     """
-    return get_current_user_from_token(request)
+    return await get_current_user_from_token(request)
 
 # === 이미지 업로드 ===
 @router.post("/upload-image", summary="세계관 이미지 업로드")

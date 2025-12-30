@@ -29,14 +29,16 @@ ALLOWED_ORIGINS = [
     # 로컬 개발
     "http://localhost",
     "http://127.0.0.1",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     # 프로덕션 도메인 (Cloudflare Pages)
-        "https://arcanaverse.ai",
-        "https://www.arcanaverse.ai",
-    ]
+    "https://arcanaverse.ai",
+    "https://www.arcanaverse.ai",
+]
 
 logger.info("CORS ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
 
@@ -46,6 +48,16 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,          # 쿠키/인증정보 허용
     allow_methods=["*"],             # 모든 메서드 허용
+    allow_headers=[
+        "Authorization",
+        "X-Access-Token",
+        "X-Authorization",
+        "X-User-Info-Token",
+        "Content-Type",
+        "*",  # 모든 헤더 허용 (하위 호환)
+    ],
+    expose_headers=["*"],
+    max_age=3600,,             # 모든 메서드 허용
     allow_headers=["*"],             # 모든 헤더 허용
     expose_headers=["*"],
     max_age=3600,

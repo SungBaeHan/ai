@@ -164,94 +164,18 @@ async def logout():
 
 
 @router.post("/validate-session", response_model=SessionValidateResponse)
-async def validate_session(request: Request, payload: Optional[SessionValidateRequest] = None):
+async def validate_session(request: Request):
     """
     로컬스토리지에 저장된 user_info_v2 토큰을 검증하고
     is_use / is_lock / member_level 정보를 반환한다.
     
-    토큰은 다음 순서로 찾습니다:
-    1. Request에서 extract_token() 사용 (헤더/쿠키)
-    2. Body의 token 필드 (하위 호환)
+    토큰은 extract_token()을 통해 헤더/쿠키/body에서 추출됩니다.
     """
     from apps.api.deps.auth import get_current_user_from_token
     
-    # 1) Request에서 토큰 추출 시도
-    token = None
-    try:
-        from apps.api.utils.auth_token import extract_token
-        token = extract_token(request)
-    except HTTPException:
-        # Request에서 토큰을 찾지 못한 경우 body에서 시도
-        pass
+    # get_current_user_from_token만 사용 (extract_token 내부에서 body도 처리)
+    user_info = await get_current_user_from_token(request)
     
-    # 2) Body에서 토큰 추출 (하위 호환)
-    if not token and payload and payload.token:
-        token = payload.token
-        logger.info(
-            "[AUTH][TOKEN] source=body len=%d prefix=%s",
-            len(token),
-            token[:8] if len(token) >= 8 else token,
-        )
-    
-    if not token:
-        raise HTTPException(status_code=401, detail="Missing token")
-    
-    # get_current_user_from_token을 사용하여 사용자 정보 가져오기
-    # 하지만 이 함수는 Request를 받으므로, 임시 Request 객체를 만들거나
-    # 직접 검증 로직을 호출해야 함
-    # 대신 get_current_user_from_token의 검증 로직을 재사용
-    try:
-        user_info = get_current_user_from_token(request)
-    except HTTPException:
-        # Request에서 추출한 토큰이 실패한 경우, body token으로 직접 검증
-        # 이 경우 validate-session의 기존 로직을 사용
-        try:
-            info = decode_user_info_token(token)
-        except ValueError:
-            raise HTTPException(status_code=401, detail="invalid_token")
-
-        now = datetime.now(timezone.utc)
-        if info.expired_at < now:
-            raise HTTPException(status_code=401, detail="token_expired")
-
-        db = get_mongo_client()
-        users = db.users
-
-        try:
-            user = users.find_one({"_id": ObjectId(info.user_id)})
-        except Exception:
-            raise HTTPException(status_code=401, detail="invalid_user_id")
-
-        if not user:
-            raise HTTPException(status_code=401, detail="user_not_found")
-
-        # last_login_at 이 DB 값과 다르면, 이전 세션 토큰 → 무효
-        db_last_login = user.get("last_login_at")
-        if db_last_login is None:
-            raise HTTPException(status_code=401, detail="session_invalidated")
-
-        # timezone 정보가 없으면 UTC로 가정
-        if isinstance(db_last_login, datetime):
-            if db_last_login.tzinfo is None:
-                db_last_login = db_last_login.replace(tzinfo=timezone.utc)
-        else:
-            raise HTTPException(status_code=401, detail="session_invalidated")
-
-        # last_login_at 비교 (마이크로초 단위 차이 무시)
-        if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
-            raise HTTPException(status_code=401, detail="session_invalidated")
-
-        return SessionValidateResponse(
-            ok=True,
-            user_id=str(user["_id"]),
-            email=user.get("email", info.email),
-            display_name=user.get("display_name", info.display_name),
-            member_level=user.get("member_level", info.member_level),
-            is_use=(user.get("is_use", "Y") == "Y"),
-            is_lock=(user.get("is_lock", "N") == "Y"),
-        )
-    
-    # get_current_user_from_token이 성공한 경우
     return SessionValidateResponse(
         ok=True,
         user_id=user_info["user_id"],

@@ -5,11 +5,12 @@
 
 import logging
 from fastapi import Request, HTTPException
+from apps.api.utils.request_body import safe_json
 
 logger = logging.getLogger(__name__)
 
 
-def extract_token(request: Request) -> str:
+async def extract_token(request: Request) -> str:
     """
     Request에서 인증 토큰을 추출합니다.
     여러 소스에서 토큰을 찾습니다 (우선순위 순).
@@ -139,9 +140,26 @@ def extract_token(request: Request) -> str:
                 raise HTTPException(status_code=401, detail="Invalid or malformed token")
             return token
     
-    # 5) JSON body의 token 필드는 호출하는 쪽에서 body를 파싱한 후 전달해야 함
-    # extract_token_from_body() 같은 별도 함수로 처리하거나,
-    # validate-session처럼 body에서 직접 받는 경우는 별도 처리
+    # 5) JSON body의 token 필드 (최후순위)
+    try:
+        body = await safe_json(request)
+        body_token = body.get("token")
+        if body_token:
+            token = str(body_token).strip()
+            if token:
+                logger.info(
+                    "[AUTH][TOKEN] source=body len=%d prefix=%s",
+                    len(token),
+                    token[:8] if len(token) >= 8 else token,
+                )
+                if len(token) < 20:
+                    raise HTTPException(status_code=401, detail="Invalid or malformed token")
+                return token
+    except HTTPException:
+        raise
+    except Exception as e:
+        # body 파싱 실패는 무시 (다른 소스에서 찾을 수 있음)
+        logger.debug("[AUTH][TOKEN] body parsing failed (ignored): %s", str(e))
     
     # 토큰을 찾지 못함
     logger.warning("[AUTH][TOKEN] source=none - token not found in any source")

@@ -331,7 +331,7 @@ async def get_current_user_dependency(request: Request) -> dict:
     """
     FastAPI dependency function for getting current user from request.
     """
-    return get_current_user_from_token(request)
+    return await get_current_user_from_token(request)
 
 
 @router.post("/")

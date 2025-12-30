@@ -15,7 +15,7 @@ from adapters.persistence.mongo.factory import get_mongo_client
 logger = logging.getLogger(__name__)
 
 
-def get_current_user_from_token(request: Request) -> dict:
+async def get_current_user_from_token(request: Request) -> dict:
     """
     Request에서 토큰을 추출하고 검증하여 사용자 정보를 반환합니다.
     validate-session과 완전히 동일한 로직을 사용합니다.
@@ -40,7 +40,7 @@ def get_current_user_from_token(request: Request) -> dict:
     """
     # 토큰 추출 (extract_token 사용)
     try:
-        token = extract_token(request)
+        token = await extract_token(request)
     except HTTPException:
         raise
     except Exception as e:
