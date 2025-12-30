@@ -41,6 +41,7 @@ class MongoChatRepository(ChatRepository):
             "entity_id": str(entity_id),
         })
         if doc:
+            # ObjectId를 문자열로 변환 (Pydantic 직렬화 방지)
             doc["_id"] = str(doc["_id"])
         return doc
     
@@ -82,7 +83,7 @@ class MongoChatRepository(ChatRepository):
             return_document=True,
         )
         
-        # _id를 문자열로 변환
+        # ObjectId를 문자열로 변환 (Pydantic 직렬화 방지)
         if result and "_id" in result:
             result["_id"] = str(result["_id"])
         return result
@@ -113,6 +114,7 @@ class MongoChatRepository(ChatRepository):
             return_document=True,
         )
         
+        # ObjectId를 문자열로 변환 (Pydantic 직렬화 방지)
         if result and "_id" in result:
             result["_id"] = str(result["_id"])
         return result
@@ -133,11 +135,10 @@ class MongoChatRepository(ChatRepository):
         cursor = self._message_col.find(query).sort("created_at", 1).limit(limit)
         messages = []
         for doc in cursor:
+            # ObjectId를 문자열로 변환 (Pydantic 직렬화 방지)
             doc["_id"] = str(doc["_id"])
-            if "session_id" in doc:
+            if "session_id" in doc and doc["session_id"]:
                 doc["session_id"] = str(doc["session_id"])
-            if "message_id" in doc:
-                doc["message_id"] = str(doc["message_id"])
             messages.append(doc)
         
         return messages
@@ -162,10 +163,9 @@ class MongoChatRepository(ChatRepository):
                 "request_id": request_id,
             })
             if existing:
+                # ObjectId를 문자열로 변환 (Pydantic 직렬화 방지)
                 existing["_id"] = str(existing["_id"])
                 existing["session_id"] = str(existing["session_id"])
-                if "message_id" in existing:
-                    existing["message_id"] = str(existing["message_id"])
                 return existing
         
         message_doc = {
@@ -226,6 +226,7 @@ class MongoChatRepository(ChatRepository):
             event_doc["message_id"] = message_id
         
         result = self._event_col.insert_one(event_doc)
+        # ObjectId를 문자열로 변환 (Pydantic 직렬화 방지)
         event_doc["_id"] = str(result.inserted_id)
         event_doc["session_id"] = str(session_id)
         if message_id:

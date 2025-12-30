@@ -5,12 +5,14 @@ V2 채팅 API 스키마
 
 from typing import List, Optional, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class SessionSummary(BaseModel):
     """세션 요약 정보"""
-    _id: str = Field(..., alias="_id")
+    model_config = ConfigDict(populate_by_name=True)
+    
+    id: str = Field(..., alias="_id")  # Mongo의 _id를 API에서는 id로
     user_id: str
     chat_type: str
     entity_id: str
@@ -19,18 +21,14 @@ class SessionSummary(BaseModel):
     last_message_at: Optional[datetime] = None
     last_message_preview: Optional[str] = None
     status: Optional[str] = None
-    state_version: Optional[int] = None
-    
-    class Config:
-        populate_by_name = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None
-        }
+    state_version: int = 0
 
 
 class Message(BaseModel):
     """메시지 모델"""
-    _id: str = Field(..., alias="_id")
+    model_config = ConfigDict(populate_by_name=True)
+    
+    id: str = Field(..., alias="_id")  # Mongo의 _id를 API에서는 id로
     session_id: str
     user_id: str
     role: str  # "user" | "assistant" | "system" | "tool"
@@ -38,12 +36,19 @@ class Message(BaseModel):
     created_at: datetime
     request_id: Optional[str] = None
     meta: Optional[Dict[str, Any]] = None
+
+
+class ChatEvent(BaseModel):
+    """채팅 이벤트 모델"""
+    model_config = ConfigDict(populate_by_name=True)
     
-    class Config:
-        populate_by_name = True
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None
-        }
+    id: str = Field(..., alias="_id")  # Mongo의 _id를 API에서는 id로
+    session_id: str
+    user_id: str
+    event_type: str
+    payload: Dict[str, Any]
+    created_at: datetime
+    message_id: Optional[str] = None
 
 
 class OpenChatResponse(BaseModel):
