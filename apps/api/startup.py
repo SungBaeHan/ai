@@ -54,5 +54,14 @@ def init_mongo_indexes() -> Optional[dict]:
         import logging
         logging.warning(f"Failed to create game_session indexes: {e}")
     
+    # chat_session, chat_message, chat_event 컬렉션 인덱스
+    try:
+        from adapters.persistence.mongo.chat_repository_adapter import MongoChatRepository
+        MongoChatRepository.ensure_indexes()
+    except Exception as e:
+        # 인덱스 생성 실패는 로그만 남기고 계속 진행
+        import logging
+        logging.warning(f"Failed to create chat indexes: {e}")
+    
     return {"ok": True, "created": True}
 

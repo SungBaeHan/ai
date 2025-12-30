@@ -96,6 +96,7 @@ from apps.api.routes import debug_db
 from apps.api.routes import migrate
 from apps.api.routes.user import router as user_router
 from apps.api.routes import personas
+from apps.api.routes import chat_v2
 
 app.include_router(characters.router, prefix="/v1/characters", tags=["characters"])
 app.include_router(worlds.router, prefix="/v1/worlds", tags=["worlds"])
@@ -107,6 +108,7 @@ app.include_router(auth_router.router,   prefix="/v1/auth",        tags=["auth"]
 app.include_router(auth_google.router,   prefix="/v1/auth",        tags=["auth"])
 app.include_router(user_router, prefix="/v1")
 app.include_router(personas.router, prefix="/v1")
+app.include_router(chat_v2.router, prefix="/chat/v2", tags=["chat_v2"])
 app.include_router(debug_db.router)
 app.include_router(migrate.router)
 
