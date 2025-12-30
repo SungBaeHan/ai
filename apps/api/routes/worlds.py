@@ -149,15 +149,17 @@ def get_current_user_from_token(token: str):
     """
     user_info_v2 토큰을 검증하고 사용자 정보를 반환하는 함수.
     validate-session 엔드포인트와 완전히 동일한 로직을 사용.
+    
+    실패 시 HTTPException(401)을 발생시킵니다. None을 반환하지 않습니다.
     """
     try:
         info = decode_user_info_token(token)
     except ValueError:
-        return None
+        raise HTTPException(status_code=401, detail="Invalid or malformed token")
 
     now = datetime.now(timezone.utc)
     if info.expired_at < now:
-        return None
+        raise HTTPException(status_code=401, detail="Token expired")
 
     db = get_mongo_client()
     users = db.users
@@ -165,26 +167,26 @@ def get_current_user_from_token(token: str):
     try:
         user = users.find_one({"_id": ObjectId(info.user_id)})
     except Exception:
-        return None
+        raise HTTPException(status_code=401, detail="Invalid user ID in token")
 
     if not user:
-        return None
+        raise HTTPException(status_code=401, detail="User not found")
 
     # last_login_at 이 DB 값과 다르면, 이전 세션 토큰 → 무효
     db_last_login = user.get("last_login_at")
     if db_last_login is None:
-        return None
+        raise HTTPException(status_code=401, detail="User session invalid (no last_login_at)")
 
     # timezone 정보가 없으면 UTC로 가정
     if isinstance(db_last_login, datetime):
         if db_last_login.tzinfo is None:
             db_last_login = db_last_login.replace(tzinfo=timezone.utc)
     else:
-        return None
+        raise HTTPException(status_code=401, detail="Invalid last_login_at format")
 
     # last_login_at 비교 (마이크로초 단위 차이 무시)
     if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
-        return None
+        raise HTTPException(status_code=401, detail="User session invalid (last_login_at mismatch)")
 
     # 사용자 정보 반환 (dict 형태, validate-session과 동일한 구조)
     return {
