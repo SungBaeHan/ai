@@ -111,6 +111,20 @@ def extract_token(request: Request) -> str:
                 raise HTTPException(status_code=401, detail="Invalid or malformed token")
             return token
     
+    # 3-1) X-User-Info-Token: <token> (하위 호환)
+    x_user_info_token = request.headers.get("X-User-Info-Token")
+    if x_user_info_token:
+        token = x_user_info_token.strip()
+        if token:
+            logger.info(
+                "[AUTH][TOKEN] source=x_user_info_token len=%d prefix=%s",
+                len(token),
+                token[:8] if len(token) >= 8 else token,
+            )
+            if len(token) < 20:
+                raise HTTPException(status_code=401, detail="Invalid or malformed token")
+            return token
+    
     # 4) Cookie: access_token / token / session
     cookie_token = request.cookies.get("access_token") or request.cookies.get("token") or request.cookies.get("session")
     if cookie_token:
