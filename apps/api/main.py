@@ -57,9 +57,6 @@ app.add_middleware(
         "*",  # 모든 헤더 허용 (하위 호환)
     ],
     expose_headers=["*"],
-    max_age=3600,,             # 모든 메서드 허용
-    allow_headers=["*"],             # 모든 헤더 허용
-    expose_headers=["*"],
     max_age=3600,
 )
 
