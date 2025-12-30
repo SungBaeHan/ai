@@ -168,6 +168,69 @@
       return j;
     }
 
+    // 캐릭터 채팅 bootstrap API 호출 (기존 메시지 불러오기)
+    async function bootstrapCharacterChat(characterId, limit = 50){
+      const token = getToken();
+      if (!token) {
+        console.log('[CHAT][BOOTSTRAP] skip - no token');
+        return { session: null, messages: [] };
+      }
+
+      // character_id 정규화 (char_XX 형태 처리)
+      let charIdStr = characterId;
+      if (typeof charIdStr === 'string' && charIdStr.startsWith('char_')) {
+        try {
+          charIdStr = String(parseInt(charIdStr.split('_')[1], 10));
+        } catch (e) {
+          charIdStr = String(characterId);
+        }
+      } else {
+        charIdStr = String(characterId);
+      }
+
+      console.log(`[CHAT][BOOTSTRAP] request character_id=${charIdStr} limit=${limit}`);
+
+      try {
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        };
+
+        const url = `${API_BASE_URL}/v1/characters/${charIdStr}/chat/bootstrap?limit=${limit}`;
+        const r = await fetch(url, {
+          method: "GET",
+          credentials: "include",
+          headers: headers,
+          cache: 'no-store'
+        });
+
+        console.log(`[CHAT][BOOTSTRAP] response status=${r.status}`);
+
+        if (!r.ok) {
+          const errorText = await r.text();
+          console.error(`[CHAT][BOOTSTRAP] fail status=${r.status} detail=${errorText}`);
+          
+          if (r.status === 401) {
+            console.error('[CHAT][BOOTSTRAP] Authentication failed - token may be expired');
+            showToast('세션이 만료되었습니다. 다시 로그인해주세요.', 3000);
+          }
+          
+          return { session: null, messages: [] };
+        }
+
+        const data = await r.json();
+        const messages = data.messages || [];
+        const session = data.session;
+
+        console.log(`[CHAT][BOOTSTRAP] ok messages=${messages.length} session_id=${session ? session.id : 'null'}`);
+
+        return { session, messages };
+      } catch (e) {
+        console.error(`[CHAT][BOOTSTRAP] fail error=${e.message}`, e);
+        return { session: null, messages: [] };
+      }
+    }
+
     // 상단/배경/칩 렌더
     function paintCharacter(ch){
       document.getElementById('title').textContent=ch.name||ch.id;
@@ -339,9 +402,53 @@
       try{ sessionStorage.setItem('lastChar', ch.id); }catch(_){}
       paintCharacter(ch);
 
-      // 초기 문단(scenario/greeting) 출력
-      const intro=[ch.scenario||"", ch.greeting||""].filter(Boolean).join("\n\n").trim();
-      if(intro) addBot(intro);
+      // Bootstrap: 기존 채팅 메시지 불러오기
+      let isLoadingBootstrap = true;
+      const sendBtn = document.getElementById('send');
+      const inputTa = document.getElementById('ta');
+      
+      // 로딩 중에는 입력 비활성화
+      sendBtn.disabled = true;
+      inputTa.disabled = true;
+
+      try {
+        const bootstrapResult = await bootstrapCharacterChat(norm, 50);
+        const messages = bootstrapResult.messages || [];
+        
+        // 메시지가 있으면 기존 메시지 렌더링 (created_at 오름차순 정렬 보장)
+        if (messages.length > 0) {
+          // created_at 기준으로 한 번 더 정렬 (안전장치)
+          messages.sort((a, b) => {
+            const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return timeA - timeB;
+          });
+
+          // 기존 메시지 렌더링
+          messages.forEach(msg => {
+            if (msg.role === 'user') {
+              addUser(msg.content || '');
+            } else if (msg.role === 'assistant') {
+              addBot(msg.content || '');
+            }
+          });
+        } else {
+          // 메시지가 없으면 초기 문단(scenario/greeting) 출력
+          const intro=[ch.scenario||"", ch.greeting||""].filter(Boolean).join("\n\n").trim();
+          if(intro) addBot(intro);
+        }
+      } catch (e) {
+        console.error('[CHAT][BOOTSTRAP] Error loading messages:', e);
+        // 실패해도 초기 문단은 출력
+        const intro=[ch.scenario||"", ch.greeting||""].filter(Boolean).join("\n\n").trim();
+        if(intro) addBot(intro);
+      } finally {
+        // 로딩 완료 후 입력 활성화
+        isLoadingBootstrap = false;
+        sendBtn.disabled = false;
+        inputTa.disabled = false;
+        inputTa.focus();
+      }
 
       // 입력 동작
       const ta=document.getElementById('ta'), btn=document.getElementById('send');
