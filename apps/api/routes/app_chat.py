@@ -499,14 +499,19 @@ async def chat(req: Request, current_user: dict = Depends(get_current_user_depen
         )
         sess[key] = sess[key][-MAX_TURNS * 2 :]
         
-        # 7) 캐릭터 채팅 저장 분기
-        should_persist = (
-            user_id and
-            character_id and
-            mode in ["trpg", "qa"]  # 캐릭터 채팅 모드일 때만 저장
-        )
+        # 7) 캐릭터 채팅 저장 (인증 필수이므로 user_id는 항상 보장됨)
+        if not user_id:
+            logger.error(
+                "[CHAT][FATAL] trace=%s missing user_id – chat persistence aborted",
+                trace_id,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="User identity missing in chat persistence",
+            )
         
-        if should_persist:
+        # character_id가 있으면 저장 (캐릭터 채팅 모드일 때만)
+        if character_id and mode in ["trpg", "qa"]:
             logger.info("[CHAT][BRANCH] trace=%s -> character_chat_save", trace_id)
             try:
                 persist_result = persist_character_chat(
@@ -520,10 +525,11 @@ async def chat(req: Request, current_user: dict = Depends(get_current_user_depen
                 logger.info("[CHAT][PERSIST] trace=%s result=%s", trace_id, persist_result.get("ok", False))
             except Exception as persist_error:
                 logger.exception("[CHAT][PERSIST][ERR] trace=%s error=%s", trace_id, str(persist_error))
-                # 저장 실패해도 응답은 정상 반환 (기존 동작 유지)
-        else:
-            skip_reason = "no_user_id" if not user_id else ("missing_char_id" if not character_id else f"mode_not_supported={mode}")
-            logger.warning("[CHAT][BRANCH] trace=%s SKIP reason=%s", trace_id, skip_reason)
+                # 저장 실패 시 에러 발생 (조용히 스킵하지 않음)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Chat persistence failed: {str(persist_error)}",
+                )
 
         return JSONResponse(
             {"trace_id": trace_id, "answer": text, "sid": sid},
