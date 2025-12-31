@@ -160,10 +160,6 @@
     // 세계관 채팅 bootstrap API 호출 (기존 메시지 불러오기)
     async function bootstrapWorldChat(worldId, limit = 50){
       const token = getToken();
-      if (!token) {
-        console.log('[CHAT][BOOTSTRAP] skip - no token');
-        return { session: null, messages: [] };
-      }
 
       // world_id 정규화 (world_XX 형태 처리)
       let worldIdStr = worldId;
@@ -184,30 +180,35 @@
         worldIdStr = String(worldId);
       }
 
-      console.log(`[CHAT][BOOTSTRAP] request world_id=${worldIdStr} limit=${limit}`);
+      console.log(`[CHAT][BOOTSTRAP] request world_id=${worldIdStr} limit=${limit} token_exists=${!!token} token_len=${token ? token.length : 0}`);
 
       try {
         const headers = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         };
+        
+        // token이 있을 때만 Authorization 헤더 추가
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
 
         const url = `${API_BASE_URL}/v1/worlds/${worldIdStr}/chat/bootstrap?limit=${limit}`;
         const r = await fetch(url, {
           method: "GET",
-          credentials: "include",
+          credentials: "include",  // 쿠키 기반 인증 지원
           headers: headers,
           cache: 'no-store'
         });
 
-        console.log(`[CHAT][BOOTSTRAP] response status=${r.status}`);
+        console.log(`[CHAT][BOOTSTRAP] response status=${r.status} statusText=${r.statusText}`);
 
         if (!r.ok) {
           const errorText = await r.text();
-          console.error(`[CHAT][BOOTSTRAP] fail status=${r.status} detail=${errorText}`);
+          console.error(`[CHAT][BOOTSTRAP] fail status=${r.status} statusText=${r.statusText} detail=${errorText}`);
+          console.error(`[CHAT][BOOTSTRAP] request_url=${url} headers=${JSON.stringify(headers)}`);
           
           if (r.status === 401) {
-            console.error('[CHAT][BOOTSTRAP] Authentication failed - token may be expired');
+            console.error('[CHAT][BOOTSTRAP] Authentication failed - token may be expired or missing');
             showToast('세션이 만료되었습니다. 다시 로그인해주세요.', 3000);
           }
           
