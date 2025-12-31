@@ -71,14 +71,6 @@ def init_mongo_indexes() -> Optional[dict]:
         import logging
         logging.warning(f"Failed to create world chat indexes: {e}")
     
-    # games_session, games_message, games_event 컬렉션 인덱스
-    try:
-        ensure_game_chat_indexes(db)
-    except Exception as e:
-        # 인덱스 생성 실패는 로그만 남기고 계속 진행
-        import logging
-        logging.warning(f"Failed to create game chat indexes: {e}")
-    
     return {"ok": True, "created": True}
 
 
@@ -139,57 +131,4 @@ def ensure_world_chat_indexes(db):
         logger.info("Created indexes for worlds_event collection")
     except Exception as e:
         logger.warning(f"Failed to create worlds_event indexes (may already exist): {e}")
-
-
-def ensure_game_chat_indexes(db):
-    """Game Chat 컬렉션 인덱스 생성"""
-    import logging
-    logger = logging.getLogger(__name__)
-    
-    # games_session 컬렉션 인덱스
-    session_col = db["games_session"]
-    try:
-        # UNIQUE(user_id, chat_type, entity_id)
-        session_col.create_index(
-            [("user_id", 1), ("chat_type", 1), ("entity_id", 1)],
-            unique=True,
-            name="games_session_uniq_user_type_entity"
-        )
-        # (user_id, updated_at desc)
-        session_col.create_index(
-            [("user_id", 1), ("updated_at", -1)],
-            name="games_session_idx_user_updated"
-        )
-        logger.info("Created indexes for games_session collection")
-    except Exception as e:
-        logger.warning(f"Failed to create games_session indexes (may already exist): {e}")
-    
-    # games_message 컬렉션 인덱스
-    message_col = db["games_message"]
-    try:
-        # (session_id, created_at asc)
-        message_col.create_index(
-            [("session_id", 1), ("created_at", 1)],
-            name="games_message_idx_session_created"
-        )
-        logger.info("Created indexes for games_message collection")
-    except Exception as e:
-        logger.warning(f"Failed to create games_message indexes (may already exist): {e}")
-    
-    # games_event 컬렉션 인덱스
-    event_col = db["games_event"]
-    try:
-        # (session_id, created_at desc)
-        event_col.create_index(
-            [("session_id", 1), ("created_at", -1)],
-            name="games_event_idx_session_created"
-        )
-        # (session_id, event_type, created_at desc)
-        event_col.create_index(
-            [("session_id", 1), ("event_type", 1), ("created_at", -1)],
-            name="games_event_idx_session_type_created"
-        )
-        logger.info("Created indexes for games_event collection")
-    except Exception as e:
-        logger.warning(f"Failed to create games_event indexes (may already exist): {e}")
 

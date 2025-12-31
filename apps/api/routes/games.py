@@ -12,7 +12,7 @@ import hashlib
 import json
 from copy import deepcopy
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Query, status, Request
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Query, status
 from adapters.persistence.mongo import get_db
 from adapters.file_storage.r2_storage import R2Storage
 from apps.api.deps.auth import get_current_user_from_token
@@ -767,121 +767,6 @@ async def get_or_create_game_session(
         }
         new_session["npcs"] = []
         return new_session
-
-
-@router.get("/{game_id}/chat/bootstrap", summary="게임 채팅 재개 (Bootstrap)")
-async def bootstrap_game_chat(
-    game_id: str,
-    limit: int = Query(50, ge=1, le=200, description="최대 메시지 수"),
-    request: Request = None,
-    db = Depends(get_db),
-    current_user = Depends(get_current_user_from_token),
-):
-    """
-    게임 채팅 세션을 불러와서 재개합니다.
-    - (user_id, game_id) 기준으로 세션을 조회
-    - 해당 세션의 메시지 히스토리를 created_at 오름차순으로 반환
-    - 세션이 없으면 빈 세션과 빈 메시지 목록 반환
-    """
-    try:
-        if current_user is None:
-            raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
-        
-        user_id = current_user.get("google_id") or current_user.get("user_id")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="사용자 정보를 찾을 수 없습니다.")
-        
-        # game_id 정규화 (ObjectId 문자열 처리)
-        game_id_str = str(game_id)
-        
-        # 1) 세션 조회 (get-or-create)
-        session_col = db["games_session"]
-        session_filter = {
-            "user_id": str(user_id),
-            "chat_type": "game",
-            "entity_id": game_id_str,
-        }
-        
-        logger.info(
-            "[CHAT][BOOTSTRAP] game session filter: user_id=%s game_id=%s entity_id=%s",
-            str(user_id),
-            game_id_str,
-            game_id_str,
-        )
-        
-        session_doc = session_col.find_one(session_filter)
-        
-        if not session_doc:
-            # 세션이 없으면 빈 세션 정보 반환
-            logger.info("[CHAT][BOOTSTRAP] game session not found for user_id=%s game_id=%s", str(user_id), game_id_str)
-            return {
-                "session": None,
-                "messages": [],
-            }
-        
-        session_id = session_doc["_id"]
-        
-        # 2) 메시지 조회 (created_at 오름차순)
-        # messages는 session_id로만 조회 (game_id/entity_id/chat_type 필드 없음)
-        message_col = db["games_message"]
-        message_filter = {"session_id": session_id}
-        
-        logger.info(
-            "[CHAT][BOOTSTRAP] game message filter: session_id=%s",
-            str(session_id),
-        )
-        
-        cursor = message_col.find(message_filter).sort("created_at", 1).limit(limit)
-        
-        messages = []
-        for msg_doc in cursor:
-            msg = {
-                "id": str(msg_doc["_id"]),
-                "session_id": str(msg_doc.get("session_id", "")),
-                "role": msg_doc.get("role", "user"),
-                "content": msg_doc.get("content", ""),
-                "created_at": msg_doc.get("created_at"),
-            }
-            if "request_id" in msg_doc:
-                msg["request_id"] = msg_doc["request_id"]
-            if "meta" in msg_doc:
-                msg["meta"] = msg_doc["meta"]
-            messages.append(msg)
-        
-        # 3) 세션 정보 정리 (ObjectId를 문자열로 변환)
-        session_summary = {
-            "id": str(session_doc["_id"]),
-            "user_id": session_doc.get("user_id"),
-            "chat_type": session_doc.get("chat_type"),
-            "entity_id": session_doc.get("entity_id"),
-            "status": session_doc.get("status", "running"),
-            "created_at": session_doc.get("created_at"),
-            "updated_at": session_doc.get("updated_at"),
-            "last_message_at": session_doc.get("last_message_at"),
-            "last_message_preview": session_doc.get("last_message_preview"),
-            "state_version": session_doc.get("state_version", 0),
-        }
-        if "world_id" in session_doc:
-            session_summary["world_id"] = session_doc.get("world_id")
-        
-        logger.info(
-            "[CHAT][BOOTSTRAP] user=%s game=%s session_id=%s messages_count=%d",
-            user_id,
-            game_id_str,
-            session_summary["id"],
-            len(messages),
-        )
-        
-        return {
-            "session": session_summary,
-            "messages": messages,
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.exception("[CHAT][BOOTSTRAP][ERROR] game_id=%s error=%s", game_id, str(e))
-        raise HTTPException(status_code=500, detail=f"채팅 재개 중 오류가 발생했습니다: {str(e)}")
 
 
 @router.get("/health")
