@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from adapters.file_storage.r2_storage import R2Storage
 from adapters.persistence.mongo.factory import get_mongo_client
 from adapters.persistence.mongo import get_db
-from apps.api.routes.worlds import get_current_user_v2
+from apps.api.deps.auth import get_current_user_from_token
 from apps.api.utils.common import build_public_image_url
 
 
@@ -208,7 +208,7 @@ def list_persona_presets() -> List[PersonaPresetOut]:
 
 
 @router.get("/users/me/personas", response_model=List[PersonaOut])
-def get_my_personas(current_user=Depends(get_current_user_v2)) -> List[PersonaOut]:
+def get_my_personas(current_user=Depends(get_current_user_from_token)) -> List[PersonaOut]:
     """
     로그인한 사용자의 personas 배열을 반환한다.
     기본 페르소나는 is_default=true 로 표시되며, 항상 맨 앞에 오도록 정렬한다.
@@ -241,7 +241,7 @@ def get_my_personas(current_user=Depends(get_current_user_v2)) -> List[PersonaOu
 @router.post("/users/me/personas", response_model=PersonaOut)
 def create_persona(
     payload: PersonaCreate,
-    current_user=Depends(get_current_user_v2),
+    current_user=Depends(get_current_user_from_token),
 ) -> PersonaOut:
     """
     새 페르소나를 생성한다.
@@ -314,7 +314,7 @@ def create_persona(
 def update_persona(
     persona_id: str,
     payload: PersonaUpdate,
-    current_user=Depends(get_current_user_v2),
+    current_user=Depends(get_current_user_from_token),
 ) -> PersonaOut:
     """
     기존 페르소나 수정.
@@ -369,7 +369,7 @@ def update_persona(
 @router.delete("/users/me/personas/{persona_id}")
 def delete_persona(
     persona_id: str,
-    current_user=Depends(get_current_user_v2),
+    current_user=Depends(get_current_user_from_token),
 ) -> Dict[str, Any]:
     """
     페르소나 삭제.
@@ -406,7 +406,7 @@ def delete_persona(
 @router.patch("/users/me/personas/{persona_id}/default")
 def set_default_persona(
     persona_id: str,
-    current_user=Depends(get_current_user_v2),
+    current_user=Depends(get_current_user_from_token),
 ) -> Dict[str, Any]:
     """
     기본 페르소나 지정 (PATCH 엔드포인트).
@@ -462,7 +462,7 @@ class PersonaUploadResponse(BaseModel):
 @router.post("/uploads/persona-image", response_model=PersonaUploadResponse)
 async def upload_persona_image(
     file: UploadFile = File(...),
-    current_user=Depends(get_current_user_v2),
+    current_user=Depends(get_current_user_from_token),
 ) -> PersonaUploadResponse:
     """
     페르소나용 프로필 이미지를 업로드하고 R2 public URL을 반환한다.

@@ -8,7 +8,7 @@ from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 from bson import ObjectId
 
-from apps.api.routes.worlds import get_current_user_v2
+from apps.api.deps.auth import get_current_user_from_token
 from apps.api.schemas.chat_v2 import (
     OpenChatResponse,
     SendMessageRequest,
@@ -60,7 +60,7 @@ async def open_chat(
         OpenChatResponse: 세션 및 메시지 목록
     """
     # 인증 체크
-    current_user = get_current_user_v2(request)
+    current_user = await get_current_user_from_token(request)
     if not current_user:
         raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
     
@@ -118,7 +118,7 @@ async def send_message(
         SendMessageResponse: 업데이트된 세션 및 생성된 메시지 리스트
     """
     # 인증 체크
-    current_user = get_current_user_v2(request)
+    current_user = await get_current_user_from_token(request)
     if not current_user:
         raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
     

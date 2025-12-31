@@ -227,3 +227,8 @@ async def get_current_user_from_token(request: Request) -> dict:
         "is_use": user.get("is_use", "Y"),
         "is_lock": user.get("is_lock", "N"),
     }
+
+
+# Public alias for consistency
+# 모든 router는 이 함수를 사용해야 합니다.
+get_current_user = get_current_user_from_token

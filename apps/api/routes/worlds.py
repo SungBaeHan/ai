@@ -18,7 +18,7 @@ from langchain_openai import ChatOpenAI
 from apps.api.core.user_info_token import decode_user_info_token
 from adapters.persistence.mongo.factory import get_mongo_client
 from apps.api.utils.common import build_public_image_url
-from apps.api.deps.auth import get_current_user_v2
+from apps.api.deps.auth import get_current_user_from_token
 from bson import ObjectId
 from datetime import datetime, timezone
 from fastapi.encoders import jsonable_encoder
@@ -36,7 +36,7 @@ async def bootstrap_world_chat(
     limit: int = Query(50, ge=1, le=200, description="최대 메시지 수"),
     request: Request = None,
     db = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
 ):
     """
     세계관 채팅 세션을 불러와서 재개합니다.
@@ -245,19 +245,7 @@ def get_next_world_id(db):
             pass
     return 1
 
-# === 사용자 인증 의존성 (deprecated: apps.api.deps.auth 사용) ===
-# get_current_user_from_token은 apps.api.deps.auth로 이동되었습니다.
-# 하위 호환을 위해 re-export
-from apps.api.deps.auth import get_current_user_from_token
-
-async def get_current_user_v2(request: Request):
-    """
-    Request에서 user_info_v2 토큰을 읽어서 사용자 정보를 반환하는 의존성 함수.
-    validate-session과 동일한 로직을 사용.
-    
-    Deprecated: apps.api.deps.auth.get_current_user_from_token을 직접 사용하세요.
-    """
-    return await get_current_user_from_token(request)
+# 인증 함수는 apps.api.deps.auth.get_current_user_from_token을 직접 사용합니다.
 
 # === 이미지 업로드 ===
 @router.post("/upload-image", summary="세계관 이미지 업로드")
@@ -448,7 +436,7 @@ async def create_world(
     file: UploadFile = File(...),
     meta: str = Form(...),
     db = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
 ):
     """
     세계관 이미지와 메타데이터를 함께 받아 R2 업로드 + Mongo 저장.

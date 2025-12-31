@@ -15,7 +15,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Query, status
 from adapters.persistence.mongo import get_db
 from adapters.file_storage.r2_storage import R2Storage
-from apps.api.routes.worlds import get_current_user_v2
+from apps.api.deps.auth import get_current_user_from_token
 from apps.api.deps.user_snapshot import build_owner_ref_info
 from apps.api.services.game_session import build_initial_characters_info
 from apps.api.utils.common import build_public_image_url, build_public_image_url_from_path
@@ -126,7 +126,7 @@ async def create_game(
     file: Optional[UploadFile] = File(None),
     meta: str = Form(...),
     db: Database = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
 ):
     """
     게임 생성 엔드포인트.
@@ -492,7 +492,7 @@ async def set_game_persona(
     game_id: int,
     payload: GamePersonaRequest,
     db: Database = Depends(get_db),
-    current_user=Depends(get_current_user_v2),
+    current_user=Depends(get_current_user_from_token),
 ):
     """
     현재 로그인한 유저의 페르소나 중 하나를 게임 세션에 매핑한다.
@@ -590,7 +590,7 @@ async def get_game(
 @router.get("/{game_id}/session", summary="게임 세션 조회/생성")
 async def get_or_create_game_session(
     game_id: int,
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
     db: Database = Depends(get_db),
 ):
     """

@@ -18,7 +18,7 @@ from adapters.external.embedding.sentence_transformer import embed
 from apps.api.utils.trace import make_trace_id
 from apps.api.services.chat_persist import persist_character_chat, persist_world_chat
 from adapters.persistence.mongo import get_db
-from apps.api.routes.worlds import get_current_user_from_token
+from apps.api.deps.auth import get_current_user_from_token
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
@@ -329,15 +329,8 @@ class ChatIn(BaseModel):
 
 router = APIRouter()
 
-async def get_current_user_dependency(request: Request) -> dict:
-    """
-    FastAPI dependency function for getting current user from request.
-    """
-    return await get_current_user_from_token(request)
-
-
 @router.post("/")
-async def chat(req: Request, current_user: dict = Depends(get_current_user_dependency)):
+async def chat(req: Request, current_user: dict = Depends(get_current_user_from_token)):
     """
     /v1/chat 엔드포인트 (TRPG + QA 겸용)
     - OpenAI로 강제 통일 (gpt-4o-mini, max_tokens=32)

@@ -23,7 +23,7 @@ from langchain_openai import ChatOpenAI
 from apps.api.dependencies.auth import get_optional_user, User
 from apps.api.core.user_info_token import decode_user_info_token
 from adapters.persistence.mongo.factory import get_mongo_client
-from apps.api.routes.worlds import get_current_user_v2
+from apps.api.deps.auth import get_current_user_from_token
 from bson import ObjectId
 from datetime import datetime, timezone
 import json
@@ -209,7 +209,7 @@ def get_my_characters(
     limit: int = Query(20, ge=1),
     q: str = Query(None),
     db = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
 ):
     """
     현재 로그인한 사용자가 만든 캐릭터 목록 조회
@@ -494,14 +494,14 @@ async def ai_generate_character_detail(payload: CharacterBaseInfo):
         raise HTTPException(status_code=500, detail="캐릭터 상세 설정 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
 
 # === 사용자 인증 의존성은 worlds.py에서 import ===
-# get_current_user_v2는 worlds.py에서 import하여 사용
+# 인증 함수는 apps.api.deps.auth.get_current_user_from_token을 사용
 
 @router.post("", summary="캐릭터 생성")
 async def create_character(
     file: UploadFile = File(...),
     meta: str = Form(...),
     db = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
 ):
     """
     캐릭터 이미지와 메타데이터를 함께 받아 R2 업로드 + Mongo 저장.
@@ -667,7 +667,7 @@ async def bootstrap_character_chat(
     limit: int = Query(50, ge=1, le=200, description="최대 메시지 수"),
     request: Request = None,
     db = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
 ):
     """
     캐릭터 채팅 세션을 불러와서 재개합니다.
