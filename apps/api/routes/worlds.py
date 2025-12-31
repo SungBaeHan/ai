@@ -63,10 +63,18 @@ async def bootstrap_world_chat(
             "entity_id": world_id_str,
         }
         
+        logger.info(
+            "[CHAT][BOOTSTRAP] world session filter: user_id=%s world_id=%s entity_id=%s",
+            str(user_id),
+            world_id_str,
+            world_id_str,
+        )
+        
         session_doc = session_col.find_one(session_filter)
         
         if not session_doc:
             # 세션이 없으면 빈 세션 정보 반환
+            logger.info("[CHAT][BOOTSTRAP] world session not found for user_id=%s world_id=%s", str(user_id), world_id_str)
             return {
                 "session": None,
                 "messages": [],
@@ -75,10 +83,16 @@ async def bootstrap_world_chat(
         session_id = session_doc["_id"]
         
         # 2) 메시지 조회 (created_at 오름차순)
+        # messages는 session_id로만 조회 (world_id/entity_id/chat_type 필드 없음)
         message_col = db["worlds_message"]
-        cursor = message_col.find(
-            {"session_id": session_id}
-        ).sort("created_at", 1).limit(limit)
+        message_filter = {"session_id": session_id}
+        
+        logger.info(
+            "[CHAT][BOOTSTRAP] world message filter: session_id=%s",
+            str(session_id),
+        )
+        
+        cursor = message_col.find(message_filter).sort("created_at", 1).limit(limit)
         
         messages = []
         for msg_doc in cursor:
