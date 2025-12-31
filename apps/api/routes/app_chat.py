@@ -16,7 +16,7 @@ from qdrant_client import QdrantClient
 from langchain_openai import ChatOpenAI
 from adapters.external.embedding.sentence_transformer import embed
 from apps.api.utils.trace import make_trace_id
-from apps.api.services.chat_persist import persist_character_chat
+from apps.api.services.chat_persist import persist_character_chat, persist_world_chat
 from adapters.persistence.mongo import get_db
 from apps.api.routes.worlds import get_current_user_from_token
 from bson import ObjectId
@@ -324,6 +324,8 @@ class ChatIn(BaseModel):
     top_p: float = 0.9
     character_id: Optional[str] = None
     character: Optional[Dict[str, Any]] = None
+    world_id: Optional[str] = None
+    chat_type: Optional[str] = None
 
 router = APIRouter()
 
@@ -491,8 +493,34 @@ async def chat(req: Request, current_user: dict = Depends(get_current_user_depen
                 detail="User identity missing in chat persistence",
             )
         
-        # character_id가 있으면 저장 (캐릭터 채팅 모드일 때만)
-        if character_id and mode in ["trpg", "qa"]:
+        # character_id 또는 world_id가 있으면 저장 (캐릭터/세계관 채팅 모드일 때만)
+        world_id = data.get("world_id")
+        chat_type_from_body = data.get("chat_type")
+        
+        # World Chat 분기 (world_id가 있거나 chat_type="world")
+        if world_id or chat_type_from_body == "world":
+            if world_id:
+                logger.info("[CHAT][BRANCH] trace=%s -> world_chat_save world_id=%s", trace_id, world_id)
+                try:
+                    persist_result = persist_world_chat(
+                        db=db,
+                        trace_id=trace_id,
+                        user_id=str(user_id),
+                        world_id=str(world_id),
+                        payload={"message": q, "mode": mode},
+                        llm_answer=text,
+                    )
+                    logger.info("[CHAT][PERSIST] trace=%s result=%s", trace_id, persist_result.get("ok", False))
+                except Exception as persist_error:
+                    logger.exception("[CHAT][PERSIST][ERR] trace=%s error=%s", trace_id, str(persist_error))
+                    # 저장 실패 시 에러 발생 (조용히 스킵하지 않음)
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Chat persistence failed: {str(persist_error)}",
+                    )
+        
+        # Character Chat 분기 (character_id가 있고 world 분기가 아닐 때)
+        elif character_id and mode in ["trpg", "qa"]:
             logger.info("[CHAT][BRANCH] trace=%s -> character_chat_save", trace_id)
             try:
                 persist_result = persist_character_chat(

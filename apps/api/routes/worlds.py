@@ -18,6 +18,7 @@ from langchain_openai import ChatOpenAI
 from apps.api.core.user_info_token import decode_user_info_token
 from adapters.persistence.mongo.factory import get_mongo_client
 from apps.api.utils.common import build_public_image_url
+from apps.api.deps.auth import get_current_user_v2
 from bson import ObjectId
 from datetime import datetime, timezone
 from fastapi.encoders import jsonable_encoder
@@ -27,6 +28,106 @@ from motor.motor_asyncio import AsyncIOMotorClient
 logger = logging.getLogger(__name__)
 
 router = APIRouter()                                   # 서브 라우터
+
+
+@router.get("/{world_id}/chat/bootstrap", summary="세계관 채팅 재개 (Bootstrap)")
+async def bootstrap_world_chat(
+    world_id: str,
+    limit: int = Query(50, ge=1, le=200, description="최대 메시지 수"),
+    request: Request = None,
+    db = Depends(get_db),
+    current_user = Depends(get_current_user_v2),
+):
+    """
+    세계관 채팅 세션을 불러와서 재개합니다.
+    - (user_id, world_id) 기준으로 세션을 조회
+    - 해당 세션의 메시지 히스토리를 created_at 오름차순으로 반환
+    - 세션이 없으면 빈 세션과 빈 메시지 목록 반환
+    """
+    try:
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+        
+        user_id = current_user.get("google_id") or current_user.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="사용자 정보를 찾을 수 없습니다.")
+        
+        # world_id 정규화 (ObjectId 문자열 처리)
+        world_id_str = str(world_id)
+        
+        # 1) 세션 조회 (get-or-create)
+        session_col = db["worlds_session"]
+        session_filter = {
+            "user_id": str(user_id),
+            "chat_type": "world",
+            "entity_id": world_id_str,
+        }
+        
+        session_doc = session_col.find_one(session_filter)
+        
+        if not session_doc:
+            # 세션이 없으면 빈 세션 정보 반환
+            return {
+                "session": None,
+                "messages": [],
+            }
+        
+        session_id = session_doc["_id"]
+        
+        # 2) 메시지 조회 (created_at 오름차순)
+        message_col = db["worlds_message"]
+        cursor = message_col.find(
+            {"session_id": session_id}
+        ).sort("created_at", 1).limit(limit)
+        
+        messages = []
+        for msg_doc in cursor:
+            msg = {
+                "id": str(msg_doc["_id"]),
+                "session_id": str(msg_doc.get("session_id", "")),
+                "role": msg_doc.get("role", "user"),
+                "content": msg_doc.get("content", ""),
+                "created_at": msg_doc.get("created_at"),
+            }
+            if "request_id" in msg_doc:
+                msg["request_id"] = msg_doc["request_id"]
+            if "meta" in msg_doc:
+                msg["meta"] = msg_doc["meta"]
+            messages.append(msg)
+        
+        # 3) 세션 정보 정리 (ObjectId를 문자열로 변환)
+        session_summary = {
+            "id": str(session_doc["_id"]),
+            "user_id": session_doc.get("user_id"),
+            "chat_type": session_doc.get("chat_type"),
+            "entity_id": session_doc.get("entity_id"),
+            "status": session_doc.get("status", "idle"),
+            "created_at": session_doc.get("created_at"),
+            "updated_at": session_doc.get("updated_at"),
+            "last_message_at": session_doc.get("last_message_at"),
+            "last_message_preview": session_doc.get("last_message_preview"),
+            "state_version": session_doc.get("state_version", 0),
+        }
+        
+        logger.info(
+            "[CHAT][BOOTSTRAP] user=%s world=%s session_id=%s messages_count=%d",
+            user_id,
+            world_id_str,
+            session_summary["id"],
+            len(messages),
+        )
+        
+        return {
+            "session": session_summary,
+            "messages": messages,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[CHAT][BOOTSTRAP][ERROR] world_id=%s error=%s", world_id, str(e))
+        raise HTTPException(status_code=500, detail=f"채팅 재개 중 오류가 발생했습니다: {str(e)}")
+
 
 # R2 Storage 인스턴스 (지연 초기화)
 _r2_storage: Optional[R2Storage] = None
