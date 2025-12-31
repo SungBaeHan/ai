@@ -157,6 +157,76 @@
       return j;
     }
 
+    // 세계관 채팅 bootstrap API 호출 (기존 메시지 불러오기)
+    async function bootstrapWorldChat(worldId, limit = 50){
+      const token = getToken();
+      if (!token) {
+        console.log('[CHAT][BOOTSTRAP] skip - no token');
+        return { session: null, messages: [] };
+      }
+
+      // world_id 정규화 (world_XX 형태 처리)
+      let worldIdStr = worldId;
+      if (typeof worldIdStr === 'string' && worldIdStr.startsWith('world_')) {
+        try {
+          worldIdStr = String(parseInt(worldIdStr.split('_')[1], 10));
+        } catch (e) {
+          worldIdStr = String(worldId);
+        }
+      } else if (typeof worldIdStr === 'string' && worldIdStr.startsWith('world-')) {
+        // world-3 형태 처리
+        try {
+          worldIdStr = worldIdStr.replace('world-', '');
+        } catch (e) {
+          worldIdStr = String(worldId);
+        }
+      } else {
+        worldIdStr = String(worldId);
+      }
+
+      console.log(`[CHAT][BOOTSTRAP] request world_id=${worldIdStr} limit=${limit}`);
+
+      try {
+        const headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        };
+
+        const url = `${API_BASE_URL}/v1/worlds/${worldIdStr}/chat/bootstrap?limit=${limit}`;
+        const r = await fetch(url, {
+          method: "GET",
+          credentials: "include",
+          headers: headers,
+          cache: 'no-store'
+        });
+
+        console.log(`[CHAT][BOOTSTRAP] response status=${r.status}`);
+
+        if (!r.ok) {
+          const errorText = await r.text();
+          console.error(`[CHAT][BOOTSTRAP] fail status=${r.status} detail=${errorText}`);
+          
+          if (r.status === 401) {
+            console.error('[CHAT][BOOTSTRAP] Authentication failed - token may be expired');
+            showToast('세션이 만료되었습니다. 다시 로그인해주세요.', 3000);
+          }
+          
+          return { session: null, messages: [] };
+        }
+
+        const data = await r.json();
+        const messages = data.messages || [];
+        const session = data.session;
+
+        console.log(`[CHAT][BOOTSTRAP] ok messages=${messages.length} session_id=${session ? session.id : 'null'}`);
+
+        return { session, messages };
+      } catch (e) {
+        console.error(`[CHAT][BOOTSTRAP] fail error=${e.message}`, e);
+        return { session: null, messages: [] };
+      }
+    }
+
     // 상단/배경/칩 렌더
     function paintWorld(world){
       document.getElementById('title').textContent=world.name||world.id;
@@ -333,7 +403,46 @@
       CURRENT_WORLD = world;
       paintWorld(world);
 
-      // 세계관은 인사말 없이 자유롭게 채팅 시작 (캐릭터와 달리 greeting 없음)
+      // Bootstrap: 기존 채팅 메시지 불러오기
+      let isLoadingBootstrap = true;
+      const sendBtn = document.getElementById('send');
+      const inputTa = document.getElementById('ta');
+      
+      // 로딩 중에는 입력 비활성화
+      sendBtn.disabled = true;
+      inputTa.disabled = true;
+
+      try {
+        const bootstrapResult = await bootstrapWorldChat(norm, 50);
+        const messages = bootstrapResult.messages || [];
+        
+        // 메시지가 있으면 기존 메시지 렌더링 (created_at 오름차순 정렬 보장)
+        if (messages.length > 0) {
+          // created_at 기준으로 한 번 더 정렬 (안전장치)
+          messages.sort((a, b) => {
+            const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return timeA - timeB;
+          });
+
+          // 기존 메시지 렌더링
+          messages.forEach(msg => {
+            if (msg.role === 'user') {
+              addUser(msg.content || '');
+            } else if (msg.role === 'assistant') {
+              addBot(msg.content || '');
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[CHAT][BOOTSTRAP] Error loading messages:', e);
+      } finally {
+        // 로딩 완료 후 입력 활성화
+        isLoadingBootstrap = false;
+        sendBtn.disabled = false;
+        inputTa.disabled = false;
+        inputTa.focus();
+      }
 
       // 입력 동작
       const ta=document.getElementById('ta'), btn=document.getElementById('send');
