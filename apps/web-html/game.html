@@ -240,6 +240,14 @@
       flex-direction: column;
       gap: 8px;
     }
+    /* 메시지 행 스타일 */
+    .msg { display:flex; align-items:flex-end; gap:8px; margin:8px 0; }
+    .msg.me { justify-content:flex-end; }
+    .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
+    .me .bubble { background:rgba(63,131,248,0.25); border-color:#334155; }
+    .user-persona-badge { display:flex; align-items:center; gap:8px; }
+    .user-persona-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; box-shadow:0 0 4px rgba(0,0,0,.3); }
+    .user-persona-name { font-size:12px; color:#cbd5e1; opacity:0.85; }
     .game-chat-log::-webkit-scrollbar {
       display: none;  /* Chrome/Safari: 스크롤바 숨김 */
     }
@@ -664,7 +672,43 @@
         c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
       );
     }
-    function addUser(text){ const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg me'; row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
+    function addUser(text){ 
+      const chat=document.getElementById('chat'); 
+      const row=document.createElement('div'); 
+      row.className='msg me'; 
+      
+      // persona 정보 가져오기 (게임 세션의 player_persona)
+      const persona = getActivePersonaForGame();
+      
+      // persona 뱃지 생성
+      let personaBadge = '';
+      if (persona) {
+        let imageKey = persona.image_key || 'F01';
+        if (imageKey && imageKey.startsWith('preset_')) {
+          try {
+            const match = imageKey.match(/preset_([MF]\d+)/);
+            if (match) imageKey = match[1];
+          } catch (e) {}
+        }
+        const personaImageUrl = `/assets/persona/${imageKey}.png`;
+        personaBadge = `
+          <div class="user-persona-badge" data-role="persona-badge-message">
+            <img src="${personaImageUrl}" alt="${escapeHtml(persona.name || '')}" class="user-persona-avatar" onerror="this.src='/assets/persona/F01.png'" />
+            <span class="user-persona-name" data-role="persona-name">${escapeHtml(persona.name || '')}</span>
+          </div>
+        `;
+      }
+      
+      row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>${personaBadge}`; 
+      chat.appendChild(row); 
+      
+      const chatContainer = document.querySelector('.game-chat-log');
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      } else {
+        chat.scrollTop = chat.scrollHeight;
+      }
+    }
     function addBot(text, name=null){  
       const chat=document.getElementById('chat'); 
       const row=document.createElement('div'); 
