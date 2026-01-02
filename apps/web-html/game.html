@@ -265,6 +265,22 @@
     .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
     .me .bubble { background:rgba(63,131,248,0.25); border-color:#334155; }
     .user-persona-badge { display:flex; align-items:center; gap:8px; }
+    .persona-badge {
+      display:inline-flex;
+      align-items:center;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:11px;
+      line-height:16px;
+      opacity:.9;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.12);
+      color:rgba(255,255,255,.92);
+      white-space:nowrap;
+      max-width:160px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
     .user-persona-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; box-shadow:0 0 4px rgba(0,0,0,.3); }
     .user-persona-name { font-size:12px; color:#cbd5e1; opacity:0.85; }
     .game-chat-log::-webkit-scrollbar {
@@ -1752,27 +1768,20 @@
         
         // 플레이어는 아바타 없이, 페르조나 뱃지 추가
         if (isPlayer) {
-          // 페르조나 뱃지 생성
-          let personaBadge = '';
-          if (activePersona) {
-            let imageKey = activePersona.image_key || activePersona.imageKey || 'F01';
-            if (imageKey && imageKey.startsWith('preset_')) {
-              try {
-                const match = imageKey.match(/preset_([MF]\d+)/);
-                if (match) imageKey = match[1];
-              } catch (e) {}
-            }
-            const personaImageUrl = `/assets/persona/${imageKey}.png`;
-            const personaName = activePersona.name || 'Persona';
-            personaBadge = `
-              <div class="user-persona-badge" data-role="persona-badge-message">
-                <img src="${personaImageUrl}" alt="${escapeHtml(personaName)}" class="user-persona-avatar" onerror="this.src='/assets/persona/F01.png'" />
-                <span class="user-persona-name" data-role="persona-name">${escapeHtml(personaName)}</span>
-              </div>
-            `;
+          // 페르조나 뱃지 HTML 생성
+          const badgeHTML = buildPersonaBadgeHTML(activePersona);
+          
+          // 디버그 로그
+          if (index < 2) {
+            console.log("[GAME][BADGE_INJECT]", { 
+              hasPersona: !!activePersona, 
+              badgeLen: badgeHTML.length,
+              badgeHTML: badgeHTML.substring(0, 100)
+            });
           }
           
-          row.innerHTML = `<div class="bubble">${renderMessageText(log.text)}</div>${personaBadge}`;
+          // DOM 순서: (bubble)(badge) for RIGHT
+          row.innerHTML = `<div class="bubble">${renderMessageText(log.text)}</div>${badgeHTML}`;
         } else {
           // NPC/Monster는 아바타와 함께 (이미 풀 URL로 변환된 avatarUrl 사용)
           row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName || 'NPC'}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
