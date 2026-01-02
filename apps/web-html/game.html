@@ -1713,7 +1713,7 @@
       console.log("[GAME][persona] session keys:", Object.keys(session || {}));
       
       // 활성 페르조나 가져오기 (안정적인 getter 사용)
-      const activePersona = getActivePersona(session);
+      const activePersona = normalizeActivePersona(session, PERSONAS_LIST);
       console.log("[GAME][persona] activePersona:", activePersona);
       
       const chatEl = document.getElementById('chat');
