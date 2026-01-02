@@ -121,6 +121,7 @@ async def bootstrap_world_chat(
             "last_message_at": session_doc.get("last_message_at"),
             "last_message_preview": session_doc.get("last_message_preview"),
             "state_version": session_doc.get("state_version", 0),
+            "persona": session_doc.get("persona"),
         }
         
         logger.info(
