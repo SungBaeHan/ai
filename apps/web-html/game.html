@@ -1711,6 +1711,7 @@
 
     // 세션 기반 채팅 로그 렌더링 (오직 session.turn_logs만 사용)
     function renderChatLogsFromSession(session) {
+      console.log("[GAME][build]", window.__BUILD_SHA__);
       console.log("[GAME][RENDER_HIT]", "renderChatLogsFromSession", { args: arguments?.length });
       
       if (!session) {
@@ -1723,7 +1724,7 @@
       
       // 활성 페르조나 가져오기 (안정적인 getter 사용)
       const activePersona = normalizeActivePersona(session, PERSONAS_LIST);
-      console.log("[GAME][persona] activePersona:", activePersona);
+      console.log("[GAME][persona] active =", activePersona);
       
       const chatEl = document.getElementById('chat');
       if (!chatEl) {
@@ -1751,6 +1752,7 @@
       // 중복 메시지 필터링 적용
       const rawLogs = session.turn_logs || [];
       const logs = dedupeMessages(rawLogs);
+      console.log("[GAME][render] logs =", logs.length);
       console.log("[DEBUG] turn_logs length", rawLogs.length, "-> deduped", logs.length);
       
       logs.forEach((log, index) => {
@@ -1779,20 +1781,31 @@
             // renderMessageText는 HTML을 반환할 수 있으므로 innerHTML 사용
             bubbleEl.innerHTML = renderMessageText(textContent);
             
-            // 페르조나 뱃지 엘리먼트 생성 및 추가 (있으면)
-            if (activePersona) {
-              const badgeEl = createPersonaBadgeEl(activePersona);
-              row.appendChild(badgeEl);
-              console.log("[GAME][persona] badge appended", badgeEl);
+            // 페르조나 뱃지 엘리먼트 생성 및 추가 (있으면, 실패해도 렌더 계속)
+            if (activePersona?.persona_id || activePersona?.id) {
+              try {
+                const badgeEl = createPersonaBadgeEl(activePersona);
+                row.appendChild(badgeEl);
+                console.log("[GAME][persona] badge appended", badgeEl);
+              } catch (e) {
+                console.warn("[GAME][persona] badge skipped", e);
+              }
             }
             
             // bubble 추가
             row.appendChild(bubbleEl);
           } else {
             // NPC/Monster는 아바타와 함께
-            const { avatarUrl, name: displayName } = getAvatarForLog(log, characterMaps, session);
+            const avatarResult = getAvatarForLog(log, characterMaps, session);
+            const avatarUrl = safeAvatarUrl(avatarResult) || safeAvatarUrl(log) || "";
+            const displayName = avatarResult?.name || log?.speaker_name || 'NPC';
+            
+            if (!avatarUrl) {
+              console.warn("[GAME][render] avatar missing, skip image", log);
+            }
+            
             const nameLabel = displayName ? `<strong>${escapeHtml(displayName)}</strong>: ` : '';
-            row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName || 'NPC'}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
+            row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
           }
           
           chatEl.appendChild(row);
