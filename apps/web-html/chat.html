@@ -862,10 +862,16 @@
           
           // 모든 유저 메시지 뱃지 갱신 (세션 persona 반영)
           refreshAllUserMessageBadges();
+          refreshHeaderPersonaBadge();
         } else {
           // 메시지가 없으면 초기 문단(scenario/greeting) 출력
           const intro=[ch.scenario||"", ch.greeting||""].filter(Boolean).join("\n\n").trim();
           if(intro) addBot(intro);
+          
+          // 메시지가 없어도 세션이 있으면 헤더 badge 표시
+          if (CURRENT_SESSION) {
+            refreshHeaderPersonaBadge();
+          }
         }
       } catch (e) {
         console.error('[CHAT][BOOTSTRAP] Error loading messages:', e);
