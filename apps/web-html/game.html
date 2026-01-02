@@ -337,9 +337,9 @@
     /* 말풍선 공통 - 기존 .msg 클래스 호환성 유지 */
     .msg { 
       display: flex; 
-      align-items: flex-start; 
-      gap: 10px; 
-      margin: 4px 0; 
+      align-items: flex-end; 
+      gap: 8px; 
+      margin: 8px 0; 
       padding: 0;
       animation: fadeInUp .35s ease; 
       max-width: 100%;
@@ -350,10 +350,7 @@
     }
     /* 플레이어: 오른쪽 정렬 (노란 박스 오른쪽에 붙게) */
     .msg.me { 
-      flex-direction: row-reverse; 
-      margin-left: auto;           /* 자동으로 오른쪽으로 밀기 */
       justify-content: flex-end;
-      align-items: flex-end;
     }
     .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
     .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
