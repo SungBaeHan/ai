@@ -18,8 +18,9 @@
   </script>
   <style>
     :root { color-scheme: dark; } /* 다크 테마 힌트 */
-    body { margin:0; background:#0b0f14; color:#e5e7eb; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
-    .topbar-wrap { display:flex; justify-content:center; border-bottom:1px solid #1b2430; background:#0e141c; position:sticky; top:0; z-index:20; }
+    html, body { height:100%; margin:0; overflow:hidden; }
+    body { background:#0b0f14; color:#e5e7eb; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; display:flex; flex-direction:column; }
+    .topbar-wrap { display:flex; justify-content:center; border-bottom:1px solid #1b2430; background:#0e141c; position:sticky; top:0; z-index:20; flex-shrink:0; }
     .topbar { width:100%; max-width:980px; display:flex; align-items:center; gap:10px; padding:10px 14px; justify-content:space-between; }
     .topbar-left { display:flex; align-items:center; gap:10px; flex:1; }
     .topbar-right { display:flex; align-items:center; gap:10px; }
@@ -31,13 +32,16 @@
     .header-persona-badge:hover { background:#334155; border-color:#475569; }
     .header-persona-avatar { width:24px; height:24px; border-radius:50%; object-fit:cover; box-shadow:0 0 4px rgba(0,0,0,.3); }
     .header-persona-name { font-size:13px; color:#e5e7eb; }
+    .chat-page-content { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+    .chat-top-section { flex-shrink:0; }
     .hero { position:relative; margin:18px auto; max-width:980px; }
     .hero img { width:100%; border-radius:14px; border:1px solid #1f2937; box-shadow:0 10px 28px rgba(0,0,0,.35); display:block; }
     .panel { max-width:980px; margin:10px auto 18px; background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:12px 14px; }
     .chips { margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; }
     .chip { padding:3px 8px; font-size:11px; border-radius:999px; border:1px solid #334155; color:#a5b4fc; background:#0b1220; }
     .hint { font-size:12px; color:#9ca3af; margin-top:6px; }
-    .chat { max-width:980px; margin:0 auto 90px; padding:0 4px; }
+    .chat-container { flex:1 1 auto; min-height:0; overflow-y:auto; display:flex; flex-direction:column; }
+    .chat { max-width:980px; margin:0 auto; padding:14px 4px; width:100%; flex:1; }
     .msg { display:flex; align-items:flex-start; gap:10px; margin:14px 0; animation:fadeInUp .35s ease; }
     .msg.me { flex-direction:row-reverse; }
     .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
@@ -46,7 +50,7 @@
     .user-persona-badge { display:flex; align-items:center; gap:8px; margin-left:8px; }
     .user-persona-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; box-shadow:0 0 4px rgba(0,0,0,.3); }
     .user-persona-name { font-size:12px; color:#cbd5e1; opacity:0.85; }
-    .inputBar { position:fixed; left:0; right:0; bottom:0; border-top:1px solid #1b2430; background:#0e141c; padding:12px; }
+    .inputBar { border-top:1px solid #1b2430; background:#0e141c; padding:12px; flex-shrink:0; }
     .inputIn { max-width:980px; margin:0 auto; display:flex; gap:8px; }
     textarea { flex:1; resize:none; background:#0b1220; border:1px solid #1f2937; border-radius:10px; color:#e5e7eb; padding:10px 12px; min-height:44px; }
     button { padding:0 14px; border-radius:10px; border:1px solid #334155; background:#111827; color:#c7d2fe; height:44px; }
@@ -111,22 +115,27 @@
     </div>
   </div>
 
-  <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
-  <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
+  <div class="chat-page-content">
+    <div class="chat-top-section">
+      <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
+      <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
 
-  <div class="panel" id="about">
-    <div style="font-weight:700; margin-bottom:6px;">소개</div>
-    <div id="bio" style="opacity:.9"></div> <!-- 장문 소개/배경 -->
-    <div class="chips">
-      <span class="chip">TRPG</span>
-      <span class="chip" id="chip-name">캐릭터</span>
+      <div class="panel" id="about">
+        <div style="font-weight:700; margin-bottom:6px;">소개</div>
+        <div id="bio" style="opacity:.9"></div> <!-- 장문 소개/배경 -->
+        <div class="chips">
+          <span class="chip">TRPG</span>
+          <span class="chip" id="chip-name">캐릭터</span>
+        </div>
+        <div class="hint">Tip: 메세지를 보내면 /v1/chat (TRPG 모드)로 요청합니다.</div>
+      </div>
     </div>
-    <div class="hint">Tip: 메세지를 보내면 /v1/chat (TRPG 모드)로 요청합니다.</div>
-  </div>
 
-  <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
+    <div class="chat-container">
+      <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
+    </div>
 
-  <div class="inputBar">
+    <div class="inputBar" style="flex-shrink:0;">
     <div class="inputIn">
       <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 -->
       <button id="send">보내기</button>                         <!-- 전송 -->

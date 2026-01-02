@@ -836,7 +836,13 @@
       const nameEl = document.getElementById('headerPersonaName');
       const personaBtn = document.getElementById('personaBtn');
       
-      if (!badgeEl || !avatarEl || !nameEl) return;
+      if (!badgeEl || !avatarEl || !nameEl) {
+        console.warn('[PERSONA] Header elements not found');
+        return;
+      }
+      
+      console.log('[PERSONA] refreshHeaderPersonaBadge - persona:', persona);
+      console.log('[PERSONA] refreshHeaderPersonaBadge - currentSession:', currentSession);
       
       if (!persona) {
         // persona가 없으면 Persona 버튼 표시
@@ -845,6 +851,7 @@
           personaBtn.style.display = 'inline-block';
           personaBtn.textContent = 'Persona';
         }
+        console.log('[PERSONA] No persona, showing Persona button');
         return;
       }
       
