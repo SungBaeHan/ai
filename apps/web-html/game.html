@@ -1750,42 +1750,34 @@
           return;
         }
         
-        const isPlayer = log.speaker_type === 'player';
-        
-        // 디버그: 처음 2개 메시지만 로그
-        if (index < 2) {
-          console.log("[GAME][msg]", { 
-            speaker_type: log.speaker_type, 
-            isPlayerRight: isPlayer, 
-            hasPersona: !!activePersona 
-          });
+        // speaker_type 확인 로그 (첫 번째 메시지만)
+        if (index === 0) {
+          console.log("[GAME][log] speaker_type=", log?.speaker_type, "log=", log);
         }
+        
+        const isPlayer = log.speaker_type === 'player';
         
         const row = document.createElement('div');
         row.className = `msg ${isPlayer ? 'me' : ''}`;
         
-        // 페이지 레벨에서 아바타 URL 계산
-        const { avatarUrl, name: displayName } = getAvatarForLog(log, characterMaps, session);
-        
-        // 이름 레이블 생성
-        const nameLabel = displayName ? `<strong>${escapeHtml(displayName)}</strong>: ` : '';
-        
-        // 플레이어는 아바타 없이, 페르조나 뱃지 추가
+        // 플레이어는 아바타 없이, 페르조나 뱃지 추가 (createElement 방식)
         if (isPlayer) {
-          // 페르조나 뱃지 HTML 생성
-          const badgeHTML = buildPersonaBadgeHTML(activePersona);
+          // bubble 엘리먼트 생성
+          const bubbleEl = document.createElement('div');
+          bubbleEl.className = 'bubble';
+          const textContent = log.text || '';
+          // renderMessageText는 HTML을 반환할 수 있으므로 innerHTML 사용
+          bubbleEl.innerHTML = renderMessageText(textContent);
           
-          // 디버그 로그
-          if (index < 2) {
-            console.log("[GAME][BADGE_INJECT]", { 
-              hasPersona: !!activePersona, 
-              badgeLen: badgeHTML.length,
-              badgeHTML: badgeHTML.substring(0, 100)
-            });
+          // 페르조나 뱃지 엘리먼트 생성 및 추가 (있으면)
+          if (activePersona) {
+            const badgeEl = createPersonaBadgeEl(activePersona);
+            row.appendChild(badgeEl);
+            console.log("[GAME][persona] badge appended", badgeEl);
           }
           
-          // DOM 순서: (bubble)(badge) for RIGHT
-          row.innerHTML = `<div class="bubble">${renderMessageText(log.text)}</div>${badgeHTML}`;
+          // bubble 추가
+          row.appendChild(bubbleEl);
         } else {
           // NPC/Monster는 아바타와 함께 (이미 풀 URL로 변환된 avatarUrl 사용)
           row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName || 'NPC'}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
