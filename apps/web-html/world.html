@@ -366,7 +366,12 @@
       
       row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>${personaBadge}`;
       chat.appendChild(row);
-      chat.scrollTop=chat.scrollHeight;
+      const chatContainer = document.querySelector('.chat-container');
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      } else {
+        chat.scrollTop = chat.scrollHeight;
+      }
     }
     function addBot(text){  
       const chat=document.getElementById('chat'); 
