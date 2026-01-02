@@ -1775,7 +1775,9 @@
           // bubble 추가
           row.appendChild(bubbleEl);
         } else {
-          // NPC/Monster는 아바타와 함께 (이미 풀 URL로 변환된 avatarUrl 사용)
+          // NPC/Monster는 아바타와 함께
+          const { avatarUrl, name: displayName } = getAvatarForLog(log, characterMaps, session);
+          const nameLabel = displayName ? `<strong>${escapeHtml(displayName)}</strong>: ` : '';
           row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName || 'NPC'}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
         }
         
