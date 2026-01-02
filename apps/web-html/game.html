@@ -1640,14 +1640,24 @@
       
       // 디버그: 세션 키와 페르조나 정보 확인
       console.log("[GAME][persona] session keys:", Object.keys(session || {}));
-      console.log("[GAME][persona] player_persona:", session?.player_persona);
       
-      // activePersona 정규화 (여러 필드명 지원)
-      const activePersona = 
-        session?.player_persona ?? 
-        session?.persona ?? 
-        session?.persona_info ?? 
-        null;
+      // session에서 player_persona 가져오기
+      const sessionPersona = session?.player_persona ?? null;
+      console.log("[GAME][persona] sessionPersona:", sessionPersona);
+      
+      // activePersona 정규화 (세션 페르조나 우선, 없으면 PERSONAS_LIST에서 선택)
+      let activePersona = sessionPersona;
+      if (!activePersona && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
+        const selectedPersona = PERSONAS_LIST.find(p => p.is_default) || PERSONAS_LIST[0];
+        if (selectedPersona) {
+          activePersona = {
+            persona_id: selectedPersona.persona_id,
+            name: selectedPersona.name,
+            gender: selectedPersona.gender,
+            image_key: selectedPersona.image_key
+          };
+        }
+      }
       
       console.log("[GAME][persona] activePersona:", activePersona);
       
