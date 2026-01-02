@@ -1655,8 +1655,35 @@
       });
     }
 
+    // 페르조나 뱃지 HTML 생성 헬퍼
+    function buildPersonaBadgeHTML(persona) {
+      if (!persona) return "";
+      const name = persona.name || "Persona";
+      const gender = persona.gender ? String(persona.gender) : "";
+      return `
+        <span class="persona-badge" data-persona-badge="1" title="${escapeHtml(name)}">
+          ${escapeHtml(name)}${gender ? " · " + escapeHtml(gender) : ""}
+        </span>
+      `;
+    }
+
+    // 활성 페르조나 가져오기 (안정적인 getter)
+    function getActivePersona(session) {
+      if (session?.player_persona?.persona_id) return session.player_persona;
+      // fallback: persona_ref_id로 찾기
+      if (session?.persona_ref_id && Array.isArray(PERSONAS_LIST)) {
+        const found = PERSONAS_LIST.find(p => p.persona_id === session.persona_ref_id);
+        if (found) return found;
+      }
+      // fallback: 첫 번째 페르조나
+      if (Array.isArray(PERSONAS_LIST) && PERSONAS_LIST.length > 0) return PERSONAS_LIST[0];
+      return null;
+    }
+
     // 세션 기반 채팅 로그 렌더링 (오직 session.turn_logs만 사용)
     function renderChatLogsFromSession(session) {
+      console.log("[GAME][RENDER_HIT]", "renderChatLogsFromSession", { args: arguments?.length });
+      
       if (!session) {
         console.warn("[DEBUG] renderChatLogsFromSession: no session");
         return;
@@ -1665,24 +1692,8 @@
       // 디버그: 세션 키와 페르조나 정보 확인
       console.log("[GAME][persona] session keys:", Object.keys(session || {}));
       
-      // session에서 player_persona 가져오기
-      const sessionPersona = session?.player_persona ?? null;
-      console.log("[GAME][persona] sessionPersona:", sessionPersona);
-      
-      // activePersona 정규화 (세션 페르조나 우선, 없으면 PERSONAS_LIST에서 선택)
-      let activePersona = sessionPersona;
-      if (!activePersona && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
-        const selectedPersona = PERSONAS_LIST.find(p => p.is_default) || PERSONAS_LIST[0];
-        if (selectedPersona) {
-          activePersona = {
-            persona_id: selectedPersona.persona_id,
-            name: selectedPersona.name,
-            gender: selectedPersona.gender,
-            image_key: selectedPersona.image_key
-          };
-        }
-      }
-      
+      // 활성 페르조나 가져오기 (안정적인 getter 사용)
+      const activePersona = getActivePersona(session);
       console.log("[GAME][persona] activePersona:", activePersona);
       
       const chatEl = document.getElementById('chat');
