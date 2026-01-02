@@ -14,6 +14,25 @@
   <script src="/js/config.js"></script>
   <script src="/js/assets.js"></script>
   <script>
+    // 빌드 SHA 추적 (개발 환경에서는 'dev'로 표시)
+    const BUILD_SHA = (function() {
+      // 프로덕션에서는 서버에서 주입된 메타 태그나 전역 변수를 사용할 수 있음
+      // 현재는 간단히 'dev' 또는 git commit hash를 하드코딩
+      return 'dev';
+    })();
+    
+    if (typeof window !== 'undefined') {
+      window.__BUILD_SHA__ = BUILD_SHA;
+      console.log("[BUILD] SHA =", BUILD_SHA);
+      // 화면에 표시 (DOMContentLoaded 후 실행)
+      document.addEventListener('DOMContentLoaded', function() {
+        const buildShaDisplay = document.getElementById('build-sha-display');
+        if (buildShaDisplay) {
+          buildShaDisplay.textContent = BUILD_SHA;
+        }
+      });
+    }
+    
     // 전역 API 엔드포인트 설정 (어디서든 window.API_BASE_URL로 접근)
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
     window.API_BASE = 'https://api.arcanaverse.ai';
@@ -442,6 +461,11 @@
         <button id="personaBtn" class="persona-btn" title="페르조나 설정" style="display:none;">Persona</button> <!-- 페르조나 버튼 (fallback) -->
       </div>
     </div>
+  </div>
+
+  <!-- Build SHA 표시 (우하단) -->
+  <div style="position:fixed; bottom:8px; right:8px; font-size:10px; opacity:0.4; color:#94a3b8; pointer-events:none; user-select:none; z-index:9999;">
+    build: <span id="build-sha-display">dev</span>
   </div>
 
   <div id="game-page" class="game-page game-layout game-body">
@@ -1730,7 +1754,7 @@
             const personaImageUrl = `/assets/persona/${imageKey}.png`;
             const personaName = activePersona.name || 'Persona';
             personaBadge = `
-              <div class="user-persona-badge" data-role="persona-badge-message" style="outline: 1px solid red;">
+              <div class="user-persona-badge" data-role="persona-badge-message">
                 <img src="${personaImageUrl}" alt="${escapeHtml(personaName)}" class="user-persona-avatar" onerror="this.src='/assets/persona/F01.png'" />
                 <span class="user-persona-name" data-role="persona-name">${escapeHtml(personaName)}</span>
               </div>
