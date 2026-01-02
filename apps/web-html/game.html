@@ -969,6 +969,7 @@
     // 페르조나 목록 조회
     async function fetchPersonas() {
       try {
+        console.log("[GAME][persona] about to fetch /v1/users/me/personas");
         const token = localStorage.getItem('user_info_v2');
         const headers = { 'Content-Type': 'application/json' };
         if (token) {
@@ -988,6 +989,7 @@
         }
 
         const personas = await res.json();
+        console.log("[GAME][persona] personas loaded:", personas?.length, personas);
         return personas;
       } catch (e) {
         console.error('[PERSONA] Load error:', e);
