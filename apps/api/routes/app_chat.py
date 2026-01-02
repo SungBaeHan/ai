@@ -152,7 +152,8 @@ def character_to_context(char: Dict[str, Any]) -> str:
     return profile, system_rules
 
 def build_messages(mode: str, history: List[Dict[str,str]], user_msg: str,
-                   context: str, char_ctx: str = "", char_rules: str = "", choices: int = 0) -> List[Dict[str,str]]:
+                   context: str, char_ctx: str = "", char_rules: str = "", choices: int = 0,
+                   persona: Optional[Dict[str, Any]] = None, character_gender: Optional[str] = None) -> List[Dict[str,str]]:
     if mode == "trpg":
         sys_prompt = (SYS_TRPG if choices and choices > 0 else SYS_TRPG_NOCHOICE)
     else:
@@ -162,6 +163,25 @@ def build_messages(mode: str, history: List[Dict[str,str]], user_msg: str,
         sys_prompt += f"\n\n[플레이어 캐릭터 프로필]\n{char_ctx}\n"
     if mode == "trpg" and char_rules:
         sys_prompt += f"\n[캐릭터 톤/규칙]\n{char_rules}\n"
+    
+    # Persona 및 Gender 정보 추가 (TRPG 모드일 때만)
+    if mode == "trpg":
+        persona_section = ""
+        if persona:
+            persona_name = persona.get("name") or "unknown"
+            persona_gender = persona.get("gender") or "unknown"
+            persona_section = f"\n[User Persona]\n- persona_name: {persona_name}\n- persona_gender: {persona_gender}\nGuidelines:\n- Use persona_gender only for honorifics/pronouns and social tone.\n- Do not mention these fields explicitly.\n- Keep replies concise, consistent with the character.\n"
+        else:
+            persona_section = "\n[User Persona]\n- persona_name: unknown\n- persona_gender: unknown\nGuidelines:\n- Use neutral expressions.\n"
+        
+        character_gender_section = ""
+        if character_gender:
+            character_gender_section = f"\n[Character Gender]\n- character_gender: {character_gender}\nGuidelines:\n- Maintain consistent speaking style and gendered nuance if applicable.\n"
+        else:
+            character_gender_section = "\n[Character Gender]\n- character_gender: unknown\nGuidelines:\n- Maintain consistent speaking style.\n"
+        
+        sys_prompt += persona_section + character_gender_section
+    
     if context:
         sys_prompt += f"\n[검색 컨텍스트]\n{context}\n"
 
@@ -418,11 +438,40 @@ async def chat(req: Request, current_user: dict = Depends(get_current_user_from_
         context = ""  # 이전: "" if mode == "trpg" else retrieve_context(q)
 
         char_ctx, char_rules = ("", "")
+        persona_info = None
+        character_gender = None
         if mode == "trpg" and isinstance(character, dict):
             try:
                 char_ctx, char_rules = character_to_context(dict(character))
+                character_gender = character.get("gender")
             except Exception:
                 char_ctx, char_rules = ("", "")
+            
+            # 캐릭터 세션에서 persona 정보 조회
+            if character_id:
+                try:
+                    from adapters.persistence.mongo.factory import get_mongo_client
+                    mongo = get_mongo_client()
+                    session_col = mongo["characters_session"]
+                    char_id_str = str(character_id)
+                    # character_id 정규화 (char_XX 형태 처리)
+                    if char_id_str.startswith("char_"):
+                        try:
+                            char_id_str = str(int(char_id_str.split("_", 1)[1]))
+                        except Exception:
+                            pass
+                    
+                    session_doc = session_col.find_one({
+                        "user_id": str(user_id),
+                        "chat_type": "character",
+                        "entity_id": char_id_str,
+                    })
+                    if session_doc and "persona" in session_doc:
+                        persona_info = session_doc.get("persona")
+                        logger.info("[CHAT][PERSONA] trace=%s persona_id=%s", trace_id, persona_info.get("persona_id") if persona_info else "none")
+                except Exception as e:
+                    logger.warning("[CHAT][PERSONA][WARN] trace=%s failed to load persona: %s", trace_id, str(e))
+                    persona_info = None
 
         # 3) 메인 LLM 설정 (OpenAI로 강제 통일)
         logger.info("[TRPG] Using OpenAI model=%s", use_model)
@@ -440,6 +489,8 @@ async def chat(req: Request, current_user: dict = Depends(get_current_user_from_
             char_ctx=char_ctx,
             char_rules=char_rules,
             choices=choices,
+            persona=persona_info,
+            character_gender=character_gender,
         )
 
         # 4) LLM 호출 (전체 타임아웃 제한)

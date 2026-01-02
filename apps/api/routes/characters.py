@@ -747,6 +747,10 @@ async def bootstrap_character_chat(
             "state_version": session_doc.get("state_version", 0),
         }
         
+        # persona 필드가 있으면 포함
+        if "persona" in session_doc:
+            session_summary["persona"] = session_doc.get("persona")
+        
         logger.info(
             "[CHAT][BOOTSTRAP] user=%s char=%s session_id=%s messages_count=%d",
             user_id,

@@ -37,6 +37,9 @@
     .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
     .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
     .me .bubble { background:rgba(63,131,248,0.25); border-color:#334155; }
+    .user-persona-badge { display:flex; align-items:center; gap:8px; margin-left:8px; }
+    .user-persona-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; box-shadow:0 0 4px rgba(0,0,0,.3); }
+    .user-persona-name { font-size:12px; color:#cbd5e1; opacity:0.85; }
     .inputBar { position:fixed; left:0; right:0; bottom:0; border-top:1px solid #1b2430; background:#0e141c; padding:12px; }
     .inputIn { max-width:980px; margin:0 auto; display:flex; gap:8px; }
     textarea { flex:1; resize:none; background:#0b1220; border:1px solid #1f2937; border-radius:10px; color:#e5e7eb; padding:10px 12px; min-height:44px; }
@@ -320,7 +323,28 @@
         c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
       );
     }
-    function addUser(text){ const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg me'; row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
+    function addUser(text){
+      const chat=document.getElementById('chat');
+      const row=document.createElement('div');
+      row.className='msg me';
+      
+      // persona 아이콘 생성
+      let personaBadge = '';
+      if (CURRENT_SESSION && CURRENT_SESSION.persona) {
+        const persona = CURRENT_SESSION.persona;
+        const personaImageUrl = resolvePersonaUrl(`/assets/persona/${persona.image_key || 'F01'}.png`);
+        personaBadge = `
+          <div class="user-persona-badge">
+            <img src="${personaImageUrl}" alt="${escapeHtml(persona.name || '')}" class="user-persona-avatar" onerror="this.src='${resolvePersonaUrl('/assets/persona/F01.png')}'" />
+            <span class="user-persona-name">${escapeHtml(persona.name || '')}</span>
+          </div>
+        `;
+      }
+      
+      row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>${personaBadge}`;
+      chat.appendChild(row);
+      chat.scrollTop=chat.scrollHeight;
+    }
     function addBot(text){  const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg'; const img=resolvePath(CURRENT_CHAR?.image); row.innerHTML=`<img class="avatar" src="${img}" alt="bot"/><div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
 
     // 토큰 관리
@@ -596,6 +620,13 @@
 
         const data = await res.json().catch(() => ({}));
         console.log('[PERSONA] Successfully applied persona:', data);
+        
+        // CURRENT_SESSION.persona 업데이트
+        if (CURRENT_SESSION && data.persona) {
+          CURRENT_SESSION.persona = data.persona;
+          console.log('[PERSONA] Updated CURRENT_SESSION.persona:', CURRENT_SESSION.persona);
+        }
+        
         showToast('페르조나가 적용되었습니다.');
         closePersonaModal();
       } catch (e) {
