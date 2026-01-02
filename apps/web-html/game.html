@@ -828,7 +828,7 @@
       return null;
     }
 
-    // 헤더의 persona 뱃지 갱신
+    // 헤더의 persona 뱃지 갱신 (항상 버튼 표시)
     function refreshHeaderPersonaBadge() {
       const persona = getActivePersonaForGame();
       const badgeEl = document.getElementById('headerPersonaBadge');
@@ -839,11 +839,16 @@
       if (!badgeEl || !avatarEl || !nameEl) return;
       
       if (!persona) {
+        // persona가 없으면 Persona 버튼 표시
         badgeEl.style.display = 'none';
-        if (personaBtn) personaBtn.style.display = 'inline-block';
+        if (personaBtn) {
+          personaBtn.style.display = 'inline-block';
+          personaBtn.textContent = 'Persona';
+        }
         return;
       }
       
+      // persona가 있으면 badge 표시
       badgeEl.style.display = 'flex';
       if (personaBtn) personaBtn.style.display = 'none';
       
@@ -940,13 +945,35 @@
       const body = document.getElementById('personaModalBody');
       const selectedInfo = document.getElementById('personaSelectedInfo');
       const confirmBtn = document.getElementById('personaConfirmBtn');
+      const cancelBtn = document.getElementById('personaCancelBtn');
       
       if (PERSONAS_LIST.length === 0) {
-        body.innerHTML = '<div class="modal-loading">페르조나가 없습니다. My 메뉴에서 페르조나를 생성해주세요.</div>';
+        // 페르조나가 없을 때: 강제 모달 해제 및 탈출 버튼 제공
+        isPersonaModalForceOpen = false;
+        const modal = document.getElementById('personaModal');
+        const closeBtn = document.getElementById('personaModalClose');
+        
+        if (modal) modal.classList.remove('force-open');
+        if (closeBtn) closeBtn.classList.remove('hidden');
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        
+        body.innerHTML = `
+          <div style="text-align:center; padding:40px 20px;">
+            <div style="font-size:16px; color:#f3f4f6; margin-bottom:24px;">페르조나가 없습니다.</div>
+            <div style="font-size:14px; color:#94a3b8; margin-bottom:32px;">My 메뉴에서 페르조나를 생성해주세요.</div>
+            <div style="display:flex; gap:12px; justify-content:center;">
+              <button class="btn-modal primary" onclick="window.location.href='/my.html'">My로 이동</button>
+              <button class="btn-modal" onclick="closePersonaModalAndRedirect()">닫기</button>
+            </div>
+          </div>
+        `;
         selectedInfo.style.display = 'none';
-        confirmBtn.disabled = true;
+        if (confirmBtn) confirmBtn.style.display = 'none';
         return;
       }
+      
+      // confirmBtn 표시 (페르조나가 있을 때)
+      if (confirmBtn) confirmBtn.style.display = 'inline-block';
 
       // 카드 UI로 렌더링
       body.innerHTML = `<div class="persona-list">${PERSONAS_LIST.map(p => {
@@ -1029,6 +1056,12 @@
       modal.classList.remove('force-open');
       SELECTED_PERSONA_ID = null;
       pendingPersonaSelection = null;
+    }
+    
+    // 페르조나 모달 닫기 및 My로 리다이렉트
+    function closePersonaModalAndRedirect() {
+      closePersonaModal();
+      window.location.href = '/my.html';
     }
 
     // 확인 다이얼로그 표시
@@ -1765,10 +1798,17 @@
         }
         refreshHeaderPersonaBadge();
         
-        // persona가 없으면 강제 모달 열기
-        if (!currentSession.player_persona && !currentSession.persona_ref_id) {
+        // persona가 없으면 강제 모달 열기 (페르조나 목록이 있을 때만 강제)
+        const needsPersona = !currentSession.player_persona && !currentSession.persona_ref_id;
+        const hasPersonas = (PERSONAS_LIST?.length ?? 0) > 0;
+        
+        if (needsPersona && hasPersonas) {
           console.log('[PERSONA] No persona found in session, forcing modal open');
           await openPersonaModal(true);
+        } else if (needsPersona && !hasPersonas) {
+          // 페르조나가 없으면 강제 모달 없이 일반 모달로 열기 (닫기 가능)
+          console.log('[PERSONA] No persona found in session, opening modal (closable)');
+          await openPersonaModal(false);
         }
       } else {
         // 초기 내레이션 영역에 게임 소개 텍스트 설정
