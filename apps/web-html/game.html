@@ -1672,6 +1672,17 @@
       });
     }
 
+    // 안전한 아바타 URL 추출 헬퍼
+    function safeAvatarUrl(ctx = {}) {
+      return (
+        ctx?.avatar_url ||
+        ctx?.avatar?.url ||
+        ctx?.image_url ||
+        ctx?.snapshot?.image_url ||
+        ""
+      );
+    }
+
     // 페르조나 뱃지 DOM 엘리먼트 생성
     function createPersonaBadgeEl(persona) {
       const el = document.createElement("div");
