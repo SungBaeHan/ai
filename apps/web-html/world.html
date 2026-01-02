@@ -784,6 +784,13 @@
       try {
         const bootstrapResult = await bootstrapWorldChat(norm, 50);
         const messages = bootstrapResult.messages || [];
+        const session = bootstrapResult.session;
+        
+        // CURRENT_WORLD_SESSION 설정
+        if (session) {
+          CURRENT_WORLD_SESSION = session;
+          console.log('[WORLD][BOOTSTRAP] Session loaded:', session.id);
+        }
         
         // 메시지가 있으면 기존 메시지 렌더링 (created_at 오름차순 정렬 보장)
         if (messages.length > 0) {
@@ -802,6 +809,16 @@
               addBot(msg.content || '');
             }
           });
+          
+          // 페르조나 목록 로드 (fallback용)
+          try {
+            PERSONAS_LIST = await fetchPersonas();
+          } catch (e) {
+            console.warn('[WORLD][BOOTSTRAP] Failed to load personas:', e);
+          }
+          
+          // 뱃지 갱신
+          refreshAllUserMessageBadges();
         }
       } catch (e) {
         console.error('[CHAT][BOOTSTRAP] Error loading messages:', e);
