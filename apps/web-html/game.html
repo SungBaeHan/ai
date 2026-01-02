@@ -1776,6 +1776,13 @@
           const initialText = game.scenario_summary || game.scenario_detail || game.title || '게임을 시작하세요.';
           narrationEl.textContent = initialText;
         }
+        
+        // 세션이 없어도 페르조나 목록 로드 (헤더 badge용, 하지만 세션이 없으면 강제 모달은 열지 않음)
+        try {
+          PERSONAS_LIST = await fetchPersonas();
+        } catch (e) {
+          console.warn('[GAME][BOOTSTRAP] Failed to load personas:', e);
+        }
       }
 
       // 게임은 인사말 없이 자유롭게 채팅 시작
