@@ -328,15 +328,17 @@
       const row=document.createElement('div');
       row.className='msg me';
       
-      // persona 아이콘 생성
+      // persona 정보 가져오기 (세션 우선, 없으면 default)
+      const persona = getActivePersonaForSession();
+      
+      // persona 뱃지 생성
       let personaBadge = '';
-      if (CURRENT_SESSION && CURRENT_SESSION.persona) {
-        const persona = CURRENT_SESSION.persona;
+      if (persona) {
         const personaImageUrl = resolvePersonaUrl(`/assets/persona/${persona.image_key || 'F01'}.png`);
         personaBadge = `
-          <div class="user-persona-badge">
+          <div class="user-persona-badge" data-role="persona-badge-message">
             <img src="${personaImageUrl}" alt="${escapeHtml(persona.name || '')}" class="user-persona-avatar" onerror="this.src='${resolvePersonaUrl('/assets/persona/F01.png')}'" />
-            <span class="user-persona-name">${escapeHtml(persona.name || '')}</span>
+            <span class="user-persona-name" data-role="persona-name">${escapeHtml(persona.name || '')}</span>
           </div>
         `;
       }
@@ -426,6 +428,55 @@
       if (u.startsWith("/")) return `${R2_BASE}${u}`;
       // /로 시작하지 않으면 /assets/persona/를 prefix로 추가
       return `${R2_BASE}/assets/persona/${u}`;
+    }
+    
+    // 활성 persona 반환 (세션 우선, 없으면 default persona)
+    function getActivePersonaForSession() {
+      // 1) 세션 persona 스냅샷 최우선
+      if (CURRENT_SESSION?.persona?.persona_id) {
+        return CURRENT_SESSION.persona;
+      }
+      
+      // 2) fallback: PERSONAS_LIST에서 default persona
+      const ps = PERSONAS_LIST || [];
+      const d = ps.find(p => p.is_default) || ps[0];
+      if (d?.persona_id) {
+        return {
+          persona_id: d.persona_id,
+          name: d.name,
+          gender: d.gender,
+          image_key: d.image_key
+        };
+      }
+      
+      // 3) nothing
+      return null;
+    }
+    
+    // 모든 유저 메시지의 persona 뱃지 갱신
+    function refreshAllUserMessageBadges() {
+      const persona = getActivePersonaForSession();
+      document.querySelectorAll('[data-role="persona-badge-message"]').forEach(badge => {
+        if (!persona) {
+          badge.style.display = 'none';
+          return;
+        }
+        
+        badge.style.display = 'flex';
+        const img = badge.querySelector('img');
+        const nameEl = badge.querySelector('[data-role="persona-name"]');
+        
+        if (img) {
+          const personaImageUrl = resolvePersonaUrl(`/assets/persona/${persona.image_key || 'F01'}.png`);
+          img.src = personaImageUrl;
+          img.onerror = function() {
+            this.src = resolvePersonaUrl('/assets/persona/F01.png');
+          };
+        }
+        if (nameEl) {
+          nameEl.textContent = persona.name || 'persona';
+        }
+      });
     }
 
     // 페르조나 프리뷰 텍스트 추출 (우선순위: bio > summary > detail > 빈 문자열)
@@ -625,6 +676,9 @@
         if (CURRENT_SESSION && data.persona) {
           CURRENT_SESSION.persona = data.persona;
           console.log('[PERSONA] Updated CURRENT_SESSION.persona:', CURRENT_SESSION.persona);
+          
+          // UI 뱃지 즉시 갱신
+          refreshAllUserMessageBadges();
         }
         
         showToast('페르조나가 적용되었습니다.');
@@ -734,6 +788,13 @@
         const bootstrapResult = await bootstrapCharacterChat(norm, 50);
         const messages = bootstrapResult.messages || [];
         
+        // 페르조나 목록 로드 (fallback용, 세션 persona가 없을 때)
+        try {
+          PERSONAS_LIST = await fetchPersonas();
+        } catch (e) {
+          console.warn('[PERSONA] Failed to load personas list:', e);
+        }
+        
         // 메시지가 있으면 기존 메시지 렌더링 (created_at 오름차순 정렬 보장)
         if (messages.length > 0) {
           // created_at 기준으로 한 번 더 정렬 (안전장치)
@@ -751,6 +812,9 @@
               addBot(msg.content || '');
             }
           });
+          
+          // 모든 유저 메시지 뱃지 갱신 (세션 persona 반영)
+          refreshAllUserMessageBadges();
         } else {
           // 메시지가 없으면 초기 문단(scenario/greeting) 출력
           const intro=[ch.scenario||"", ch.greeting||""].filter(Boolean).join("\n\n").trim();
