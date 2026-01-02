@@ -261,7 +261,10 @@
     }
     /* 메시지 행 스타일 */
     .msg { display:flex; align-items:flex-end; gap:8px; margin:8px 0; }
-    .msg.me { justify-content:flex-end; }
+    .msg.me { 
+      justify-content:flex-end; 
+      flex-direction: row-reverse; /* 플레이어 메시지: (뱃지)(대화) 순서 */
+    }
     .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
     .me .bubble { background:rgba(63,131,248,0.25); border-color:#334155; }
     .user-persona-badge { display:flex; align-items:center; gap:8px; }
@@ -1671,29 +1674,30 @@
       });
     }
 
-    // 페르조나 뱃지 HTML 생성 헬퍼
-    function buildPersonaBadgeHTML(persona) {
-      if (!persona) return "";
-      const name = persona.name || "Persona";
-      const gender = persona.gender ? String(persona.gender) : "";
-      return `
-        <span class="persona-badge" data-persona-badge="1" title="${escapeHtml(name)}">
-          ${escapeHtml(name)}${gender ? " · " + escapeHtml(gender) : ""}
-        </span>
-      `;
+    // 페르조나 뱃지 DOM 엘리먼트 생성
+    function createPersonaBadgeEl(persona) {
+      const el = document.createElement("div");
+      el.className = "persona-badge";
+      el.dataset.personaBadge = "1"; // selector용
+      el.textContent = persona?.name ?? "Persona";
+      if (persona?.name) {
+        el.title = persona.name;
+      }
+      return el;
     }
 
-    // 활성 페르조나 가져오기 (안정적인 getter)
-    function getActivePersona(session) {
-      if (session?.player_persona?.persona_id) return session.player_persona;
-      // fallback: persona_ref_id로 찾기
-      if (session?.persona_ref_id && Array.isArray(PERSONAS_LIST)) {
-        const found = PERSONAS_LIST.find(p => p.persona_id === session.persona_ref_id);
+    // 활성 페르조나 정규화 (안정적인 getter)
+    function normalizeActivePersona(session, personasList) {
+      // 우선순위: session.player_persona > session.persona_ref_id 매칭 > personasList[0]
+      const sessionPersona = session?.player_persona;
+      if (sessionPersona?.name) return sessionPersona;
+
+      const refId = session?.persona_ref_id;
+      if (refId && Array.isArray(personasList)) {
+        const found = personasList.find(p => p?.persona_id === refId);
         if (found) return found;
       }
-      // fallback: 첫 번째 페르조나
-      if (Array.isArray(PERSONAS_LIST) && PERSONAS_LIST.length > 0) return PERSONAS_LIST[0];
-      return null;
+      return Array.isArray(personasList) && personasList.length ? personasList[0] : null;
     }
 
     // 세션 기반 채팅 로그 렌더링 (오직 session.turn_logs만 사용)
@@ -1827,6 +1831,10 @@
           // 폴백: 직접 스크롤
           chatEl.scrollTop = chatEl.scrollHeight;
         }
+        
+        // 렌더 후 뱃지 개수 확인 로그
+        const badgeCount = document.querySelectorAll("[data-persona-badge]").length;
+        console.log("[GAME][persona] after render badge count =", badgeCount);
       }, 100);
     }
 
