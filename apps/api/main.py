@@ -106,8 +106,10 @@ from apps.api.routes import migrate
 from apps.api.routes.user import router as user_router
 from apps.api.routes import personas
 from apps.api.routes import chat_v2
+from apps.api.routes import character_sessions
 
 app.include_router(characters.router, prefix="/v1/characters", tags=["characters"])
+app.include_router(character_sessions.router, prefix="/v1/character-sessions", tags=["character-sessions"])
 app.include_router(worlds.router, prefix="/v1/worlds", tags=["worlds"])
 app.include_router(games.router, prefix="/v1/games", tags=["games"])
 app.include_router(game_turn.router, prefix="/v1/games", tags=["games"])
