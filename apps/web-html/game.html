@@ -14,17 +14,13 @@
   <script src="/js/config.js"></script>
   <script src="/js/assets.js"></script>
   <script>
-    // 빌드 SHA 추적 (개발 환경에서는 'dev'로 표시)
-    const BUILD_SHA = (function() {
-      // 프로덕션에서는 서버에서 주입된 메타 태그나 전역 변수를 사용할 수 있음
-      // 현재는 간단히 'dev' 또는 git commit hash를 하드코딩
-      return 'dev';
-    })();
+    // 빌드 SHA 추적 (CI에서 치환)
+    const BUILD_SHA = "__BUILD_SHA__"; // CI에서 치환
+    window.__BUILD_SHA__ = BUILD_SHA;
+    console.log("[BUILD] sha =", BUILD_SHA);
     
-    if (typeof window !== 'undefined') {
-      window.__BUILD_SHA__ = BUILD_SHA;
-      console.log("[BUILD] SHA =", BUILD_SHA);
-      // 화면에 표시 (DOMContentLoaded 후 실행)
+    // 화면에 표시 (DOMContentLoaded 후 실행)
+    if (typeof document !== 'undefined') {
       document.addEventListener('DOMContentLoaded', function() {
         const buildShaDisplay = document.getElementById('build-sha-display');
         if (buildShaDisplay) {
