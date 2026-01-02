@@ -53,18 +53,29 @@
     /* persona modal */
     .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:100; opacity:0; pointer-events:none; transition:opacity .2s ease; }
     .modal-backdrop.show { opacity:1; pointer-events:auto; }
-    .modal { background:#111827; border:1px solid #1f2937; border-radius:12px; width:90%; max-width:500px; max-height:90vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+    .modal { background:#111827; border:1px solid #1f2937; border-radius:12px; width:90%; max-width:500px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.5); }
     .modal-header { display:flex; justify-content:space-between; align-items:center; padding:20px; border-bottom:1px solid #1f2937; }
     .modal-header h2 { margin:0; font-size:18px; color:#f3f4f6; }
     .modal-close { background:none; border:none; color:#94a3b8; font-size:24px; cursor:pointer; padding:0; width:32px; height:32px; display:flex; align-items:center; justify-content:center; }
     .modal-close:hover { color:#e5e7eb; }
-    .modal-body { padding:20px; }
-    .persona-list-item { display:flex; align-items:center; gap:12px; padding:12px; border:1px solid #334155; border-radius:8px; margin-bottom:8px; cursor:pointer; transition:all .15s ease; }
-    .persona-list-item:hover { border-color:#3b82f6; background:#1e293b; }
-    .persona-list-item.selected { border-color:#3b82f6; background:#1e3a8a; }
-    .persona-radio { width:18px; height:18px; cursor:pointer; }
-    .persona-name { font-size:14px; color:#e5e7eb; font-weight:500; }
-    .modal-footer { display:flex; justify-content:flex-end; gap:12px; padding:20px; border-top:1px solid #1f2937; }
+    .modal-body { padding:20px; max-height:60vh; overflow-y:auto; }
+    
+    /* Persona Card Styles (from personas.html) */
+    .persona-list { display:flex; flex-direction:column; gap:12px; }
+    .persona-card { background:#111827; border:1px solid #1f2937; border-radius:12px; padding:16px; transition:all .15s ease; cursor:pointer; }
+    .persona-card:hover { border-color:#3b82f6; }
+    .persona-card.selected { border-color:#3b82f6; border-width:2px; background:#1e3a8a; }
+    .persona-card.default { border-color:#3b82f6; background:#1e3a8a; }
+    .persona-card-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+    .persona-avatar { width:64px; height:64px; border-radius:8px; background:#1f2937; object-fit:cover; border:2px solid #334155; }
+    .persona-info { flex:1; }
+    .persona-name { font-size:16px; font-weight:600; color:#f3f4f6; margin-bottom:4px; }
+    .persona-badge { display:inline-block; padding:2px 8px; background:#3b82f6; color:#fff; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; }
+    .persona-gender { font-size:12px; color:#94a3b8; }
+    .persona-bio { font-size:13px; color:#cbd5e1; line-height:1.5; margin-bottom:12px; max-height:60px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    .persona-selected-info { padding:12px; background:#1e293b; border-radius:8px; margin-top:12px; font-size:13px; color:#cbd5e1; }
+    .persona-selected-info strong { color:#3b82f6; }
+    .modal-footer { padding:20px; border-top:1px solid #1f2937; flex-shrink:0; }
     .btn-modal { padding:10px 20px; border-radius:6px; border:1px solid #334155; background:#1f2937; color:#e5e7eb; font-size:14px; font-weight:500; cursor:pointer; transition:all .15s ease; }
     .btn-modal:hover { background:#334155; }
     .btn-modal.primary { background:#3b82f6; border-color:#2563eb; color:#fff; }
@@ -121,8 +132,11 @@
         <div class="modal-loading">로딩 중...</div>
       </div>
       <div class="modal-footer">
-        <button class="btn-modal" onclick="closePersonaModal()">취소</button>
-        <button class="btn-modal primary" id="personaConfirmBtn" onclick="confirmPersonaSelection()">완료</button>
+        <div id="personaSelectedInfo" class="persona-selected-info" style="display:none;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:12px; width:100%;">
+          <button class="btn-modal" onclick="closePersonaModal()">취소</button>
+          <button class="btn-modal primary" id="personaConfirmBtn" onclick="confirmPersonaSelection()" disabled>완료</button>
+        </div>
       </div>
     </div>
   </div>
@@ -378,6 +392,26 @@
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
     }
 
+    // 페르조나 이미지 URL 정규화 함수 (personas.html에서 가져옴)
+    const R2_BASE = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
+    function resolvePersonaUrl(u) {
+      if (!u) return "";
+      // 이미 절대 URL이면 그대로 반환
+      if (u.startsWith("http://") || u.startsWith("https://")) return u;
+      // 상대 경로(/assets/...)를 R2 절대 URL로 변환
+      if (u.startsWith("/")) return `${R2_BASE}${u}`;
+      // /로 시작하지 않으면 /assets/persona/를 prefix로 추가
+      return `${R2_BASE}/assets/persona/${u}`;
+    }
+
+    // 페르조나 프리뷰 텍스트 추출 (우선순위: bio > summary > detail > 빈 문자열)
+    function getPersonaPreview(p) {
+      if (p.bio) return p.bio;
+      if (p.summary) return p.summary;
+      if (p.detail) return p.detail.substring(0, 120) + (p.detail.length > 120 ? '...' : '');
+      return '';
+    }
+
     // 페르조나 목록 조회
     async function fetchPersonas() {
       try {
@@ -428,21 +462,77 @@
     // 페르조나 목록 렌더링
     function renderPersonaList() {
       const body = document.getElementById('personaModalBody');
+      const selectedInfo = document.getElementById('personaSelectedInfo');
+      const confirmBtn = document.getElementById('personaConfirmBtn');
       
       if (PERSONAS_LIST.length === 0) {
         body.innerHTML = '<div class="modal-loading">페르조나가 없습니다. My 메뉴에서 페르조나를 생성해주세요.</div>';
+        selectedInfo.style.display = 'none';
+        confirmBtn.disabled = true;
         return;
       }
 
-      body.innerHTML = PERSONAS_LIST.map(p => {
+      // 카드 UI로 렌더링
+      body.innerHTML = `<div class="persona-list">${PERSONAS_LIST.map(p => {
+        const genderText = {
+          male: '남성',
+          female: '여성',
+          nonbinary: '논바이너리'
+        }[p.gender] || '논바이너리';
+
+        // image_key 처리
+        let imageKey = p.image_key || 'F01';
+        if (imageKey && imageKey.startsWith('preset_')) {
+          try {
+            const num = parseInt(imageKey.replace('preset_', ''));
+            if (num <= 4 || num === 9 || num === 10 || num === 13 || num === 15) {
+              const mIndex = num <= 4 ? num : (num === 9 ? 5 : num === 10 ? 6 : num === 13 ? 7 : 8);
+              imageKey = `M${String(mIndex).padStart(2, '0')}`;
+            } else {
+              const fIndex = num <= 8 ? num - 4 : (num === 11 ? 3 : num === 12 ? 4 : num === 14 ? 5 : 6);
+              imageKey = `F${String(fIndex).padStart(2, '0')}`;
+            }
+          } catch {
+            imageKey = 'F01';
+          }
+        }
+        const imageUrl = resolvePersonaUrl(`/assets/persona/${imageKey}.png`);
+        const previewText = getPersonaPreview(p);
         const selected = SELECTED_PERSONA_ID === p.persona_id ? 'selected' : '';
+        const defaultClass = p.is_default ? 'default' : '';
+
         return `
-          <div class="persona-list-item ${selected}" onclick="selectPersona('${p.persona_id}')">
-            <input type="radio" class="persona-radio" name="persona" value="${p.persona_id}" ${selected ? 'checked' : ''} onclick="event.stopPropagation(); selectPersona('${p.persona_id}')">
-            <span class="persona-name">${escapeHtml(p.name)}</span>
+          <div class="persona-card ${selected} ${defaultClass}" onclick="selectPersona('${p.persona_id}')">
+            <div class="persona-card-header">
+              <img src="${imageUrl}" alt="${escapeHtml(p.name)}" class="persona-avatar" onerror="this.src='${resolvePersonaUrl('/assets/persona/F01.png')}'" />
+              <div class="persona-info">
+                <div class="persona-name">
+                  ${p.is_default ? '<span class="persona-badge">기본</span>' : ''}
+                  ${escapeHtml(p.name)}
+                </div>
+                <div class="persona-gender">${genderText}</div>
+              </div>
+            </div>
+            ${previewText ? `<div class="persona-bio">${escapeHtml(previewText)}</div>` : ''}
           </div>
         `;
-      }).join('');
+      }).join('')}</div>`;
+
+      // 선택된 페르조나 정보 표시
+      if (SELECTED_PERSONA_ID) {
+        const selectedPersona = PERSONAS_LIST.find(p => p.persona_id === SELECTED_PERSONA_ID);
+        if (selectedPersona) {
+          selectedInfo.innerHTML = `선택됨: <strong>${escapeHtml(selectedPersona.name)}</strong>`;
+          selectedInfo.style.display = 'block';
+          confirmBtn.disabled = false;
+        } else {
+          selectedInfo.style.display = 'none';
+          confirmBtn.disabled = true;
+        }
+      } else {
+        selectedInfo.style.display = 'none';
+        confirmBtn.disabled = true;
+      }
     }
 
     // 페르조나 선택
