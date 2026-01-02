@@ -1638,6 +1638,19 @@
         return;
       }
       
+      // 디버그: 세션 키와 페르조나 정보 확인
+      console.log("[GAME][persona] session keys:", Object.keys(session || {}));
+      console.log("[GAME][persona] player_persona:", session?.player_persona);
+      
+      // activePersona 정규화 (여러 필드명 지원)
+      const activePersona = 
+        session?.player_persona ?? 
+        session?.persona ?? 
+        session?.persona_info ?? 
+        null;
+      
+      console.log("[GAME][persona] activePersona:", activePersona);
+      
       const chatEl = document.getElementById('chat');
       if (!chatEl) {
         console.warn("[DEBUG] renderChatLogsFromSession: chat element not found");
@@ -1666,13 +1679,23 @@
       const logs = dedupeMessages(rawLogs);
       console.log("[DEBUG] turn_logs length", rawLogs.length, "-> deduped", logs.length);
       
-      logs.forEach((log) => {
+      logs.forEach((log, index) => {
         if (log.speaker_type === 'narration') {
           // 내레이션은 별도 처리하지 않음 (노란 영역에만 표시)
           return;
         }
         
         const isPlayer = log.speaker_type === 'player';
+        
+        // 디버그: 처음 2개 메시지만 로그
+        if (index < 2) {
+          console.log("[GAME][msg]", { 
+            speaker_type: log.speaker_type, 
+            isPlayerRight: isPlayer, 
+            hasPersona: !!activePersona 
+          });
+        }
+        
         const row = document.createElement('div');
         row.className = `msg ${isPlayer ? 'me' : ''}`;
         
@@ -1682,9 +1705,29 @@
         // 이름 레이블 생성
         const nameLabel = displayName ? `<strong>${escapeHtml(displayName)}</strong>: ` : '';
         
-        // 플레이어는 아바타 없이
+        // 플레이어는 아바타 없이, 페르조나 뱃지 추가
         if (isPlayer) {
-          row.innerHTML = `<div class="bubble">${renderMessageText(log.text)}</div>`;
+          // 페르조나 뱃지 생성
+          let personaBadge = '';
+          if (activePersona) {
+            let imageKey = activePersona.image_key || activePersona.imageKey || 'F01';
+            if (imageKey && imageKey.startsWith('preset_')) {
+              try {
+                const match = imageKey.match(/preset_([MF]\d+)/);
+                if (match) imageKey = match[1];
+              } catch (e) {}
+            }
+            const personaImageUrl = `/assets/persona/${imageKey}.png`;
+            const personaName = activePersona.name || 'Persona';
+            personaBadge = `
+              <div class="user-persona-badge" data-role="persona-badge-message" style="outline: 1px solid red;">
+                <img src="${personaImageUrl}" alt="${escapeHtml(personaName)}" class="user-persona-avatar" onerror="this.src='/assets/persona/F01.png'" />
+                <span class="user-persona-name" data-role="persona-name">${escapeHtml(personaName)}</span>
+              </div>
+            `;
+          }
+          
+          row.innerHTML = `<div class="bubble">${renderMessageText(log.text)}</div>${personaBadge}`;
         } else {
           // NPC/Monster는 아바타와 함께 (이미 풀 URL로 변환된 avatarUrl 사용)
           row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName || 'NPC'}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
