@@ -451,6 +451,7 @@
       background: rgba(255, 255, 255, 0.08);
       font-style: italic;
     }
+    /* action style as modifier (do not override alignment) */
     .game-msg--action .game-bubble {
       background: rgba(255, 200, 80, 0.14);
       border: 1px solid rgba(255, 200, 80, 0.25);
@@ -461,6 +462,26 @@
       letter-spacing: 0.08em;
       opacity: 0.8;
       margin-bottom: 6px;
+    }
+    /* NPC avatar next to bubble */
+    .game-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      margin-right: 8px;
+      align-self: flex-end;
+      border: 1px solid rgba(255,255,255,0.25);
+      background-color: rgba(0,0,0,0.25);
+      flex: 0 0 auto;
+    }
+    .game-avatar--fallback {
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.85);
     }
     /* Mini persona badge: stamp style */
     .persona-badge--mini {
@@ -1728,10 +1749,10 @@
       badge.className = 'persona-badge persona-badge--mini';
       badge.title = `${persona.name ?? 'persona'}`;
 
-      // persona 이미지 URL 생성 (기존 로직 재사용)
-      let imageUrl = null;
+      // persona 이미지 URL 생성 (image_url 우선, image_key는 resolvePersonaUrl 사용)
+      let src = '';
       if (persona.image_url) {
-        imageUrl = persona.image_url;
+        src = persona.image_url;
       } else if (persona.image_key) {
         let imageKey = persona.image_key;
         if (imageKey && imageKey.startsWith('preset_')) {
@@ -1740,12 +1761,14 @@
             if (match) imageKey = match[1];
           } catch (e) {}
         }
-        imageUrl = `/assets/persona/${imageKey}.png`;
+        src = resolvePersonaUrl(`/assets/persona/${imageKey}.png`);
+      } else if (persona.image?.key) {
+        src = resolvePersonaUrl(`/assets/persona/${persona.image.key}.png`);
       }
 
-      if (imageUrl) {
+      if (src) {
         const img = document.createElement('img');
-        img.src = imageUrl;
+        img.src = src;
         img.alt = persona.name ?? 'persona';
         img.onerror = function() {
           this.src = resolvePersonaUrl('/assets/persona/F01.png');
@@ -1770,13 +1793,36 @@
       row.setAttribute('data-message-id', messageId);
       row.dataset.turn = String(log?.turn ?? '');
       row.dataset.speakerType = String(log?.speaker_type ?? '');
-      row.dataset.isAction = String(!!log?.is_action);
+      row.dataset.isAction = String(isAction);
+
+      // ✅ NPC: 아바타를 bubble "밖(좌측)"에 붙이기
+      if (role === 'npc') {
+        try {
+          const characterMaps = buildCharacterMaps(session);
+          const { avatarUrl, name } = getAvatarForLog(log, characterMaps, session);
+
+          const av = document.createElement('div');
+          av.className = 'game-avatar';
+          av.title = name || 'NPC';
+
+          if (avatarUrl) {
+            av.style.backgroundImage = `url("${avatarUrl}")`;
+          } else {
+            av.textContent = (name || 'N').slice(0, 1).toUpperCase();
+            av.classList.add('game-avatar--fallback');
+          }
+
+          row.appendChild(av);
+        } catch (e) {
+          console.warn('[createGameMessageElement] NPC avatar creation failed:', e);
+        }
+      }
 
       // bubble/card
       const bubble = document.createElement('div');
       bubble.className = 'game-bubble';
 
-      // action UI 헤더는 modifier로만 추가 (role은 유지)
+      // ✅ action UI는 role 유지한 채로 modifier일 때만
       if (isAction) {
         const head = document.createElement('div');
         head.className = 'game-action-head';
@@ -1797,28 +1843,11 @@
       }
       bubble.appendChild(content);
 
-      // ✅ player: action 여부와 무관하게 항상 배지
+      // ✅ player: is_action 여부와 무관하게 항상 persona badge
       if (role === 'player') {
         const persona = getActivePersonaForGame();
         const badge = createMiniPersonaBadge(persona);
         if (badge) bubble.appendChild(badge);
-      }
-
-      // ✅ npc: 기존 아바타 계산 로직(getAvatarForLog) 사용하여 mini badge 복구
-      if (role === 'npc') {
-        try {
-          const characterMaps = buildCharacterMaps(session);
-          const { avatarUrl, name } = getAvatarForLog(log, characterMaps, session);
-          const npcPersonaLike = { image_url: avatarUrl, name: name || 'NPC' };
-          const npcBadge = createMiniPersonaBadge(npcPersonaLike);
-          if (npcBadge) bubble.appendChild(npcBadge);
-        } catch (e) {
-          // fallback: 기존 태그라도 유지
-          const tag = document.createElement('div');
-          tag.className = 'game-npc-tag';
-          tag.textContent = 'NPC';
-          bubble.appendChild(tag);
-        }
       }
 
       // ✅ narrator: narrator 표식(작게)
