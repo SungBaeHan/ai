@@ -494,25 +494,38 @@
     /* Mini persona badge: stamp style (bubble 밖, 형제로 배치) */
     .persona-badge--mini {
       position: static;  /* absolute 제거 - bubble 밖 형제로 배치 */
-      width: 22px;
-      height: 22px;
-      border-radius: 999px;
-      display: grid;
-      place-items: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
       overflow: hidden;
-      background: rgba(0,0,0,0.35);
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.25);
-      font-size: 10px;
       user-select: none;
       pointer-events: auto;
       z-index: 2;
       box-shadow: 0 2px 8px rgba(0,0,0,0.35);
-      flex: 0 0 auto;  /* 줄어들지 않게 */
     }
     .persona-badge--mini img {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      border-radius: 50%;
+      display: block;
+    }
+    .persona-badge--mini .persona-badge__fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1;
+      color: rgba(255,255,255,0.9);
     }
     /* Small tags */
     .game-npc-tag,
@@ -1329,7 +1342,7 @@
           // 헤더 badge 즉시 갱신
           refreshHeaderPersonaBadge();
           // 기존 메시지 배지도 갱신
-          refreshPlayerPersonaBadgesInChat();
+          refreshPlayerPersonaBadgesInGameChat();
         }
 
         // 서버에 저장
@@ -1362,7 +1375,7 @@
           currentSession.player_persona = data.player_persona;
           currentSession.persona_ref_id = data.persona_ref_id;
           refreshHeaderPersonaBadge();
-          refreshPlayerPersonaBadgesInChat();
+          refreshPlayerPersonaBadgesInGameChat();
         }
         
         showToast('페르조나가 적용되었습니다.');
@@ -1821,7 +1834,10 @@
         };
         badge.appendChild(img);
       } else {
-        badge.textContent = String(persona.name ?? 'P').slice(0, 1).toUpperCase();
+        const fallback = document.createElement('span');
+        fallback.className = 'persona-badge__fallback';
+        fallback.textContent = String(persona.name ?? 'P').slice(0, 1).toUpperCase();
+        badge.appendChild(fallback);
       }
 
       return badge;
@@ -2080,32 +2096,35 @@
       return escapeHtml(text);
     }
 
-    // player 메시지 배지 후처리 (personas 로딩 타이밍 문제 복구)
-    function refreshPlayerPersonaBadgesInChat() {
+    // player 메시지 배지 갱신 (페르조나 변경 시 모든 player 메시지 배지 즉시 업데이트)
+    function refreshPlayerPersonaBadgesInGameChat() {
       try {
         const persona = getActivePersonaForGame();
+        if (!persona) {
+          console.log('[PERSONA] No active persona, skipping badge refresh');
+          return;
+        }
+
         const playerRows = document.querySelectorAll('.game-msg--player');
-        let fixed = 0;
+        let updated = 0;
 
         playerRows.forEach(row => {
-          // 이미 배지가 있으면 skip (row 기준으로 체크)
-          if (row.querySelector('.persona-badge--mini')) return;
+          // 기존 배지 모두 제거 (중복 방지 및 갱신 보장)
+          row.querySelectorAll('.persona-badge--mini').forEach(b => b.remove());
 
-          const bubble = row.querySelector('.game-bubble');
-          if (!bubble) return;
-
+          // 새 배지 생성 및 추가
           const badge = createMiniPersonaBadge(persona);
           if (badge) {
-            row.appendChild(badge); // bubble 형제로 append
-            fixed++;
+            row.appendChild(badge); // bubble 형제로 append (row의 마지막)
+            updated++;
           }
         });
 
-        console.log('[PERSONA] refreshPlayerPersonaBadgesInChat fixed:', fixed, 'persona:', persona);
-        return fixed;
+        if (updated > 0) {
+          console.log(`[PERSONA] Updated ${updated} player badges in game chat`);
+        }
       } catch (e) {
-        console.warn('[PERSONA] refreshPlayerPersonaBadgesInChat failed:', e);
-        return 0;
+        console.error('[PERSONA] Error refreshing player badges:', e);
       }
     }
 
@@ -2193,7 +2212,7 @@
         renderChatLogsFromSession(currentSession, { isInitialLoad: true });
         
         // 5) 혹시 still null 케이스(세션에 player_persona 있고 personas 없어도) 대비 후처리 한번 더
-        refreshPlayerPersonaBadgesInChat();
+        refreshPlayerPersonaBadgesInGameChat();
         
         // 내레이션 영역 업데이트
         if (narrationEl && currentSession.turn_logs.length > 0) {
