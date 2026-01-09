@@ -440,11 +440,10 @@
       line-height: 1.35;
       font-size: 13px;
     }
-    /* Alignment */
+    /* Alignment (role 기반, action은 modifier로 정렬 영향 없음) */
     .game-msg--player { justify-content: flex-end; }
     .game-msg--npc,
-    .game-msg--narrator,
-    .game-msg--action { justify-content: flex-start; }
+    .game-msg--narrator { justify-content: flex-start; }
     /* Color/tones (no hard-coded brand colors, use existing theme vars if any) */
     .game-msg--player .game-bubble { background: rgba(80, 120, 255, 0.22); }
     .game-msg--npc .game-bubble { background: rgba(255, 255, 255, 0.14); }
@@ -1713,12 +1712,9 @@
       return `${log.turn || 0}-${log.speaker_type || 'unknown'}-${log.speaker_id || ''}`;
     }
 
-    // 메시지 타입 분류 (action/player/npc/narrator)
-    function getLogType(log) {
+    // 메시지 role 분류 (player/npc/narrator) - action은 modifier로 처리
+    function getLogRole(log) {
       const st = String(log?.speaker_type ?? '').toLowerCase();
-      const isAction = !!log?.is_action;
-
-      if (isAction) return 'action';
       if (st === 'player') return 'player';
       if (st === 'npc' || st === 'monster') return 'npc';
       return 'narrator';
@@ -1752,7 +1748,7 @@
         img.src = imageUrl;
         img.alt = persona.name ?? 'persona';
         img.onerror = function() {
-          this.src = '/assets/persona/F01.png';
+          this.src = resolvePersonaUrl('/assets/persona/F01.png');
         };
         badge.appendChild(img);
       } else {
@@ -1762,21 +1758,31 @@
       return badge;
     }
 
-    // 게임 메시지 노드 생성 (타입별 렌더링: action/player/npc/narrator)
+    // 게임 메시지 노드 생성 (role + action modifier 방식)
     function createGameMessageElement(log, session) {
-      const type = getLogType(log);
+      const role = getLogRole(log);
+      const isAction = !!log?.is_action;
       const messageId = getGameMessageId(log);
 
-      // 공통 row
+      // 공통 row (role + action modifier)
       const row = document.createElement('div');
-      row.className = `game-msg game-msg--${type}`;
+      row.className = `game-msg game-msg--${role}` + (isAction ? ' game-msg--action' : '');
       row.setAttribute('data-message-id', messageId);
       row.dataset.turn = String(log?.turn ?? '');
       row.dataset.speakerType = String(log?.speaker_type ?? '');
+      row.dataset.isAction = String(!!log?.is_action);
 
       // bubble/card
       const bubble = document.createElement('div');
       bubble.className = 'game-bubble';
+
+      // action UI 헤더는 modifier로만 추가 (role은 유지)
+      if (isAction) {
+        const head = document.createElement('div');
+        head.className = 'game-action-head';
+        head.textContent = 'ACTION';
+        bubble.appendChild(head);
+      }
 
       // 내용
       const content = document.createElement('div');
@@ -1789,38 +1795,34 @@
       } else {
         content.textContent = log?.text ?? '';
       }
-
-      // action UI는 칩 헤더(아이콘 + 라벨) 추가
-      if (type === 'action') {
-        const head = document.createElement('div');
-        head.className = 'game-action-head';
-        head.textContent = 'ACTION';
-        bubble.appendChild(head);
-      }
-
       bubble.appendChild(content);
 
-      // ✅ player: 미니 persona 배지 (우측 말풍선 내부/코너에 스탬프처럼)
-      if (type === 'player') {
+      // ✅ player: action 여부와 무관하게 항상 배지
+      if (role === 'player') {
         const persona = getActivePersonaForGame();
         const badge = createMiniPersonaBadge(persona);
         if (badge) bubble.appendChild(badge);
       }
 
-      // ✅ npc: npc 표식(작게)
-      if (type === 'npc') {
-        const characterMaps = buildCharacterMaps(session);
-        const { name: displayName } = getAvatarForLog(log, characterMaps, session);
-        if (displayName) {
+      // ✅ npc: 기존 아바타 계산 로직(getAvatarForLog) 사용하여 mini badge 복구
+      if (role === 'npc') {
+        try {
+          const characterMaps = buildCharacterMaps(session);
+          const { avatarUrl, name } = getAvatarForLog(log, characterMaps, session);
+          const npcPersonaLike = { image_url: avatarUrl, name: name || 'NPC' };
+          const npcBadge = createMiniPersonaBadge(npcPersonaLike);
+          if (npcBadge) bubble.appendChild(npcBadge);
+        } catch (e) {
+          // fallback: 기존 태그라도 유지
           const tag = document.createElement('div');
           tag.className = 'game-npc-tag';
-          tag.textContent = displayName;
+          tag.textContent = 'NPC';
           bubble.appendChild(tag);
         }
       }
 
       // ✅ narrator: narrator 표식(작게)
-      if (type === 'narrator') {
+      if (role === 'narrator') {
         const tag = document.createElement('div');
         tag.className = 'game-narrator-tag';
         tag.textContent = 'NARRATOR';
