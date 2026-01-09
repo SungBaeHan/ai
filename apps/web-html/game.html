@@ -970,40 +970,75 @@
     
     // 게임 세션의 활성 persona 반환 (persona_ref_id로 복구 지원)
     function getActivePersonaForGame() {
-      // 1) 세션에 player_persona가 있으면 반환 (persona_id 체크로 필터링하지 않음)
-      if (currentSession?.player_persona) {
-        return currentSession.player_persona;
+      // 우선순위로 refId 결정
+      let refId = null;
+      
+      // 1) currentSession.player_persona.persona_ref_id
+      if (currentSession?.player_persona?.persona_ref_id) {
+        refId = currentSession.player_persona.persona_ref_id;
+      }
+      // 2) currentSession.player_persona._id
+      else if (currentSession?.player_persona?._id) {
+        refId = currentSession.player_persona._id;
+      }
+      // 3) currentSession.persona_ref_id (세션 레벨)
+      else if (currentSession?.persona_ref_id) {
+        refId = currentSession.persona_ref_id;
+      }
+      // 4) currentSession.player_persona.persona_id (레거시)
+      else if (currentSession?.player_persona?.persona_id) {
+        refId = currentSession.player_persona.persona_id;
       }
       
-      // 2) persona_ref_id로 PERSONAS_LIST에서 복구
-      if (currentSession?.persona_ref_id && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
+      // PERSONAS_LIST에서 매칭
+      if (refId && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
         const matched = PERSONAS_LIST.find(p => 
-          p.persona_ref_id === currentSession.persona_ref_id || 
-          p._id === currentSession.persona_ref_id
+          p.persona_ref_id === refId || 
+          p._id === refId ||
+          p.persona_id === refId
         );
         
         if (matched) {
-          return {
+          // 정규화된 persona 객체 생성
+          const normalizedPersona = {
+            persona_ref_id: matched.persona_ref_id || matched._id || matched.persona_id,
             persona_id: matched.persona_id,
             name: matched.name,
             gender: matched.gender,
-            intro: matched.intro || matched.bio || matched.summary,
-            image_url: matched.image_url || matched.image?.url || resolvePersonaUrl(`/assets/persona/${matched.image_key || matched.image?.key || 'F01'}.png`),
-            image_key: matched.image_key || matched.image?.key
+            intro: matched.intro || matched.bio || matched.summary || '',
+            image_key: matched.image_key || matched.image?.key,
+            image_url: matched.image_url || matched.image?.url || (matched.image_key ? resolvePersonaUrl(`/assets/persona/${matched.image_key}.png`) : null)
           };
+          
+          // 캐싱: currentSession.player_persona 업데이트
+          if (currentSession) {
+            currentSession.player_persona = normalizedPersona;
+          }
+          
+          return normalizedPersona;
         }
       }
       
-      // 3) fallback: PERSONAS_LIST에서 default persona
+      // fallback: PERSONAS_LIST에서 default persona
       const ps = PERSONAS_LIST || [];
       const d = ps.find(p => p.is_default) || ps[0];
-      if (d?.persona_id) {
-        return {
+      if (d) {
+        const normalizedPersona = {
+          persona_ref_id: d.persona_ref_id || d._id || d.persona_id,
           persona_id: d.persona_id,
           name: d.name,
           gender: d.gender,
-          image_key: d.image_key || d.image?.key
+          intro: d.intro || d.bio || d.summary || '',
+          image_key: d.image_key || d.image?.key,
+          image_url: d.image_url || d.image?.url || (d.image_key ? resolvePersonaUrl(`/assets/persona/${d.image_key}.png`) : null)
         };
+        
+        // 캐싱
+        if (currentSession) {
+          currentSession.player_persona = normalizedPersona;
+        }
+        
+        return normalizedPersona;
       }
       
       return null;
