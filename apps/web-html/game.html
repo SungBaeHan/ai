@@ -441,11 +441,19 @@
       font-size: 13px;
     }
     /* Alignment (role 기반, action은 modifier로 정렬 영향 없음) */
-    .game-msg--player { justify-content: flex-end; }
+    .game-msg--player {
+      display: flex;
+      justify-content: flex-end;
+      align-items: flex-end;
+      gap: 8px;  /* bubble과 badge 간격 */
+    }
     .game-msg--npc,
     .game-msg--narrator { justify-content: flex-start; }
     /* Color/tones (no hard-coded brand colors, use existing theme vars if any) */
-    .game-msg--player .game-bubble { background: rgba(80, 120, 255, 0.22); }
+    .game-msg--player .game-bubble {
+      background: rgba(80, 120, 255, 0.22);
+      max-width: 70%;
+    }
     .game-msg--npc .game-bubble { background: rgba(255, 255, 255, 0.14); }
     .game-msg--narrator .game-bubble {
       background: rgba(255, 255, 255, 0.08);
@@ -483,11 +491,9 @@
       font-size: 13px;
       color: rgba(255,255,255,0.9);
     }
-    /* Mini persona badge: stamp style (가시성 개선) */
+    /* Mini persona badge: stamp style (bubble 밖, 형제로 배치) */
     .persona-badge--mini {
-      position: absolute;
-      right: 6px;
-      bottom: 6px;
+      position: static;  /* absolute 제거 - bubble 밖 형제로 배치 */
       width: 22px;
       height: 22px;
       border-radius: 999px;
@@ -501,6 +507,7 @@
       pointer-events: auto;
       z-index: 2;
       box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+      flex: 0 0 auto;  /* 줄어들지 않게 */
     }
     .persona-badge--mini img {
       width: 100%;
@@ -1882,13 +1889,6 @@
       }
       bubble.appendChild(content);
 
-      // ✅ player: is_action 여부와 무관하게 항상 persona badge
-      if (role === 'player') {
-        const persona = getActivePersonaForGame();
-        const badge = createMiniPersonaBadge(persona);
-        if (badge) bubble.appendChild(badge);
-      }
-
       // ✅ narrator: narrator 표식(작게)
       if (role === 'narrator') {
         const tag = document.createElement('div');
@@ -1897,7 +1897,16 @@
         bubble.appendChild(tag);
       }
 
+      // bubble을 row에 append
       row.appendChild(bubble);
+
+      // ✅ player: is_action 여부와 무관하게 항상 persona badge (bubble 밖, 형제로)
+      if (role === 'player') {
+        const persona = getActivePersonaForGame();
+        const badge = createMiniPersonaBadge(persona);
+        if (badge) row.appendChild(badge); // bubble 형제로 append
+      }
+
       return row;
     }
 
@@ -2075,16 +2084,19 @@
     function refreshPlayerPersonaBadgesInChat() {
       try {
         const persona = getActivePersonaForGame();
-        const playerBubbles = document.querySelectorAll('.game-msg--player .game-bubble');
+        const playerRows = document.querySelectorAll('.game-msg--player');
         let fixed = 0;
 
-        playerBubbles.forEach(bubble => {
-          // 이미 배지가 있으면 skip
-          if (bubble.querySelector('.persona-badge--mini')) return;
+        playerRows.forEach(row => {
+          // 이미 배지가 있으면 skip (row 기준으로 체크)
+          if (row.querySelector('.persona-badge--mini')) return;
+
+          const bubble = row.querySelector('.game-bubble');
+          if (!bubble) return;
 
           const badge = createMiniPersonaBadge(persona);
           if (badge) {
-            bubble.appendChild(badge);
+            row.appendChild(badge); // bubble 형제로 append
             fixed++;
           }
         });
