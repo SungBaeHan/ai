@@ -1557,9 +1557,9 @@
           const newLength = currentSession.turn_logs.length;
           console.log("[DEBUG] Using session from response, turn_logs length:", prevLength, "->", newLength);
           
-          // ✅ 세션 교체 직후 헤더/배지 갱신 (새로 append 되는 메시지가 default로 안 떨어지게)
+          // ✅ 헤더만 갱신 (배지는 renderChatLogsFromSession에서 새 메시지에만 추가됨)
           refreshHeaderPersonaBadge();
-          refreshPlayerPersonaBadgesInGameChat();
+          // ⚠️ refreshPlayerPersonaBadgesInGameChat()는 호출하지 않음 - 기존 메시지 배지 보존
           
           // 1) HUD 업데이트
           renderHudFromSession(currentSession);
@@ -1968,9 +1968,67 @@
 
       // ✅ player: is_action 여부와 무관하게 항상 persona badge (bubble 밖, 형제로)
       if (role === 'player') {
-        const persona = getActivePersonaForGame();
+        // 메시지별 persona_id 결정: log에 persona_id가 있으면 사용, 없으면 현재 활성 persona
+        let personaId = log?.persona_id || log?.persona_ref_id || null;
+        if (!personaId) {
+          const activePersona = getActivePersonaForGame();
+          if (activePersona) {
+            personaId = activePersona.persona_ref_id || activePersona.persona_id;
+            console.log('[DEBUG] createGameMessageElement: using active persona_id:', personaId);
+          } else {
+            console.warn('[DEBUG] createGameMessageElement: no active persona found for player message');
+          }
+        } else {
+          console.log('[DEBUG] createGameMessageElement: using log persona_id:', personaId);
+        }
+        
+        // persona_id를 data attribute로 저장 (기존 메시지 보존용)
+        if (personaId) {
+          row.setAttribute('data-persona-id', String(personaId));
+        }
+        
+        // 배지 생성: log에 persona_id가 있으면 해당 persona를 찾아서 사용, 없으면 현재 활성 persona
+        let persona = null;
+        if (personaId && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
+          const matched = PERSONAS_LIST.find(p => {
+            const a = p.persona_ref_id != null ? String(p.persona_ref_id) : null;
+            const b = p._id != null ? String(p._id) : null;
+            const c = p.persona_id != null ? String(p.persona_id) : null;
+            const targetId = String(personaId);
+            return a === targetId || b === targetId || c === targetId;
+          });
+          if (matched) {
+            persona = {
+              persona_ref_id: String(matched.persona_ref_id || matched._id || matched.persona_id || ''),
+              persona_id: matched.persona_id != null ? String(matched.persona_id) : null,
+              name: matched.name,
+              gender: matched.gender,
+              intro: matched.intro || matched.bio || matched.summary || '',
+              image_key: matched.image_key || matched.image?.key,
+              image_url: matched.image_url || matched.image?.url || (matched.image_key ? resolvePersonaUrl(`/assets/persona/${matched.image_key}.png`) : null),
+            };
+            console.log('[DEBUG] createGameMessageElement: matched persona from PERSONAS_LIST:', persona.name, persona.image_key);
+          } else {
+            console.warn('[DEBUG] createGameMessageElement: persona_id not found in PERSONAS_LIST:', personaId);
+          }
+        }
+        
+        // 매칭 실패 시 현재 활성 persona 사용
+        if (!persona) {
+          persona = getActivePersonaForGame();
+          if (persona) {
+            console.log('[DEBUG] createGameMessageElement: using active persona as fallback:', persona.name);
+          }
+        }
+        
         const badge = createMiniPersonaBadge(persona);
-        if (badge) row.appendChild(badge); // bubble 형제로 append
+        if (badge) {
+          // 배지에도 persona_id 저장
+          if (personaId) {
+            badge.setAttribute('data-persona-id', String(personaId));
+          }
+          row.appendChild(badge); // bubble 형제로 append
+        }
       }
 
       return row;
@@ -2146,7 +2204,7 @@
       return escapeHtml(text);
     }
 
-    // player 메시지 배지 갱신 (페르조나 변경 시 모든 player 메시지 배지 즉시 업데이트)
+    // player 메시지 배지 갱신 (페르조나 변경 시에만 호출, 기존 메시지의 persona_id는 보존)
     function refreshPlayerPersonaBadgesInGameChat() {
       try {
         const persona = getActivePersonaForGame();
@@ -2157,21 +2215,68 @@
 
         const playerRows = document.querySelectorAll('.game-msg--player');
         let updated = 0;
+        let preserved = 0;
 
         playerRows.forEach(row => {
-          // 기존 배지 모두 제거 (중복 방지 및 갱신 보장)
+          // 기존 메시지의 persona_id 확인 (data attribute에서)
+          const existingPersonaId = row.getAttribute('data-persona-id');
+          
+          // persona_id가 있으면 해당 persona를 찾아서 사용 (기존 메시지 보존)
+          if (existingPersonaId && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
+            const matched = PERSONAS_LIST.find(p => {
+              const a = p.persona_ref_id != null ? String(p.persona_ref_id) : null;
+              const b = p._id != null ? String(p._id) : null;
+              const c = p.persona_id != null ? String(p.persona_id) : null;
+              const targetId = String(existingPersonaId);
+              return a === targetId || b === targetId || c === targetId;
+            });
+            
+            if (matched) {
+              // 기존 persona로 배지 갱신
+              const preservedPersona = {
+                persona_ref_id: String(matched.persona_ref_id || matched._id || matched.persona_id || ''),
+                persona_id: matched.persona_id != null ? String(matched.persona_id) : null,
+                name: matched.name,
+                gender: matched.gender,
+                intro: matched.intro || matched.bio || matched.summary || '',
+                image_key: matched.image_key || matched.image?.key,
+                image_url: matched.image_url || matched.image?.url || (matched.image_key ? resolvePersonaUrl(`/assets/persona/${matched.image_key}.png`) : null),
+              };
+              
+              // 기존 배지 제거
+              row.querySelectorAll('.persona-badge--mini').forEach(b => b.remove());
+              
+              // 기존 persona로 새 배지 생성
+              const badge = createMiniPersonaBadge(preservedPersona);
+              if (badge) {
+                badge.setAttribute('data-persona-id', String(existingPersonaId));
+                row.appendChild(badge);
+                preserved++;
+              }
+              return;
+            }
+          }
+          
+          // persona_id가 없거나 매칭 실패한 경우에만 현재 활성 persona 사용 (새 메시지 또는 페르조나 변경)
+          // 기존 배지 제거
           row.querySelectorAll('.persona-badge--mini').forEach(b => b.remove());
-
-          // 새 배지 생성 및 추가
+          
+          // 현재 활성 persona로 배지 생성
           const badge = createMiniPersonaBadge(persona);
           if (badge) {
-            row.appendChild(badge); // bubble 형제로 append (row의 마지막)
+            // 현재 활성 persona_id 저장
+            const currentPersonaId = persona.persona_ref_id || persona.persona_id;
+            if (currentPersonaId) {
+              badge.setAttribute('data-persona-id', String(currentPersonaId));
+              row.setAttribute('data-persona-id', String(currentPersonaId));
+            }
+            row.appendChild(badge);
             updated++;
           }
         });
 
-        if (updated > 0) {
-          console.log(`[PERSONA] Updated ${updated} player badges in game chat`);
+        if (updated > 0 || preserved > 0) {
+          console.log(`[PERSONA] Updated ${updated} badges, preserved ${preserved} badges with original persona`);
         }
       } catch (e) {
         console.error('[PERSONA] Error refreshing player badges:', e);
