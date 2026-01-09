@@ -483,13 +483,13 @@
       font-size: 13px;
       color: rgba(255,255,255,0.9);
     }
-    /* Mini persona badge: stamp style */
+    /* Mini persona badge: stamp style (가시성 개선) */
     .persona-badge--mini {
       position: absolute;
       right: 6px;
       bottom: 6px;
-      width: 18px;
-      height: 18px;
+      width: 22px;
+      height: 22px;
       border-radius: 999px;
       display: grid;
       place-items: center;
@@ -499,6 +499,8 @@
       font-size: 10px;
       user-select: none;
       pointer-events: auto;
+      z-index: 2;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
     }
     .persona-badge--mini img {
       width: 100%;
@@ -1319,6 +1321,8 @@
           
           // 헤더 badge 즉시 갱신
           refreshHeaderPersonaBadge();
+          // 기존 메시지 배지도 갱신
+          refreshPlayerPersonaBadgesInChat();
         }
 
         // 서버에 저장
@@ -1351,6 +1355,7 @@
           currentSession.player_persona = data.player_persona;
           currentSession.persona_ref_id = data.persona_ref_id;
           refreshHeaderPersonaBadge();
+          refreshPlayerPersonaBadgesInChat();
         }
         
         showToast('페르조나가 적용되었습니다.');
@@ -2066,6 +2071,32 @@
       return escapeHtml(text);
     }
 
+    // player 메시지 배지 후처리 (personas 로딩 타이밍 문제 복구)
+    function refreshPlayerPersonaBadgesInChat() {
+      try {
+        const persona = getActivePersonaForGame();
+        const playerBubbles = document.querySelectorAll('.game-msg--player .game-bubble');
+        let fixed = 0;
+
+        playerBubbles.forEach(bubble => {
+          // 이미 배지가 있으면 skip
+          if (bubble.querySelector('.persona-badge--mini')) return;
+
+          const badge = createMiniPersonaBadge(persona);
+          if (badge) {
+            bubble.appendChild(badge);
+            fixed++;
+          }
+        });
+
+        console.log('[PERSONA] refreshPlayerPersonaBadgesInChat fixed:', fixed, 'persona:', persona);
+        return fixed;
+      } catch (e) {
+        console.warn('[PERSONA] refreshPlayerPersonaBadgesInChat failed:', e);
+        return 0;
+      }
+    }
+
     // 초기화
     // .top-hud(.game-hero-card) width 동기화 함수
     // 주의: CSS game-inner-width로 고정 폭을 사용하므로 동적 width 설정은 제거
@@ -2133,11 +2164,24 @@
         currentSession = sessionData;
         console.log("[DEBUG] Initial session load, turn_logs length:", currentSession.turn_logs.length);
         
-        // HUD 렌더링
+        // 1) HUD 먼저
         renderHudFromSession(currentSession);
         
-        // 채팅 로그 렌더링 (초기 로드 - 전체 렌더링)
+        // 2) personas 먼저 로드 (가능하면 여기서)
+        try {
+          PERSONAS_LIST = await fetchPersonas();
+        } catch (e) {
+          console.warn('[GAME][BOOTSTRAP] Failed to load personas:', e);
+        }
+        
+        // 3) header 갱신
+        refreshHeaderPersonaBadge();
+        
+        // 4) 채팅 렌더 (이 시점에는 PERSONAS_LIST가 채워져서 배지 생성 가능)
         renderChatLogsFromSession(currentSession, { isInitialLoad: true });
+        
+        // 5) 혹시 still null 케이스(세션에 player_persona 있고 personas 없어도) 대비 후처리 한번 더
+        refreshPlayerPersonaBadgesInChat();
         
         // 내레이션 영역 업데이트
         if (narrationEl && currentSession.turn_logs.length > 0) {
@@ -2148,14 +2192,6 @@
             narrationEl.textContent = lastNarration.text;
           }
         }
-        
-        // 페르조나 목록 로드 및 헤더 badge 갱신
-        try {
-          PERSONAS_LIST = await fetchPersonas();
-        } catch (e) {
-          console.warn('[GAME][BOOTSTRAP] Failed to load personas:', e);
-        }
-        refreshHeaderPersonaBadge();
         
         // persona가 없으면 강제 모달 열기 (페르조나 목록이 있을 때만 강제)
         const needsPersona = !currentSession.player_persona && !currentSession.persona_ref_id;
