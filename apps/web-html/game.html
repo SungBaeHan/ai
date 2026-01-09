@@ -463,15 +463,15 @@
       opacity: 0.8;
       margin-bottom: 6px;
     }
-    /* NPC avatar next to bubble */
+    /* NPC avatar next to bubble (캐릭터/세계관 채팅 수준 크기) */
     .game-avatar {
-      width: 22px;
-      height: 22px;
+      width: 38px;
+      height: 38px;
       border-radius: 999px;
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
-      margin-right: 8px;
+      margin-right: 10px;
       align-self: flex-end;
       border: 1px solid rgba(255,255,255,0.25);
       background-color: rgba(0,0,0,0.25);
@@ -480,8 +480,8 @@
     .game-avatar--fallback {
       display: grid;
       place-items: center;
-      font-size: 11px;
-      color: rgba(255,255,255,0.85);
+      font-size: 13px;
+      color: rgba(255,255,255,0.9);
     }
     /* Mini persona badge: stamp style */
     .persona-badge--mini {
@@ -1749,21 +1749,20 @@
       badge.className = 'persona-badge persona-badge--mini';
       badge.title = `${persona.name ?? 'persona'}`;
 
-      // persona 이미지 URL 생성 (image_url 우선, image_key는 resolvePersonaUrl 사용)
+      // persona 이미지 URL 생성 (resolvePersonaUrl로 통일, 로컬 경로 직접 접근 금지)
       let src = '';
       if (persona.image_url) {
         src = persona.image_url;
-      } else if (persona.image_key) {
-        let imageKey = persona.image_key;
-        if (imageKey && imageKey.startsWith('preset_')) {
-          try {
-            const match = imageKey.match(/preset_([MF]\d+)/);
-            if (match) imageKey = match[1];
-          } catch (e) {}
+      } else {
+        let key = persona.image_key || persona.image?.key || '';
+        if (key && key.startsWith('preset_')) {
+          const m = key.match(/preset_([MF]\d+)/);
+          if (m) key = m[1];
         }
-        src = resolvePersonaUrl(`/assets/persona/${imageKey}.png`);
-      } else if (persona.image?.key) {
-        src = resolvePersonaUrl(`/assets/persona/${persona.image.key}.png`);
+        // resolvePersonaUrl은 /assets/persona/... 형태의 경로를 받음
+        if (key) {
+          src = resolvePersonaUrl(`/assets/persona/${key}.png`);
+        }
       }
 
       if (src) {
