@@ -498,8 +498,10 @@
       height: 38px;
       border-radius: 50%;
       overflow: hidden;
+      padding: 0;  /* pill 형태 방지 */
+      box-sizing: border-box;
       flex: 0 0 auto;
-      display: flex;
+      display: inline-flex;  /* inline-flex로 변경 */
       align-items: center;
       justify-content: center;
       background: rgba(255,255,255,0.08);
@@ -1319,13 +1321,13 @@
       }
 
       try {
-        // persona_ref_id 결정 (우선순위: persona_ref_id > _id > persona_id fallback)
-        const refId = persona.persona_ref_id || persona._id || null;
-        if (!refId) {
-          console.warn('[PERSONA] persona_ref_id not found, using persona_id as fallback:', persona.persona_id);
-          showToast('페르조나 참조 ID를 찾을 수 없어 임시 ID를 사용합니다.', 2000);
+        // persona_ref_id 결정: persona_id를 우선 사용 (백엔드가 persona_id로 조회함)
+        const finalRefId = persona.persona_id;
+        if (!finalRefId) {
+          console.error('[PERSONA] persona_id is required');
+          showToast('페르조나 ID가 없습니다.', 2000);
+          return;
         }
-        const finalRefId = refId || persona.persona_id;
 
         // Optimistic UI 업데이트
         if (currentSession) {
@@ -1372,6 +1374,18 @@
         
         // 서버 응답으로 세션 업데이트 (canonical 데이터)
         if (currentSession && data.player_persona) {
+          // image_key가 없으면 PERSONAS_LIST에서 찾아서 채우기 (프론트 방어 로직)
+          if (!data.player_persona.image_key && data.persona_ref_id && PERSONAS_LIST) {
+            const foundPersona = PERSONAS_LIST.find(p => p.persona_id === data.persona_ref_id);
+            if (foundPersona) {
+              const imageKey = foundPersona.image_key || foundPersona.image?.key;
+              if (imageKey) {
+                data.player_persona.image_key = imageKey;
+                console.log('[PERSONA] Filled missing image_key from PERSONAS_LIST:', imageKey);
+              }
+            }
+          }
+          
           currentSession.player_persona = data.player_persona;
           currentSession.persona_ref_id = data.persona_ref_id;
           refreshHeaderPersonaBadge();

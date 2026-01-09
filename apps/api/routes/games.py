@@ -538,12 +538,17 @@ async def set_game_persona(
         raise HTTPException(status_code=404, detail="게임 세션을 찾을 수 없습니다. 먼저 세션을 생성하세요.")
 
     # 3) 세션 업데이트
+    # image_key와 image_url 추출 (다양한 구조 지원)
+    image_key = (target.get("image") or {}).get("key") or target.get("image_key")
+    image_url = (target.get("image") or {}).get("url") or target.get("image_url")
+    
     player_persona = {
         "persona_id": target.get("persona_id"),
         "name": target.get("name"),
         "gender": target.get("gender"),
-        "intro": target.get("intro"),
-        "image_url": (target.get("image") or {}).get("url"),
+        "intro": target.get("intro") or target.get("bio", ""),
+        "image_key": image_key,  # 필수: 프론트에서 resolvePersonaUrl() 사용 가능하도록
+        "image_url": image_url,  # 선택: 있으면 사용
     }
 
     db.game_session.update_one(
