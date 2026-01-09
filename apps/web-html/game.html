@@ -1987,18 +1987,68 @@
 
       // ✅ player: is_action 여부와 무관하게 항상 persona badge (bubble 밖, 형제로)
       if (role === 'player') {
-        // 메시지별 persona_id 결정: log에 persona_id가 있으면 사용, 없으면 현재 활성 persona
-        let personaId = log?.persona_id || log?.persona_ref_id || null;
-        if (!personaId) {
-          const activePersona = getActivePersonaForGame();
-          if (activePersona) {
-            personaId = activePersona.persona_ref_id || activePersona.persona_id;
-            console.log('[DEBUG] createGameMessageElement: using active persona_id:', personaId);
-          } else {
-            console.warn('[DEBUG] createGameMessageElement: no active persona found for player message');
+        // ⚠️ 우선순위: 1) 세션의 player_persona (가장 확실), 2) log의 persona_id, 3) 현재 활성 persona
+        let persona = null;
+        let personaId = null;
+        
+        // 1) 세션의 player_persona를 최우선으로 사용 (세션 교체 직후에도 안정적)
+        const sp = session?.player_persona || currentSession?.player_persona;
+        if (sp && (sp.name || sp.image_key || sp.image_url || sp.image?.url)) {
+          // preset_XX 정리
+          let key = sp.image_key || sp.image?.key || '';
+          if (key && key.startsWith('preset_')) {
+            const m = key.match(/preset_([MF]\d+)/);
+            if (m) key = m[1];
           }
-        } else {
-          console.log('[DEBUG] createGameMessageElement: using log persona_id:', personaId);
+          
+          persona = {
+            persona_ref_id: String(sp.persona_ref_id ?? session?.persona_ref_id ?? currentSession?.persona_ref_id ?? sp.persona_id ?? ''),
+            persona_id: String(sp.persona_id ?? session?.persona_ref_id ?? currentSession?.persona_ref_id ?? ''),
+            name: sp.name,
+            gender: sp.gender,
+            intro: sp.intro || sp.bio || sp.summary || '',
+            image_key: key || null,
+            image_url: sp.image_url || sp.image?.url || (key ? resolvePersonaUrl(`/assets/persona/${key}.png`) : null),
+          };
+          personaId = persona.persona_ref_id || persona.persona_id;
+          console.log('[DEBUG] createGameMessageElement: using session player_persona:', persona.name, persona.image_key);
+        }
+        
+        // 2) log에 persona_id가 있으면 해당 persona를 PERSONAS_LIST에서 찾기
+        if (!persona && (log?.persona_id || log?.persona_ref_id)) {
+          personaId = log.persona_id || log.persona_ref_id;
+          if (personaId && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
+            const matched = PERSONAS_LIST.find(p => {
+              const a = p.persona_ref_id != null ? String(p.persona_ref_id) : null;
+              const b = p._id != null ? String(p._id) : null;
+              const c = p.persona_id != null ? String(p.persona_id) : null;
+              const targetId = String(personaId);
+              return a === targetId || b === targetId || c === targetId;
+            });
+            if (matched) {
+              persona = {
+                persona_ref_id: String(matched.persona_ref_id || matched._id || matched.persona_id || ''),
+                persona_id: matched.persona_id != null ? String(matched.persona_id) : null,
+                name: matched.name,
+                gender: matched.gender,
+                intro: matched.intro || matched.bio || matched.summary || '',
+                image_key: matched.image_key || matched.image?.key,
+                image_url: matched.image_url || matched.image?.url || (matched.image_key ? resolvePersonaUrl(`/assets/persona/${matched.image_key}.png`) : null),
+              };
+              console.log('[DEBUG] createGameMessageElement: matched persona from log persona_id:', persona.name);
+            }
+          }
+        }
+        
+        // 3) 현재 활성 persona 사용 (fallback)
+        if (!persona) {
+          persona = getActivePersonaForGame();
+          if (persona) {
+            personaId = persona.persona_ref_id || persona.persona_id;
+            console.log('[DEBUG] createGameMessageElement: using active persona as fallback:', persona.name);
+          } else {
+            console.warn('[DEBUG] createGameMessageElement: no persona found for player message');
+          }
         }
         
         // persona_id를 data attribute로 저장 (기존 메시지 보존용)
@@ -2006,40 +2056,7 @@
           row.setAttribute('data-persona-id', String(personaId));
         }
         
-        // 배지 생성: log에 persona_id가 있으면 해당 persona를 찾아서 사용, 없으면 현재 활성 persona
-        let persona = null;
-        if (personaId && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
-          const matched = PERSONAS_LIST.find(p => {
-            const a = p.persona_ref_id != null ? String(p.persona_ref_id) : null;
-            const b = p._id != null ? String(p._id) : null;
-            const c = p.persona_id != null ? String(p.persona_id) : null;
-            const targetId = String(personaId);
-            return a === targetId || b === targetId || c === targetId;
-          });
-          if (matched) {
-            persona = {
-              persona_ref_id: String(matched.persona_ref_id || matched._id || matched.persona_id || ''),
-              persona_id: matched.persona_id != null ? String(matched.persona_id) : null,
-              name: matched.name,
-              gender: matched.gender,
-              intro: matched.intro || matched.bio || matched.summary || '',
-              image_key: matched.image_key || matched.image?.key,
-              image_url: matched.image_url || matched.image?.url || (matched.image_key ? resolvePersonaUrl(`/assets/persona/${matched.image_key}.png`) : null),
-            };
-            console.log('[DEBUG] createGameMessageElement: matched persona from PERSONAS_LIST:', persona.name, persona.image_key);
-          } else {
-            console.warn('[DEBUG] createGameMessageElement: persona_id not found in PERSONAS_LIST:', personaId);
-          }
-        }
-        
-        // 매칭 실패 시 현재 활성 persona 사용
-        if (!persona) {
-          persona = getActivePersonaForGame();
-          if (persona) {
-            console.log('[DEBUG] createGameMessageElement: using active persona as fallback:', persona.name);
-          }
-        }
-        
+        // 배지 생성
         const badge = createMiniPersonaBadge(persona);
         if (badge) {
           // 배지에도 persona_id 저장
