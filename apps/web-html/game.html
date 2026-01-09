@@ -426,6 +426,79 @@
     .confirm-dialog-title { font-size:18px; font-weight:600; color:#f3f4f6; margin-bottom:16px; }
     .confirm-dialog-message { font-size:14px; color:#cbd5e1; margin-bottom:24px; line-height:1.5; }
     .confirm-dialog-actions { display:flex; gap:12px; justify-content:flex-end; }
+    
+    /* ===== Game Chat Message System (UX v1) ===== */
+    .game-msg {
+      display: flex;
+      margin: 10px 0;
+    }
+    .game-bubble {
+      position: relative;
+      max-width: 62%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      line-height: 1.35;
+      font-size: 13px;
+    }
+    /* Alignment */
+    .game-msg--player { justify-content: flex-end; }
+    .game-msg--npc,
+    .game-msg--narrator,
+    .game-msg--action { justify-content: flex-start; }
+    /* Color/tones (no hard-coded brand colors, use existing theme vars if any) */
+    .game-msg--player .game-bubble { background: rgba(80, 120, 255, 0.22); }
+    .game-msg--npc .game-bubble { background: rgba(255, 255, 255, 0.14); }
+    .game-msg--narrator .game-bubble {
+      background: rgba(255, 255, 255, 0.08);
+      font-style: italic;
+    }
+    .game-msg--action .game-bubble {
+      background: rgba(255, 200, 80, 0.14);
+      border: 1px solid rgba(255, 200, 80, 0.25);
+    }
+    /* Action head */
+    .game-action-head {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      opacity: 0.8;
+      margin-bottom: 6px;
+    }
+    /* Mini persona badge: stamp style */
+    .persona-badge--mini {
+      position: absolute;
+      right: 6px;
+      bottom: 6px;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.25);
+      font-size: 10px;
+      user-select: none;
+      pointer-events: auto;
+    }
+    .persona-badge--mini img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    /* Small tags */
+    .game-npc-tag,
+    .game-narrator-tag {
+      position: absolute;
+      left: 8px;
+      top: -8px;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.30);
+      border: 1px solid rgba(255,255,255,0.15);
+      opacity: 0.85;
+    }
+    .game-narrator-tag { opacity: 0.6; }
   </style>
 </head>
 <body>
@@ -1640,43 +1713,121 @@
       return `${log.turn || 0}-${log.speaker_type || 'unknown'}-${log.speaker_id || ''}`;
     }
 
-    // 게임 메시지 노드 생성 (플레이어 메시지는 배지 포함)
-    function createGameMessageElement(log, session) {
-      const isPlayer = log.speaker_type === 'player';
-      const row = document.createElement('div');
-      row.className = `msg ${isPlayer ? 'me' : ''}`;
-      const messageId = getGameMessageId(log);
-      row.setAttribute('data-message-id', messageId);
-      
-      if (isPlayer) {
-        // 플레이어 메시지: addUser()와 동일한 배지 생성 로직 사용
-        const persona = getActivePersonaForGame();
-        let personaBadge = '';
-        if (persona) {
-          let imageKey = persona.image_key || 'F01';
-          if (imageKey && imageKey.startsWith('preset_')) {
-            try {
-              const match = imageKey.match(/preset_([MF]\d+)/);
-              if (match) imageKey = match[1];
-            } catch (e) {}
-          }
-          const personaImageUrl = `/assets/persona/${imageKey}.png`;
-          personaBadge = `
-            <div class="user-persona-badge" data-role="persona-badge-message">
-              <img src="${personaImageUrl}" alt="${escapeHtml(persona.name || '')}" class="user-persona-avatar" onerror="this.src='/assets/persona/F01.png'" />
-              <span class="user-persona-name" data-role="persona-name">${escapeHtml(persona.name || '')}</span>
-            </div>
-          `;
+    // 메시지 타입 분류 (action/player/npc/narrator)
+    function getLogType(log) {
+      const st = String(log?.speaker_type ?? '').toLowerCase();
+      const isAction = !!log?.is_action;
+
+      if (isAction) return 'action';
+      if (st === 'player') return 'player';
+      if (st === 'npc' || st === 'monster') return 'npc';
+      return 'narrator';
+    }
+
+    // persona 미니 배지 생성 (스탬프 스타일)
+    function createMiniPersonaBadge(persona) {
+      if (!persona) return null;
+
+      const badge = document.createElement('div');
+      badge.className = 'persona-badge persona-badge--mini';
+      badge.title = `${persona.name ?? 'persona'}`;
+
+      // persona 이미지 URL 생성 (기존 로직 재사용)
+      let imageUrl = null;
+      if (persona.image_url) {
+        imageUrl = persona.image_url;
+      } else if (persona.image_key) {
+        let imageKey = persona.image_key;
+        if (imageKey && imageKey.startsWith('preset_')) {
+          try {
+            const match = imageKey.match(/preset_([MF]\d+)/);
+            if (match) imageKey = match[1];
+          } catch (e) {}
         }
-        row.innerHTML = `<div class="bubble">${renderMessageText(log.text)}</div>${personaBadge}`;
-      } else {
-        // NPC/Monster 메시지: 기존 로직 유지 (avatarUrl, nameLabel, bubble)
-        const characterMaps = buildCharacterMaps(session);
-        const { avatarUrl, name: displayName } = getAvatarForLog(log, characterMaps, session);
-        const nameLabel = displayName ? `<strong>${escapeHtml(displayName)}</strong>: ` : '';
-        row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName || 'NPC'}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
+        imageUrl = `/assets/persona/${imageKey}.png`;
       }
+
+      if (imageUrl) {
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = persona.name ?? 'persona';
+        img.onerror = function() {
+          this.src = '/assets/persona/F01.png';
+        };
+        badge.appendChild(img);
+      } else {
+        badge.textContent = String(persona.name ?? 'P').slice(0, 1).toUpperCase();
+      }
+
+      return badge;
+    }
+
+    // 게임 메시지 노드 생성 (타입별 렌더링: action/player/npc/narrator)
+    function createGameMessageElement(log, session) {
+      const type = getLogType(log);
+      const messageId = getGameMessageId(log);
+
+      // 공통 row
+      const row = document.createElement('div');
+      row.className = `game-msg game-msg--${type}`;
+      row.setAttribute('data-message-id', messageId);
+      row.dataset.turn = String(log?.turn ?? '');
+      row.dataset.speakerType = String(log?.speaker_type ?? '');
+
+      // bubble/card
+      const bubble = document.createElement('div');
+      bubble.className = 'game-bubble';
+
+      // 내용
+      const content = document.createElement('div');
+      content.className = 'game-content';
       
+      // renderMessageText() 사용 (기존 로직 유지)
+      const textContent = renderMessageText(log?.text ?? '');
+      if (textContent.includes('<em>')) {
+        content.innerHTML = textContent;
+      } else {
+        content.textContent = log?.text ?? '';
+      }
+
+      // action UI는 칩 헤더(아이콘 + 라벨) 추가
+      if (type === 'action') {
+        const head = document.createElement('div');
+        head.className = 'game-action-head';
+        head.textContent = 'ACTION';
+        bubble.appendChild(head);
+      }
+
+      bubble.appendChild(content);
+
+      // ✅ player: 미니 persona 배지 (우측 말풍선 내부/코너에 스탬프처럼)
+      if (type === 'player') {
+        const persona = getActivePersonaForGame();
+        const badge = createMiniPersonaBadge(persona);
+        if (badge) bubble.appendChild(badge);
+      }
+
+      // ✅ npc: npc 표식(작게)
+      if (type === 'npc') {
+        const characterMaps = buildCharacterMaps(session);
+        const { name: displayName } = getAvatarForLog(log, characterMaps, session);
+        if (displayName) {
+          const tag = document.createElement('div');
+          tag.className = 'game-npc-tag';
+          tag.textContent = displayName;
+          bubble.appendChild(tag);
+        }
+      }
+
+      // ✅ narrator: narrator 표식(작게)
+      if (type === 'narrator') {
+        const tag = document.createElement('div');
+        tag.className = 'game-narrator-tag';
+        tag.textContent = 'NARRATOR';
+        bubble.appendChild(tag);
+      }
+
+      row.appendChild(bubble);
       return row;
     }
 
