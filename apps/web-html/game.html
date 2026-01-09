@@ -1041,7 +1041,7 @@
       };
     }
 
-    // 헤더의 persona 뱃지 갱신 (항상 버튼 표시)
+    // 헤더의 persona 뱃지 갱신 (페르조나 변경 시에만 호출, 기본 페르조나 fallback 방지)
     function refreshHeaderPersonaBadge() {
       const persona = getActivePersonaForGame();
       const badgeEl = document.getElementById('headerPersonaBadge');
@@ -1055,16 +1055,32 @@
       }
       
       console.log('[PERSONA] refreshHeaderPersonaBadge - persona:', persona);
-      console.log('[PERSONA] refreshHeaderPersonaBadge - currentSession:', currentSession);
+      console.log('[PERSONA] refreshHeaderPersonaBadge - currentSession.player_persona:', currentSession?.player_persona);
+      console.log('[PERSONA] refreshHeaderPersonaBadge - currentSession.persona_ref_id:', currentSession?.persona_ref_id);
       
+      // ⚠️ persona가 없거나 기본 페르조나로 fallback된 경우, 기존 헤더를 유지 (덮어쓰지 않음)
       if (!persona) {
-        // persona가 없으면 Persona 버튼 표시
-        badgeEl.style.display = 'none';
-        if (personaBtn) {
-          personaBtn.style.display = 'inline-block';
-          personaBtn.textContent = 'Persona';
+        console.warn('[PERSONA] No persona found, keeping existing header state');
+        // 기존 헤더 상태를 유지하되, badge가 없으면 Persona 버튼 표시
+        if (badgeEl.style.display === 'none' || !badgeEl.querySelector('img')?.src) {
+          badgeEl.style.display = 'none';
+          if (personaBtn) {
+            personaBtn.style.display = 'inline-block';
+            personaBtn.textContent = 'Persona';
+          }
         }
-        console.log('[PERSONA] No persona, showing Persona button');
+        return;
+      }
+      
+      // 기본 페르조나로 fallback된 경우도 기존 헤더 유지 (페르조나 변경 시에만 갱신)
+      // 현재 헤더에 이미 페르조나가 표시되어 있고, 새로 가져온 persona가 기본 페르조나면 유지
+      const currentHeaderName = nameEl.textContent;
+      const isDefaultPersona = !persona.persona_ref_id || !currentSession?.persona_ref_id || 
+                               (persona.name && currentHeaderName && persona.name !== currentHeaderName && 
+                                !currentSession?.player_persona?.name);
+      
+      if (isDefaultPersona && badgeEl.style.display !== 'none' && badgeEl.querySelector('img')?.src && currentHeaderName) {
+        console.log('[PERSONA] Default persona fallback detected, keeping existing header state:', currentHeaderName);
         return;
       }
       
@@ -1088,6 +1104,8 @@
         this.src = resolvePersonaUrl('/assets/persona/F01.png');
       };
       nameEl.textContent = persona.name || 'persona';
+      
+      console.log('[PERSONA] Header badge updated:', persona.name, imageUrl);
     }
 
     // 페르조나 프리뷰 텍스트 추출
