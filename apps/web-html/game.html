@@ -1367,9 +1367,9 @@
           // 1) HUD 업데이트
           renderHudFromSession(currentSession);
           
-          // 2) 채팅 로그 업데이트 (전체 재렌더링 - session.turn_logs만 사용, 한 번만)
+          // 2) 채팅 로그 업데이트 (delta append 방식 - 배지 유지)
           // 로컬 메시지 배열 없이 오직 session.turn_logs만 렌더링
-          renderChatLogsFromSession(currentSession);
+          renderChatLogsFromSession(currentSession, { isInitialLoad: false });
           
           // 3) 내레이션 업데이트
           if (narrationEl) {
@@ -1390,7 +1390,7 @@
             const newLength = currentSession.turn_logs.length;
             console.log("[DEBUG] Loaded session from API, turn_logs length:", prevLength, "->", newLength);
             renderHudFromSession(currentSession);
-            renderChatLogsFromSession(currentSession);
+            renderChatLogsFromSession(currentSession, { isInitialLoad: false });
             if (narrationEl) {
               const lastNarration = currentSession.turn_logs
                 .filter(log => log.speaker_type === 'narration')
@@ -1634,8 +1634,76 @@
       });
     }
 
-    // 세션 기반 채팅 로그 렌더링 (오직 session.turn_logs만 사용)
-    function renderChatLogsFromSession(session) {
+    // 게임 메시지 ID 생성 (안정적 ID 보장)
+    function getGameMessageId(log) {
+      if (log.id) return String(log.id);
+      return `${log.turn || 0}-${log.speaker_type || 'unknown'}-${log.speaker_id || ''}`;
+    }
+
+    // 게임 메시지 노드 생성 (플레이어 메시지는 배지 포함)
+    function createGameMessageElement(log, session) {
+      const isPlayer = log.speaker_type === 'player';
+      const row = document.createElement('div');
+      row.className = `msg ${isPlayer ? 'me' : ''}`;
+      const messageId = getGameMessageId(log);
+      row.setAttribute('data-message-id', messageId);
+      
+      if (isPlayer) {
+        // 플레이어 메시지: addUser()와 동일한 배지 생성 로직 사용
+        const persona = getActivePersonaForGame();
+        let personaBadge = '';
+        if (persona) {
+          let imageKey = persona.image_key || 'F01';
+          if (imageKey && imageKey.startsWith('preset_')) {
+            try {
+              const match = imageKey.match(/preset_([MF]\d+)/);
+              if (match) imageKey = match[1];
+            } catch (e) {}
+          }
+          const personaImageUrl = `/assets/persona/${imageKey}.png`;
+          personaBadge = `
+            <div class="user-persona-badge" data-role="persona-badge-message">
+              <img src="${personaImageUrl}" alt="${escapeHtml(persona.name || '')}" class="user-persona-avatar" onerror="this.src='/assets/persona/F01.png'" />
+              <span class="user-persona-name" data-role="persona-name">${escapeHtml(persona.name || '')}</span>
+            </div>
+          `;
+        }
+        row.innerHTML = `<div class="bubble">${renderMessageText(log.text)}</div>${personaBadge}`;
+      } else {
+        // NPC/Monster 메시지: 기존 로직 유지 (avatarUrl, nameLabel, bubble)
+        const characterMaps = buildCharacterMaps(session);
+        const { avatarUrl, name: displayName } = getAvatarForLog(log, characterMaps, session);
+        const nameLabel = displayName ? `<strong>${escapeHtml(displayName)}</strong>: ` : '';
+        row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName || 'NPC'}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
+      }
+      
+      return row;
+    }
+
+    // 게임 메시지 노드를 채팅 컨테이너에 append
+    function appendGameMessage(log, session) {
+      const chatEl = document.getElementById('chat');
+      if (!chatEl) return;
+      
+      const row = createGameMessageElement(log, session);
+      chatEl.appendChild(row);
+      
+      // 기존 스크롤 정책 유지 (자동 바닥)
+      const chatContainer = document.querySelector('.game-chat-log');
+      if (chatContainer) {
+        setTimeout(() => {
+          const bottomMarker = document.getElementById('chat-bottom-marker');
+          if (bottomMarker) {
+            bottomMarker.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          } else {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          }
+        }, 50);
+      }
+    }
+
+    // 세션 기반 채팅 로그 렌더링 (delta append 방식 - 배지 유지)
+    function renderChatLogsFromSession(session, opts = { isInitialLoad: false }) {
       if (!session) {
         console.warn("[DEBUG] renderChatLogsFromSession: no session");
         return;
@@ -1647,19 +1715,67 @@
         return;
       }
       
-      // 기존 로그 제거 (중복 방지) - 항상 완전히 비우기
-      const beforeLength = chatEl.children.length;
-      chatEl.innerHTML = '';
-      console.log("[DEBUG] renderChatLogsFromSession: cleared", beforeLength, "existing messages, rendering", (session.turn_logs || []).length, "logs");
-      
-      // 선택지 버튼 영역도 비우기 (중복 방지) - 항상 완전히 비우기
-      const actionsEl = document.getElementById('game-turn-actions');
-      if (actionsEl) {
-        const beforeActions = actionsEl.children.length;
-        actionsEl.innerHTML = '';
-        console.log("[DEBUG] renderChatLogsFromSession: cleared", beforeActions, "existing action buttons");
+      // 초기 로드 시에만 전체 비우기 (업데이트 시에는 비우지 않음)
+      if (opts.isInitialLoad) {
+        const beforeLength = chatEl.children.length;
+        chatEl.innerHTML = '';
+        console.log("[DEBUG] renderChatLogsFromSession: initial load, cleared", beforeLength, "existing messages");
+      } else {
+        // 업데이트 모드: 기존 메시지 ID 수집 (존재하는 메시지 추적)
+        const existingIds = new Set(
+          Array.from(chatEl.querySelectorAll('[data-message-id]'))
+            .map(el => el.getAttribute('data-message-id'))
+            .filter(Boolean)
+        );
+        console.log("[DEBUG] renderChatLogsFromSession: update mode, existing messages:", existingIds.size);
+        
+        // 세션의 turn_logs에서 중복 제거
+        const rawLogs = session.turn_logs || [];
+        const logs = dedupeMessages(rawLogs);
+        
+        // 아직 없는 메시지만 append (delta append)
+        let newCount = 0;
+        logs.forEach((log) => {
+          if (log.speaker_type === 'narration') {
+            return;
+          }
+          
+          const messageId = getGameMessageId(log);
+          if (!existingIds.has(messageId)) {
+            appendGameMessage(log, session);
+            newCount++;
+          }
+        });
+        console.log("[DEBUG] renderChatLogsFromSession: appended", newCount, "new messages");
+        
+        // 선택지 버튼 처리 (마지막 턴만)
+        const actionsEl = document.getElementById('game-turn-actions');
+        if (actionsEl && logs.length > 0) {
+          const lastLog = logs[logs.length - 1];
+          const choices = lastLog?.choices || lastLog?.meta?.choices || [];
+          if (choices.length > 0) {
+            actionsEl.innerHTML = '';
+            choices.forEach((choice) => {
+              const btn = document.createElement('button');
+              btn.textContent = choice.text || choice;
+              btn.onclick = () => {
+                const choiceText = choice.text || choice;
+                const ta = document.getElementById('ta');
+                if (ta) {
+                  ta.value = choiceText;
+                  const sendBtn = document.getElementById('send');
+                  if (sendBtn) sendBtn.click();
+                }
+              };
+              actionsEl.appendChild(btn);
+            });
+          }
+        }
+        
+        return; // 업데이트 모드는 여기서 종료
       }
       
+      // 초기 로드 모드: 전체 렌더링
       // 캐릭터 맵 생성 (id와 name 둘 다로 매핑) - session만 사용
       const characterMaps = buildCharacterMaps(session);
       
@@ -1675,28 +1791,11 @@
           return;
         }
         
-        const isPlayer = log.speaker_type === 'player';
-        const row = document.createElement('div');
-        row.className = `msg ${isPlayer ? 'me' : ''}`;
-        
-        // 페이지 레벨에서 아바타 URL 계산
-        const { avatarUrl, name: displayName } = getAvatarForLog(log, characterMaps, session);
-        
-        // 이름 레이블 생성
-        const nameLabel = displayName ? `<strong>${escapeHtml(displayName)}</strong>: ` : '';
-        
-        // 플레이어는 아바타 없이
-        if (isPlayer) {
-          row.innerHTML = `<div class="bubble">${renderMessageText(log.text)}</div>`;
-        } else {
-          // NPC/Monster는 아바타와 함께 (이미 풀 URL로 변환된 avatarUrl 사용)
-          row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName || 'NPC'}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
-        }
-        
-        chatEl.appendChild(row);
+        appendGameMessage(log, session);
       });
       
       // 마지막 턴의 선택지 처리 (한 번만, 중복 방지)
+      const actionsEl = document.getElementById('game-turn-actions');
       if (logs.length > 0 && actionsEl) {
         const lastLog = logs[logs.length - 1];
         const choices = lastLog?.choices || lastLog?.meta?.choices || [];
@@ -1821,8 +1920,8 @@
         // HUD 렌더링
         renderHudFromSession(currentSession);
         
-        // 채팅 로그 렌더링 (session.turn_logs만 사용 - 한 번만)
-        renderChatLogsFromSession(currentSession);
+        // 채팅 로그 렌더링 (초기 로드 - 전체 렌더링)
+        renderChatLogsFromSession(currentSession, { isInitialLoad: true });
         
         // 내레이션 영역 업데이트
         if (narrationEl && currentSession.turn_logs.length > 0) {
