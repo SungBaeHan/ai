@@ -1557,8 +1557,9 @@
           const newLength = currentSession.turn_logs.length;
           console.log("[DEBUG] Using session from response, turn_logs length:", prevLength, "->", newLength);
           
-          // ✅ 헤더만 갱신 (배지는 renderChatLogsFromSession에서 새 메시지에만 추가됨)
-          refreshHeaderPersonaBadge();
+          // ⚠️ refreshHeaderPersonaBadge() 호출 제거 - 페르조나 변경 시에만 갱신
+          // 세션 교체 시에는 헤더를 갱신하지 않아 기존 페르조나가 유지됨
+          // refreshHeaderPersonaBadge();
           // ⚠️ refreshPlayerPersonaBadgesInGameChat()는 호출하지 않음 - 기존 메시지 배지 보존
           
           // 1) HUD 업데이트
