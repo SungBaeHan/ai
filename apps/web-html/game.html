@@ -944,13 +944,33 @@
       return `${R2_BASE}/assets/persona/${u}`;
     }
     
-    // 게임 세션의 활성 persona 반환
+    // 게임 세션의 활성 persona 반환 (persona_ref_id로 복구 지원)
     function getActivePersonaForGame() {
-      if (currentSession?.player_persona?.persona_id) {
+      // 1) 세션에 player_persona가 있으면 반환 (persona_id 체크로 필터링하지 않음)
+      if (currentSession?.player_persona) {
         return currentSession.player_persona;
       }
       
-      // fallback: PERSONAS_LIST에서 default persona
+      // 2) persona_ref_id로 PERSONAS_LIST에서 복구
+      if (currentSession?.persona_ref_id && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
+        const matched = PERSONAS_LIST.find(p => 
+          p.persona_ref_id === currentSession.persona_ref_id || 
+          p._id === currentSession.persona_ref_id
+        );
+        
+        if (matched) {
+          return {
+            persona_id: matched.persona_id,
+            name: matched.name,
+            gender: matched.gender,
+            intro: matched.intro || matched.bio || matched.summary,
+            image_url: matched.image_url || matched.image?.url || resolvePersonaUrl(`/assets/persona/${matched.image_key || matched.image?.key || 'F01'}.png`),
+            image_key: matched.image_key || matched.image?.key
+          };
+        }
+      }
+      
+      // 3) fallback: PERSONAS_LIST에서 default persona
       const ps = PERSONAS_LIST || [];
       const d = ps.find(p => p.is_default) || ps[0];
       if (d?.persona_id) {
@@ -1277,6 +1297,14 @@
       }
 
       try {
+        // persona_ref_id 결정 (우선순위: persona_ref_id > _id > persona_id fallback)
+        const refId = persona.persona_ref_id || persona._id || null;
+        if (!refId) {
+          console.warn('[PERSONA] persona_ref_id not found, using persona_id as fallback:', persona.persona_id);
+          showToast('페르조나 참조 ID를 찾을 수 없어 임시 ID를 사용합니다.', 2000);
+        }
+        const finalRefId = refId || persona.persona_id;
+
         // Optimistic UI 업데이트
         if (currentSession) {
           currentSession.player_persona = {
@@ -1284,9 +1312,10 @@
             name: persona.name,
             gender: persona.gender,
             intro: persona.intro || persona.bio || persona.summary,
-            image_url: persona.image?.url || resolvePersonaUrl(`/assets/persona/${persona.image_key || 'F01'}.png`)
+            image_url: persona.image?.url || resolvePersonaUrl(`/assets/persona/${persona.image_key || 'F01'}.png`),
+            image_key: persona.image_key || persona.image?.key
           };
-          currentSession.persona_ref_id = persona.persona_id;
+          currentSession.persona_ref_id = finalRefId;
           
           // 헤더 badge 즉시 갱신
           refreshHeaderPersonaBadge();
@@ -1303,7 +1332,7 @@
           method: 'POST',
           credentials: 'include',
           headers,
-          body: JSON.stringify({ persona_ref_id: persona.persona_id })
+          body: JSON.stringify({ persona_ref_id: finalRefId })
         });
 
         if (!res.ok) {
@@ -1749,10 +1778,13 @@
       badge.className = 'persona-badge persona-badge--mini';
       badge.title = `${persona.name ?? 'persona'}`;
 
-      // persona 이미지 URL 생성 (resolvePersonaUrl로 통일, 로컬 경로 직접 접근 금지)
+      // persona 이미지 URL 생성 (다양한 입력 구조 지원, resolvePersonaUrl로 통일)
       let src = '';
+      // 우선순위: image_url > image?.url > image_key > image?.key > fallback
       if (persona.image_url) {
         src = persona.image_url;
+      } else if (persona.image?.url) {
+        src = persona.image.url;
       } else {
         let key = persona.image_key || persona.image?.key || '';
         if (key && key.startsWith('preset_')) {
@@ -1762,6 +1794,9 @@
         // resolvePersonaUrl은 /assets/persona/... 형태의 경로를 받음
         if (key) {
           src = resolvePersonaUrl(`/assets/persona/${key}.png`);
+        } else {
+          // 최종 fallback
+          src = resolvePersonaUrl('/assets/persona/F01.png');
         }
       }
 
@@ -2271,6 +2306,21 @@
         }
       });
     });
+
+    // 디버그 유틸: 게임 배지 상태 체크
+    window.__debugGameBadges = function () {
+      const playerRows = document.querySelectorAll('.game-msg--player').length;
+      const miniBadges = document.querySelectorAll('.persona-badge--mini').length;
+      const npcAvatars = document.querySelectorAll('.game-msg--npc .game-avatar').length;
+      console.log({ 
+        playerRows, 
+        miniBadges, 
+        npcAvatars, 
+        currentSessionPersonaRef: currentSession?.persona_ref_id, 
+        currentSessionPlayerPersona: currentSession?.player_persona 
+      });
+      return { playerRows, miniBadges, npcAvatars };
+    };
   </script>
 </body>
 </html>
