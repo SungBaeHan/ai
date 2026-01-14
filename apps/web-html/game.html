@@ -1627,12 +1627,39 @@
           console.warn('[askLLM] j.session not found, loading from API');
           const sessionData = await loadSession(GAME_ID);
           if (sessionData) {
-            const prevLength = currentSession?.turn_logs?.length || 0;
+            // persona 보존: 서버가 누락/빈값으로 내려줄 때 default fallback 방지
+            const prev = currentSession || null;
+            const prevPersonaRefId = prev?.persona_ref_id ?? null;
+            const prevPlayerPersona = prev?.player_persona ?? null;
+
+            const prevLength = prev?.turn_logs?.length || 0;
             currentSession = sessionData;
-            const newLength = currentSession.turn_logs.length;
+            const newLength = currentSession?.turn_logs?.length || 0;
+
+            // ✅ persona 보존: 서버가 누락/빈값으로 내려줄 때 default fallback 방지
+            // 1) persona_ref_id 보존
+            if (!currentSession?.persona_ref_id && prevPersonaRefId) {
+              currentSession.persona_ref_id = prevPersonaRefId;
+              console.log('[PERSONA][MERGE] preserved persona_ref_id:', prevPersonaRefId);
+            }
+
+            // 2) player_persona 보존 (name/image_key/image_url 중 하나라도 없으면 보존 대상으로 판단)
+            const sp = currentSession?.player_persona;
+            const spHasEnough =
+              !!(sp && (sp.name || sp.image_key || sp.image_url || sp.image?.url));
+
+            if (!spHasEnough && prevPlayerPersona) {
+              currentSession.player_persona = prevPlayerPersona;
+              console.log('[PERSONA][MERGE] preserved player_persona:', prevPlayerPersona?.name);
+            }
+
             console.log("[DEBUG] Loaded session from API, turn_logs length:", prevLength, "->", newLength);
             renderHudFromSession(currentSession);
             renderChatLogsFromSession(currentSession, { isInitialLoad: false });
+            
+            // 디버그 로그: persona 정보 확인
+            console.log('[PERSONA][POST-ASK] currentSession.persona_ref_id:', currentSession?.persona_ref_id);
+            console.log('[PERSONA][POST-ASK] currentSession.player_persona:', currentSession?.player_persona);
             if (narrationEl) {
               const lastNarration = currentSession.turn_logs
                 .filter(log => log.speaker_type === 'narration')
