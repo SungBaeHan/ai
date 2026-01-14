@@ -37,37 +37,22 @@ def get_anon_id(request: Request) -> str:
 def get_user_id(request: Request) -> Optional[str]:
     """
     Request에서 user_id를 추출합니다.
-    우선순위:
-    1. request.state.user_id (최우선, 인증 dependency에서 주입)
-    2. request.user.id 또는 request.user.user_id (있으면)
-    3. 없으면 None
+    
+    주의: request.user 접근은 AuthenticationMiddleware가 필요하므로 사용하지 않습니다.
+    request.state.user_id만 사용하며, 인증 dependency(get_current_user_from_token)에서 주입됩니다.
+    
+    Returns:
+        user_id (str) 또는 None
     """
-    # 1. request.state.user_id (최우선)
-    uid = getattr(getattr(request, "state", None), "user_id", None)
-    if uid:
-        return str(uid)
-    
-    # 2. request.user (있으면)
-    user = getattr(request, "user", None)
-    if user:
-        if isinstance(user, dict):
-            return str(user.get("user_id") or user.get("id") or user.get("_id") or "")
-        else:
-            uid = getattr(user, "user_id", None) or getattr(user, "id", None) or getattr(user, "_id", None)
-            if uid:
-                return str(uid)
-    
-    # 3. request.state.current_user (하위 호환성)
-    if hasattr(request.state, "current_user") and request.state.current_user:
-        user = request.state.current_user
-        if isinstance(user, dict):
-            return str(user.get("user_id") or user.get("id") or user.get("_id") or "")
-        elif hasattr(user, "user_id"):
-            return str(user.user_id)
-        elif hasattr(user, "id"):
-            return str(user.id)
-        elif hasattr(user, "_id"):
-            return str(user._id)
+    # request.state.user_id만 사용 (인증 dependency에서 주입)
+    # getattr을 사용하여 안전하게 접근 (state가 없어도 에러 없음)
+    try:
+        uid = getattr(getattr(request, "state", None), "user_id", None)
+        if uid:
+            return str(uid)
+    except Exception:
+        # 방어 코드: state 접근 실패 시 None 반환
+        pass
     
     return None
 
