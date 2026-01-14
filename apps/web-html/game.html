@@ -1570,9 +1570,31 @@
         // 로컬로 추가하지 않고 백엔드가 내려준 session을 그대로 사용
         if (j.session) {
           // 백엔드 응답의 session을 그대로 사용 (중복 방지: 세션 전체 교체)
-          const prevLength = currentSession?.turn_logs?.length || 0;
+          const prev = currentSession || null;
+          const prevPersonaRefId = prev?.persona_ref_id ?? null;
+          const prevPlayerPersona = prev?.player_persona ?? null;
+
+          const prevLength = prev?.turn_logs?.length || 0;
           currentSession = j.session;
-          const newLength = currentSession.turn_logs.length;
+          const newLength = currentSession?.turn_logs?.length || 0;
+
+          // ✅ persona 보존: 서버가 누락/빈값으로 내려줄 때 default fallback 방지
+          // 1) persona_ref_id 보존
+          if (!currentSession?.persona_ref_id && prevPersonaRefId) {
+            currentSession.persona_ref_id = prevPersonaRefId;
+            console.log('[PERSONA][MERGE] preserved persona_ref_id:', prevPersonaRefId);
+          }
+
+          // 2) player_persona 보존 (name/image_key/image_url 중 하나라도 없으면 보존 대상으로 판단)
+          const sp = currentSession?.player_persona;
+          const spHasEnough =
+            !!(sp && (sp.name || sp.image_key || sp.image_url || sp.image?.url));
+
+          if (!spHasEnough && prevPlayerPersona) {
+            currentSession.player_persona = prevPlayerPersona;
+            console.log('[PERSONA][MERGE] preserved player_persona:', prevPlayerPersona?.name);
+          }
+
           console.log("[DEBUG] Using session from response, turn_logs length:", prevLength, "->", newLength);
           
           // ⚠️ refreshHeaderPersonaBadge() 호출 제거 - 페르조나 변경 시에만 갱신
@@ -1586,6 +1608,10 @@
           // 2) 채팅 로그 업데이트 (delta append 방식 - 배지 유지)
           // 로컬 메시지 배열 없이 오직 session.turn_logs만 렌더링
           renderChatLogsFromSession(currentSession, { isInitialLoad: false });
+          
+          // 디버그 로그: persona 정보 확인
+          console.log('[PERSONA][POST-ASK] currentSession.persona_ref_id:', currentSession?.persona_ref_id);
+          console.log('[PERSONA][POST-ASK] currentSession.player_persona:', currentSession?.player_persona);
           
           // 3) 내레이션 업데이트
           if (narrationEl) {
