@@ -2040,7 +2040,25 @@
           }
         }
         
-        // 3) 현재 활성 persona 사용 (fallback)
+        // 3) SELECTED_PERSONA_ID 확인 (사용자가 선택한 페르조나 우선)
+        if (!persona && SELECTED_PERSONA_ID && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
+          const selectedPersona = PERSONAS_LIST.find(p => p.persona_id === SELECTED_PERSONA_ID);
+          if (selectedPersona) {
+            persona = {
+              persona_ref_id: String(selectedPersona.persona_ref_id || selectedPersona._id || selectedPersona.persona_id || ''),
+              persona_id: selectedPersona.persona_id != null ? String(selectedPersona.persona_id) : null,
+              name: selectedPersona.name,
+              gender: selectedPersona.gender,
+              intro: selectedPersona.intro || selectedPersona.bio || selectedPersona.summary || '',
+              image_key: selectedPersona.image_key || selectedPersona.image?.key,
+              image_url: selectedPersona.image_url || selectedPersona.image?.url || (selectedPersona.image_key ? resolvePersonaUrl(`/assets/persona/${selectedPersona.image_key}.png`) : null),
+            };
+            personaId = persona.persona_ref_id || persona.persona_id;
+            console.log('[DEBUG] createGameMessageElement: using SELECTED_PERSONA_ID:', persona.name);
+          }
+        }
+        
+        // 4) 현재 활성 persona 사용 (fallback)
         if (!persona) {
           persona = getActivePersonaForGame();
           if (persona) {
