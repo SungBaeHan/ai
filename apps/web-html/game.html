@@ -1393,8 +1393,11 @@
           
           // 헤더 badge 즉시 갱신
           refreshHeaderPersonaBadge();
-          // 기존 메시지 배지도 갱신
-          refreshPlayerPersonaBadgesInGameChat();
+          
+          // ✅ 페르조나 변경 시 game chat 전체 리렌더링 (기존 메시지 배지도 새 페르조나로 통일)
+          console.log('[PERSONA] persona changed, re-rendering game chat');
+          renderHudFromSession(currentSession);
+          renderChatLogsFromSession(currentSession, { isInitialLoad: true });
         }
 
         // 서버에 저장
