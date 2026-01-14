@@ -753,6 +753,21 @@
     // 백엔드 LLM 호출
     async function askLLM(message, mode='trpg', choices=0){
       try {
+      // chat_send 이벤트 로깅 (채팅 원문은 저장하지 않음)
+      if (window.logEvent) {
+        window.logEvent(
+          window.EVENT.CHAT_SEND,
+          'character',
+          {
+            chat_type: 'character',
+            message_len: message ? message.length : 0,
+          },
+          {
+            entity_id: CURRENT_CHAR?.id ? String(CURRENT_CHAR.id) : null,
+          }
+        );
+      }
+      
       const token = getToken();
       const headers = { 'Content-Type': 'application/json' };
       
@@ -778,7 +793,7 @@
         console.log('[askLLM] API_BASE_URL:', API_BASE_URL);
         console.log('[askLLM] Payload:', payload);
         
-        const r = await fetch(url, {
+        const r = await (window.apiFetch || fetch)(url, {
           method: "POST",
           credentials: "include",
           headers: headers,

@@ -495,8 +495,88 @@ async def chat(req: Request, current_user: dict = Depends(get_current_user_from_
 
         # 4) LLM 호출 (전체 타임아웃 제한)
         # OpenAI는 기본적으로 빠르므로 타임아웃을 25초로 설정
-        raw = await _invoke_llm_with_timeout(llm, messages, timeout=25.0)
-        text = getattr(raw, "content", str(raw))
+        
+        # LLM 호출 시작 이벤트
+        from apps.api.services.logging_service import (
+            get_anon_id,
+            get_user_id,
+            get_ip_ua_ref,
+            insert_event_log,
+        )
+        from datetime import datetime, timezone
+        import time
+        
+        llm_start_time = time.time()
+        anon_id = get_anon_id(req)
+        user_id_from_req = get_user_id(req)
+        ip_ua_ref = get_ip_ua_ref(req)
+        
+        # chat_type 결정
+        chat_type = "world" if (world_id or chat_type_from_body == "world") else "character"
+        entity_id = str(world_id) if world_id else (str(character_id) if character_id else None)
+        
+        event_start_doc = {
+            "ts": datetime.now(timezone.utc),
+            "name": "chat_response_start",
+            "source": chat_type,
+            "anon_id": anon_id,
+            "user_id": user_id_from_req,
+            "path": req.url.path,
+            "session_id": sid,
+            "entity_id": entity_id,
+            "request_id": trace_id,
+            "payload": {
+                "chat_type": chat_type,
+                "mode": mode,
+                "message_len": len(q),
+            },
+        }
+        insert_event_log(event_start_doc)
+        
+        try:
+            raw = await _invoke_llm_with_timeout(llm, messages, timeout=25.0)
+            text = getattr(raw, "content", str(raw))
+            
+            # LLM 호출 성공 이벤트
+            llm_duration_ms = int((time.time() - llm_start_time) * 1000)
+            event_done_doc = {
+                "ts": datetime.now(timezone.utc),
+                "name": "chat_response_done",
+                "source": chat_type,
+                "anon_id": anon_id,
+                "user_id": user_id_from_req,
+                "path": req.url.path,
+                "session_id": sid,
+                "entity_id": entity_id,
+                "request_id": trace_id,
+                "payload": {
+                    "chat_type": chat_type,
+                    "mode": mode,
+                    "latency_ms": llm_duration_ms,
+                    "response_len": len(text),
+                },
+            }
+            insert_event_log(event_done_doc)
+        except Exception as llm_error:
+            # LLM 호출 실패 이벤트
+            event_fail_doc = {
+                "ts": datetime.now(timezone.utc),
+                "name": "chat_response_fail",
+                "source": chat_type,
+                "anon_id": anon_id,
+                "user_id": user_id_from_req,
+                "path": req.url.path,
+                "session_id": sid,
+                "entity_id": entity_id,
+                "request_id": trace_id,
+                "payload": {
+                    "chat_type": chat_type,
+                    "mode": mode,
+                    "error_type": type(llm_error).__name__,
+                },
+            }
+            insert_event_log(event_fail_doc)
+            raise
 
         # 5) 후처리 (TRPG 장면 + 선택지 + 폴리싱)
         # 요청에서 polish 플래그를 받을 수 있게 (기본값: None → 상수 ENABLE_POLISH 사용)

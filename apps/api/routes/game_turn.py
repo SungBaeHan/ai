@@ -405,11 +405,46 @@ async def play_turn(
             user_prompt = event_text + "\n" + user_prompt
         
         # 7) LLM 호출
+        from apps.api.services.logging_service import (
+            get_anon_id,
+            get_user_id,
+            get_ip_ua_ref,
+            insert_event_log,
+        )
+        from apps.api.utils.trace import make_trace_id
+        from datetime import datetime, timezone
+        import time
+        
         llm_client = get_default_llm_client()
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT_TRPG},
             {"role": "user", "content": user_prompt},
         ]
+        
+        # LLM 호출 시작 이벤트
+        trace_id = make_trace_id()
+        llm_start_time = time.time()
+        anon_id = get_anon_id(request)
+        user_id_from_req = get_user_id(request)
+        ip_ua_ref = get_ip_ua_ref(request)
+        
+        event_start_doc = {
+            "ts": datetime.now(timezone.utc),
+            "name": "chat_response_start",
+            "source": "game",
+            "anon_id": anon_id,
+            "user_id": user_id_from_req,
+            "path": request.url.path,
+            "session_id": str(game_session.get("_id", "")),
+            "entity_id": str(game_id),
+            "request_id": trace_id,
+            "payload": {
+                "chat_type": "game",
+                "turn": current_turn,
+                "message_len": len(payload.user_message),
+            },
+        }
+        insert_event_log(event_start_doc)
         
         try:
             raw_response = llm_client.generate_chat_completion(
@@ -418,7 +453,46 @@ async def play_turn(
                 temperature=0.7,
                 max_tokens=1024,  # 구조화된 JSON 응답을 위해 증가
             )
+            
+            # LLM 호출 성공 이벤트
+            llm_duration_ms = int((time.time() - llm_start_time) * 1000)
+            event_done_doc = {
+                "ts": datetime.now(timezone.utc),
+                "name": "chat_response_done",
+                "source": "game",
+                "anon_id": anon_id,
+                "user_id": user_id_from_req,
+                "path": request.url.path,
+                "session_id": str(game_session.get("_id", "")),
+                "entity_id": str(game_id),
+                "request_id": trace_id,
+                "payload": {
+                    "chat_type": "game",
+                    "turn": current_turn,
+                    "latency_ms": llm_duration_ms,
+                    "response_len": len(str(raw_response)),
+                },
+            }
+            insert_event_log(event_done_doc)
         except Exception as e:
+            # LLM 호출 실패 이벤트
+            event_fail_doc = {
+                "ts": datetime.now(timezone.utc),
+                "name": "chat_response_fail",
+                "source": "game",
+                "anon_id": anon_id,
+                "user_id": user_id_from_req,
+                "path": request.url.path,
+                "session_id": str(game_session.get("_id", "")),
+                "entity_id": str(game_id),
+                "request_id": trace_id,
+                "payload": {
+                    "chat_type": "game",
+                    "turn": current_turn,
+                    "error_type": type(e).__name__,
+                },
+            }
+            insert_event_log(event_fail_doc)
             logger.exception(f"LLM call failed: {e}")
             raise HTTPException(status_code=500, detail=f"LLM 호출 실패: {str(e)}")
         

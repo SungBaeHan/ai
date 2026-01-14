@@ -1512,6 +1512,21 @@
         headers['Authorization'] = `Bearer ${token}`;
       }
       
+      // chat_send 이벤트 로깅 (채팅 원문은 저장하지 않음)
+      if (window.logEvent && isGamePage && GAME_ID) {
+        window.logEvent(
+          window.EVENT.CHAT_SEND,
+          'game',
+          {
+            chat_type: 'game',
+            message_len: message ? message.length : 0,
+          },
+          {
+            entity_id: String(GAME_ID),
+          }
+        );
+      }
+      
       // 게임 페이지면 /v1/games/{id}/turn, 아니면 /v1/chat/
       const API_URL = isGamePage && GAME_ID
         ? `${API_BASE_URL}/v1/games/${GAME_ID}/turn`
@@ -1540,7 +1555,7 @@
         console.log('[askLLM] isGamePage:', isGamePage, 'GAME_ID:', GAME_ID);
         console.log('[askLLM] Payload:', payload);
         
-        const r = await fetch(API_URL, {
+        const r = await (window.apiFetch || fetch)(API_URL, {
           method: "POST",
           credentials: "include",
           headers: headers,
