@@ -140,5 +140,33 @@
         meta: {},
       });
     });
+    
+    // === GLOBAL FETCH PATCH: always attach X-Anon-Id ===
+    (function patchFetchWithAnonId() {
+      if (window.__FETCH_ANON_PATCHED__) return;
+      window.__FETCH_ANON_PATCHED__ = true;
+
+      if (!window.fetch) return;
+      const _fetch = window.fetch.bind(window);
+
+      window.fetch = function(input, init = {}) {
+        const headers = new Headers(init.headers || {});
+        const anonId = window.ANON_ID || localStorage.getItem('anon_id') || 'missing';
+        headers.set('X-Anon-Id', anonId);
+        return _fetch(input, { ...init, headers });
+      };
+    })();
+    
+    // === apiFetch도 동일 헤더 보장 (이중 안전망) ===
+    if (window.apiFetch) {
+      const originalApiFetch = window.apiFetch;
+      window.apiFetch = function(url, options = {}) {
+        const headers = new Headers(options.headers || {});
+        const anonId = window.ANON_ID || localStorage.getItem('anon_id') || 'missing';
+        headers.set('X-Anon-Id', anonId);
+        options.headers = headers;
+        return originalApiFetch(url, options);
+      };
+    }
   }
 })();
