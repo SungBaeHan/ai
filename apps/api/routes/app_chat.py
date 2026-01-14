@@ -401,6 +401,13 @@ async def chat(req: Request, current_user: dict = Depends(get_current_user_from_
             (character.get("id") if isinstance(character, dict) else None)
         )
         
+        # === chat_type/entity_id 단일화 블록 (한 번만 정의) ===
+        world_id = data.get("world_id")
+        chat_type_from_body = data.get("chat_type")
+        is_world = bool(world_id) or (chat_type_from_body == "world")
+        chat_type = "world" if is_world else "character"
+        entity_id = str(world_id) if is_world and world_id else (str(character_id) if character_id else None)
+        
         # 진입 로그
         msg_len = len(q) if q else 0
         char_id_str = str(character_id) if character_id else None
@@ -511,10 +518,7 @@ async def chat(req: Request, current_user: dict = Depends(get_current_user_from_
         user_id_from_req = get_user_id(req)
         ip_ua_ref = get_ip_ua_ref(req)
         
-        # chat_type 결정
-        chat_type = "world" if (world_id or chat_type_from_body == "world") else "character"
-        entity_id = str(world_id) if world_id else (str(character_id) if character_id else None)
-        
+        # chat_type/entity_id는 위에서 이미 정의됨 (재계산 금지)
         event_start_doc = {
             "ts": datetime.now(timezone.utc),
             "name": "chat_response_start",
@@ -618,11 +622,11 @@ async def chat(req: Request, current_user: dict = Depends(get_current_user_from_
             )
         
         # character_id 또는 world_id가 있으면 저장 (캐릭터/세계관 채팅 모드일 때만)
-        world_id = data.get("world_id")
-        chat_type_from_body = data.get("chat_type")
+        # world_id/chat_type_from_body는 위에서 이미 정의됨 (재정의 금지)
+        # is_world 기준으로 분기 처리
         
-        # World Chat 분기 (world_id가 있거나 chat_type="world")
-        if world_id or chat_type_from_body == "world":
+        # World Chat 분기
+        if is_world:
             if world_id:
                 logger.info("[CHAT][BRANCH] trace=%s -> world_chat_save world_id=%s", trace_id, world_id)
                 try:
