@@ -138,6 +138,10 @@ async def get_current_user_from_token(request: Request) -> dict:
             user = await _decode_jwt_access_token(token, request)
             if not user:
                 raise HTTPException(status_code=401, detail="Invalid JWT token")
+            # request.state.user_id 주입 (로깅 서비스에서 사용)
+            user_id = user.get("user_id")
+            if user_id:
+                request.state.user_id = str(user_id)
             logger.info("[AUTH][TRACE] jwt_decode_ok path=%s user_id=%s", getattr(request.url, "path", "<?>"), user.get("user_id", "<?>"))
             return user
         else:
@@ -216,9 +220,12 @@ async def get_current_user_from_token(request: Request) -> dict:
         raise HTTPException(status_code=401, detail="User session invalid (last_login_at mismatch)")
 
     # 사용자 정보 반환 (dict 형태, validate-session과 동일한 구조)
-    logger.info("[AUTH][TRACE] auth_success path=%s user_id=%s", getattr(request.url, "path", "<?>"), str(user.get("_id", "<?>")))
+    user_id = str(user["_id"])
+    logger.info("[AUTH][TRACE] auth_success path=%s user_id=%s", getattr(request.url, "path", "<?>"), user_id)
+    # request.state.user_id 주입 (로깅 서비스에서 사용)
+    request.state.user_id = user_id
     return {
-        "user_id": str(user["_id"]),
+        "user_id": user_id,
         "email": user.get("email", info.email),
         "display_name": user.get("display_name", info.display_name),
         "google_id": user.get("google_id"),

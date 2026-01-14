@@ -37,19 +37,37 @@ def get_anon_id(request: Request) -> str:
 def get_user_id(request: Request) -> Optional[str]:
     """
     Request에서 user_id를 추출합니다.
-    request.state.user_id 또는 request.state.current_user에서 가져옵니다.
+    우선순위:
+    1. request.state.user_id (최우선, 인증 dependency에서 주입)
+    2. request.user.id 또는 request.user.user_id (있으면)
+    3. 없으면 None
     """
-    # request.state에 user_id가 있는지 확인
-    if hasattr(request.state, "user_id") and request.state.user_id:
-        return str(request.state.user_id)
+    # 1. request.state.user_id (최우선)
+    uid = getattr(getattr(request, "state", None), "user_id", None)
+    if uid:
+        return str(uid)
     
-    # request.state에 current_user가 있는지 확인
+    # 2. request.user (있으면)
+    user = getattr(request, "user", None)
+    if user:
+        if isinstance(user, dict):
+            return str(user.get("user_id") or user.get("id") or user.get("_id") or "")
+        else:
+            uid = getattr(user, "user_id", None) or getattr(user, "id", None) or getattr(user, "_id", None)
+            if uid:
+                return str(uid)
+    
+    # 3. request.state.current_user (하위 호환성)
     if hasattr(request.state, "current_user") and request.state.current_user:
         user = request.state.current_user
         if isinstance(user, dict):
-            return user.get("user_id")
+            return str(user.get("user_id") or user.get("id") or user.get("_id") or "")
         elif hasattr(user, "user_id"):
             return str(user.user_id)
+        elif hasattr(user, "id"):
+            return str(user.id)
+        elif hasattr(user, "_id"):
+            return str(user._id)
     
     return None
 
