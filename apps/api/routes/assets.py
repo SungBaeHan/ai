@@ -10,7 +10,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 from adapters.persistence.mongo import get_db
-from apps.api.utils import build_public_image_url
+from apps.api.utils.common import build_public_image_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/assets", tags=["assets"])

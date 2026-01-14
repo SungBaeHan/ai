@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 import os, certifi
 from pymongo import MongoClient
-from apps.api.utils import mask_mongo_uri
+from apps.api.utils.common import mask_mongo_uri
 
 router = APIRouter()
 

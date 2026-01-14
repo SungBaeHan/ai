@@ -15,10 +15,10 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Depends, Query, status
 from adapters.persistence.mongo import get_db
 from adapters.file_storage.r2_storage import R2Storage
-from apps.api.routes.worlds import get_current_user_v2
+from apps.api.deps.auth import get_current_user_from_token
 from apps.api.deps.user_snapshot import build_owner_ref_info
 from apps.api.services.game_session import build_initial_characters_info
-from apps.api.utils import build_public_image_url, build_public_image_url_from_path
+from apps.api.utils.common import build_public_image_url, build_public_image_url_from_path
 from apps.core.utils.assets import normalize_asset_path
 from apps.api.models.games import (
     GameCreateRequest,
@@ -126,7 +126,7 @@ async def create_game(
     file: Optional[UploadFile] = File(None),
     meta: str = Form(...),
     db: Database = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
 ):
     """
     게임 생성 엔드포인트.
@@ -416,19 +416,44 @@ def enrich_game_asset_urls(game: GameResponse) -> GameResponse:
 async def list_games(
     offset: int = Query(0, ge=0, alias="offset"),
     limit: int = Query(20, ge=1, le=200, alias="limit"),
+    q: Optional[str] = Query(None, description="게임 제목/태그/요약 검색어"),
     db: Database = Depends(get_db),
 ):
     """
     게임 목록 조회 (created_at DESC 기준 정렬)
+
+    - 기본: 전체 목록
+    - q 가 있으면 title / tags / scenario_summary 에 대한 부분 일치(case-insensitive) 검색
+
     캐릭터/세계관과 동일한 응답 구조: { total, items, offset, limit }
     """
+    # 검색어 전처리
+    if q is not None:
+        q = q.strip()
+        if q == "":
+            q = None
+
+    # 검색 필터 구성
+    base_query: Dict[str, Any] = {}
+    if q:
+        search_filter: Dict[str, Any] = {
+            "$or": [
+                {"title": {"$regex": q, "$options": "i"}},
+                {"tags": {"$regex": q, "$options": "i"}},
+                {"scenario_summary": {"$regex": q, "$options": "i"}},
+            ]
+        }
+        query: Dict[str, Any] = {**base_query, **search_filter}
+    else:
+        query = base_query
+
     # 전체 개수 조회
-    total = db.games.count_documents({})
+    total = db.games.count_documents(query)
     
     # 게임 목록 조회
     cursor = (
         db.games
-        .find({})
+        .find(query)
         .sort("created_at", -1)
         .skip(offset)
         .limit(limit)
@@ -454,6 +479,89 @@ async def list_games(
         items.append(game)
     
     return GameListResponse(total=total, items=items, offset=offset, limit=limit)
+
+
+class GamePersonaRequest(BaseModel):
+    """게임 세션에 연결할 페르소나 ID"""
+
+    persona_ref_id: str
+
+
+@router.post("/{game_id}/persona", summary="게임 세션에 페르소나 매핑")
+async def set_game_persona(
+    game_id: int,
+    payload: GamePersonaRequest,
+    db: Database = Depends(get_db),
+    current_user=Depends(get_current_user_from_token),
+):
+    """
+    현재 로그인한 유저의 페르소나 중 하나를 게임 세션에 매핑한다.
+
+    - persona_ref_id 는 users.personas 배열 안의 persona_id 여야 한다.
+    - game_session.persona_ref_id, game_session.player_persona 필드를 업데이트한다.
+    """
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
+    from adapters.persistence.mongo.factory import get_mongo_client
+
+    # 1) persona_ref_id 검증 (내 사용자 문서 안에 존재하는지)
+    mongo = get_mongo_client()
+    users = mongo.users
+    try:
+        oid = ObjectId(current_user["user_id"])
+    except Exception:
+        raise HTTPException(status_code=400, detail="잘못된 사용자 ID입니다.")
+
+    user_doc = users.find_one({"_id": oid})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="사용자를 찾을 수 없습니다.")
+
+    personas = user_doc.get("personas") or []
+    target = None
+    for p in personas:
+        if p.get("persona_id") == payload.persona_ref_id:
+            target = p
+            break
+
+    if not target:
+        raise HTTPException(status_code=400, detail="해당 페르소나를 찾을 수 없습니다.")
+
+    # 2) game_session 조회 (이미 생성되어 있어야 함)
+    session = db.game_session.find_one(
+        {
+            "game_id": game_id,
+            "owner_ref_info.user_ref_id": current_user.get("user_id"),
+        }
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="게임 세션을 찾을 수 없습니다. 먼저 세션을 생성하세요.")
+
+    # 3) 세션 업데이트
+    # image_key와 image_url 추출 (다양한 구조 지원)
+    image_key = (target.get("image") or {}).get("key") or target.get("image_key")
+    image_url = (target.get("image") or {}).get("url") or target.get("image_url")
+    
+    player_persona = {
+        "persona_id": target.get("persona_id"),
+        "name": target.get("name"),
+        "gender": target.get("gender"),
+        "intro": target.get("intro") or target.get("bio", ""),
+        "image_key": image_key,  # 필수: 프론트에서 resolvePersonaUrl() 사용 가능하도록
+        "image_url": image_url,  # 선택: 있으면 사용
+    }
+
+    db.game_session.update_one(
+        {"_id": session["_id"]},
+        {
+            "$set": {
+                "persona_ref_id": payload.persona_ref_id,
+                "player_persona": player_persona,
+            }
+        },
+    )
+
+    return {"ok": True, "persona_ref_id": payload.persona_ref_id, "player_persona": player_persona}
 
 @router.get("/{game_id}", response_model=GameResponse, summary="게임 상세 조회")
 async def get_game(
@@ -487,7 +595,7 @@ async def get_game(
 @router.get("/{game_id}/session", summary="게임 세션 조회/생성")
 async def get_or_create_game_session(
     game_id: int,
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
     db: Database = Depends(get_db),
 ):
     """
@@ -581,11 +689,29 @@ async def get_or_create_game_session(
         },
     }
     
-    # 6) 새로운 세션 도큐먼트 구성
+    # 6) 기본 페르소나 자동 적용
+    persona_ref_id = None
+    player_persona = None
+    try:
+        from apps.api.routes.personas import get_default_persona
+        default_persona = get_default_persona(current_user.get("user_id"))
+        if default_persona:
+            persona_ref_id = default_persona.get("persona_id")
+            player_persona = {
+                "persona_id": default_persona.get("persona_id"),
+                "name": default_persona.get("name"),
+                "gender": default_persona.get("gender"),
+                "bio": default_persona.get("bio") or default_persona.get("intro", ""),
+                "image_key": default_persona.get("image_key"),
+            }
+    except Exception as e:
+        logger.warning(f"Failed to get default persona: {e}")
+    
+    # 7) 새로운 세션 도큐먼트 구성
     new_session = {
         "game_id": game_id,
         "owner_ref_info": owner_ref_info,
-        "persona_ref_id": None,  # 페르조나 기능 확장용, 지금은 None
+        "persona_ref_id": persona_ref_id,  # 기본 페르소나 자동 적용
         
         "characters_info": characters_info,  # NPC 스냅샷 포함
         "combat": {
@@ -597,6 +723,7 @@ async def get_or_create_game_session(
         "turn": 0,
         
         "user_info": user_info,
+        "player_persona": player_persona,  # 기본 페르소나 정보
         
         # games 컬렉션의 world_snapshot을 그대로 스냅샷으로 저장
         "world_snapshot": game.get("world_snapshot"),

@@ -1,0 +1,559 @@
+<!-- =============================================
+ search.html - 통합 검색 화면 (캐릭터/세계관/게임)
+ - 메인 홈은 기존 카드 리스트 전용
+ - 상단 Search 메뉴에서 진입
+ ============================================= -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>검색 - Arcanaverse</title>
+  <script src="/js/config.js"></script>
+  <script src="/js/assets.js"></script>
+  <script>
+    // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
+    window.API_BASE_URL = 'https://api.arcanaverse.ai';
+    window.API_BASE = 'https://api.arcanaverse.ai';  // API_BASE도 함께 설정
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:#0b0f14; color:#e5e7eb;}
+
+    /* top nav (moved from bottom) */
+    .nav { position:sticky; top:0; z-index:30; background:#0b1118; border-bottom:1px solid #18212c; }
+    .navin { max-width:1200px; margin:0 auto; padding:8px 12px; display:flex; align-items:center; gap:12px; }
+    .navin .tabs { display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; flex: 1; }
+    .tab { text-align:center; padding:10px 8px; border-radius:10px; background:#0f172a; color:#a5b4fc; border:1px solid #1e293b; font-size:12px; cursor:pointer; user-select:none; text-decoration:none; }
+    .tab:active { transform:translateY(1px); }
+    .tab.active { background:#1e3a8a; border-color:#3b82f6; color:#e0e7ff; }
+
+    .wrap { max-width:1200px; margin:24px auto 40px; padding:0 16px;}
+    h1 { font-size:20px; font-weight:700; margin:8px 0 20px; color:#d1d5db; }
+    
+    /* 카테고리 탭 (두 번째 이미지 스타일) */
+    .category-tabs { display:flex; gap:8px; margin-bottom:32px; padding-bottom:0; }
+    .category-tab { 
+      padding:10px 20px; 
+      background:transparent; 
+      border:none; 
+      border-radius:12px;
+      color:#94a3b8; 
+      font-size:14px; 
+      font-weight:500; 
+      cursor:pointer; 
+      transition:all .2s ease;
+      position:relative;
+    }
+    .category-tab:hover { 
+      color:#e5e7eb; 
+      background:#1f2937;
+    }
+    .category-tab.active { 
+      color:#ffffff; 
+      background:#3b82f6;
+      font-weight:600;
+    }
+    .category-tab.active:hover {
+      background:#2563eb;
+    }
+    
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px; }
+    .card { display:block; background:#111827; border-radius:14px; overflow:hidden; border:1px solid #1f2937; text-decoration:none; color:inherit; box-shadow:0 6px 18px rgba(0,0,0,.25); transition: transform .15s ease, box-shadow .15s ease; }
+    .card:hover { transform:translateY(-2px); box-shadow:0 10px 24px rgba(0,0,0,.35); }
+    .thumb { width:100%; aspect-ratio: 16/10; object-fit:cover; background:#0f172a; display:block; }
+    .body { padding:12px 14px 16px; }
+    .name { font-size:16px; font-weight:700; color:#f3f4f6; }
+    .meta { margin-top:6px; font-size:12px; color:#94a3b8; line-height:1.4; display:block; height:32px; overflow:hidden; }
+
+    /* 토스트 */
+    .toast { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .18s ease; z-index:50; }
+    .toast.show { opacity:1; }
+    .toast .box { pointer-events:auto; min-width:200px; max-width:80vw; background:#0f172a; border:1px solid #1f2937; color:#e5e7eb; padding:14px 18px; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.45); text-align:center; }
+  </style>
+</head>
+<body>
+  <!-- Top Navigation -->
+  <div class="nav"><div class="navin">
+    <div class="tabs">
+      <a href="/home.html" class="tab" data-nav="logo">Logo</a>
+      <a href="/search.html" class="tab active" data-nav="search">Search</a>
+      <a href="/create/index.html" class="tab" data-nav="create">Create</a>
+      <a href="/home.html" class="tab" data-nav="list">My List</a>
+      <a href="/my.html" class="tab" data-nav="my">My</a>
+    </div>
+  </div></div>
+
+  <div class="wrap">
+    <h1>캐릭터 / 세계관 / 게임 검색</h1>
+
+    <!-- 통합 검색바 (캐릭터/세계관/게임 공통) -->
+    <div class="search-bar" style="margin:12px 0 20px; display:flex; gap:8px;">
+      <input
+        id="search-input"
+        type="text"
+        placeholder="이름/태그 검색"
+        style="flex:1; padding:10px 12px; background:#020617; border:1px solid #1f2937; border-radius:10px; color:#e5e7eb; font-size:14px;"
+      />
+      <button
+        id="search-button"
+        style="padding:10px 18px; background:#3b82f6; border:none; border-radius:10px; color:#fff; font-size:14px; font-weight:600; cursor:pointer;"
+      >
+        검색
+      </button>
+    </div>
+
+    <div class="category-tabs">
+      <button class="category-tab active" data-category="characters">캐릭터 선택</button>
+      <button class="category-tab" data-category="worlds">세계관 선택</button>
+      <button class="category-tab" data-category="games">게임 선택</button>
+    </div>
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <!-- Toast Layer -->
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true">
+    <div class="box">준비중입니다</div>
+  </div>
+
+  <script>
+    // 절대경로 API_BASE_URL 상수 정의
+    const API_BASE_URL =
+      window.location.hostname === "arcanaverse.ai" ||
+      window.location.hostname === "www.arcanaverse.ai"
+        ? "https://api.arcanaverse.ai"
+        : "http://localhost:8000";
+    
+    // API 실패 시 로컬 JSON 대체 경로(있다면 사용됨)
+    const CANDIDATES = ['/json/characters.json','/characters.json','/static/characters.json'];
+
+    // 검색/탭 공통 상태
+    let currentCategory = 'characters';        // 'characters' | 'worlds' | 'games'
+    let qInput = '';                           // 입력창 값
+    let qApplied = '';                         // 실제 검색에 사용된 값
+    let searchApplied = false;                 // 검색 실행 여부
+
+    // 서버 API에서 캐릭터 목록 로드
+    async function loadFromApi({ q = '', skip = 0, limit = 60 } = {}) {
+      const params = new URLSearchParams();
+      params.set('skip', String(skip));
+      params.set('limit', String(limit));
+      if (q && q.trim().length > 0) {
+        params.set('q', q.trim());
+      }
+
+      const r = await fetch(`${API_BASE_URL}/v1/characters?${params.toString()}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      return j.items || [];
+    }
+    
+    // 서버 API에서 세계관 목록 로드
+    async function loadWorldsFromApi({ q = '', offset = 0, limit = 60 } = {}) {
+      const params = new URLSearchParams();
+      params.set('offset', String(offset));
+      params.set('limit', String(limit));
+      if (q && q.trim().length > 0) {
+        params.set('q', q.trim());
+      }
+
+      const r = await fetch(`${API_BASE_URL}/v1/worlds?${params.toString()}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!r.ok) {
+        const errorText = await r.text();
+        console.error('[loadWorldsFromApi] HTTP error:', r.status, errorText);
+        throw new Error('HTTP ' + r.status + ': ' + errorText);
+      }
+      const j = await r.json();
+      console.log('[loadWorldsFromApi] Response:', j);
+      const items = j.items || [];
+      console.log('[loadWorldsFromApi] Items count:', items.length);
+      return items;
+    }
+    
+    // 서버 API에서 게임 목록 로드
+    async function loadGamesFromApi({ q = '', offset = 0, limit = 60 } = {}) {
+      const params = new URLSearchParams();
+      params.set('offset', String(offset));
+      params.set('limit', String(limit));
+      if (q && q.trim().length > 0) {
+        params.set('q', q.trim());
+      }
+
+      const r = await fetch(`${API_BASE_URL}/v1/games?${params.toString()}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!r.ok) {
+        const errorText = await r.text();
+        console.error('[loadGamesFromApi] HTTP error:', r.status, errorText);
+        throw new Error('HTTP ' + r.status + ': ' + errorText);
+      }
+      const j = await r.json();
+      console.log('[loadGamesFromApi] Response:', j);
+      const items = j.items || [];
+      console.log('[loadGamesFromApi] Items count:', items.length);
+      return items;
+    }
+    
+    // 로컬 정적 JSON에서 캐릭터 목록 로드 (개발/오프라인용)
+    async function loadFromLocal(url) {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      return j.characters || j.items || j || [];
+    }
+    // 캐릭터 목록 로드 진입점
+    async function loadCharacters(q = '') {
+      try { return await loadFromApi({ q }); }
+      catch(_) {
+        for (const url of CANDIDATES) { try { return await loadFromLocal(url); } catch(__){} }
+        return [];
+      }
+    }
+    
+    // 세계관 목록 로드
+    async function loadWorlds(q = '') {
+      try { 
+        const items = await loadWorldsFromApi({ q });
+        console.log('[loadWorlds] Success, items:', items.length);
+        return items;
+      } catch(error) {
+        console.error('[loadWorlds] Error:', error);
+        return [];
+      }
+    }
+    
+    // 게임 목록 로드
+    async function loadGames(q = '') {
+      try { 
+        const items = await loadGamesFromApi({ q });
+        console.log('[loadGames] Success, items:', items.length);
+        return items;
+      } catch(error) {
+        console.error('[loadGames] Error:', error);
+        return [];
+      }
+    }
+
+    // 숫자/char_XX 형태를 일관된 char_## 로 통일
+    function normalizeCharId(v){
+      if(!v) return 'char_01';
+      if(/^\d+$/.test(v)) return 'char_' + String(parseInt(v,10)).padStart(2,'0');
+      if(/^char_\d{1,2}$/.test(v)) return 'char_' + String(parseInt(v.split('_')[1],10)).padStart(2,'0');
+      return v;
+    }
+
+    // 썸네일 경로 처리
+    function resolvePath(p){
+      if (!p) return '/assets/img/placeholder.jpg';
+      if (/^https?:\/\//i.test(p)) return p;
+      p = String(p).replace(/\\/g, '/').trim();
+      if (p.startsWith('/')) return p;
+      if (p.startsWith('assets/')) return '/' + p;
+      // 세계관 이미지 처리
+      if (p.includes('/world/') || p.startsWith('world/') || p.startsWith('assets/world/')) {
+        p = p.replace(/^assets\/?/, '');
+        p = p.replace(/^world\//, 'world/');
+        return '/assets/' + p;
+      }
+      // 캐릭터 이미지 처리
+      if (p.includes('/char/') || p.startsWith('char/') || /^char_\d+/i.test(p) || p.startsWith('assets/char/')) {
+        p = p.replace(/^assets\/?/, '');
+        p = p.replace(/^char\//, 'char/');
+        return '/assets/' + p;
+      }
+      return '/assets/img/' + p;
+    }
+    
+    // 카드 DOM 생성 (캐릭터)
+    function card(item) {
+      const id = normalizeCharId(item.id || item.pk || item.slug || item.name || 'char_01');
+      const a  = document.createElement('a');
+      a.className = 'card';
+      a.href = `/chat?character=${id}`;
+      a.addEventListener('click', () => { try { sessionStorage.setItem('lastChar', id); } catch(_){ } });
+
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.alt = item.name || id;
+      img.src = resolvePath(item.image || item.cover || '/assets/img/placeholder.jpg');
+
+      const body = document.createElement('div'); body.className='body';
+      const name = document.createElement('div'); name.className='name'; name.textContent = item.name || id;
+      const meta = document.createElement('span'); meta.className='meta';
+      meta.textContent = (item.shortBio || item.oneLiner || item.greeting || item.summary || '').toString();
+
+      body.appendChild(name); body.appendChild(meta);
+      const chips = document.createElement('div');
+      chips.style.marginTop='6px';
+      chips.style.display='flex';
+      chips.style.gap='6px';
+      chips.innerHTML = [item.genre, item.style, item.world].filter(Boolean).map(v=>`<span style="font-size:11px;padding:2px 8px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#a5b4fc">${v}</span>`).join('');
+      body.appendChild(chips);      
+      a.appendChild(img); a.appendChild(body);
+      return a;
+    }
+    
+    // 세계관 카드 DOM 생성
+    function worldCard(item) {
+      const id = item.id || item._id || item.mongo_id || 'world_01';
+      const a = document.createElement('a');
+      a.className = 'card';
+      a.href = `/world.html?world=${id}`;
+      a.addEventListener('click', () => { try { sessionStorage.setItem('lastWorld', id); } catch(_){ } });
+
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.alt = item.name || id;
+      img.src = resolvePath(item.image || item.image_path || item.cover || '/assets/img/placeholder.jpg');
+
+      const body = document.createElement('div');
+      body.className = 'body';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = item.name || id;
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      const summaryText = (item.summary || item.detail || '').toString();
+      meta.textContent = summaryText.length > 60 ? summaryText.substring(0, 60) + '...' : summaryText;
+
+      body.appendChild(name);
+      body.appendChild(meta);
+      
+      const chips = document.createElement('div');
+      chips.style.marginTop = '6px';
+      chips.style.display = 'flex';
+      chips.style.gap = '6px';
+      chips.style.flexWrap = 'wrap';
+      const chipValues = [item.genre, item.style, ...(item.tags || [])].filter(Boolean);
+      chips.innerHTML = chipValues.map(v => `<span style="font-size:11px;padding:2px 8px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#a5b4fc">${v}</span>`).join('');
+      body.appendChild(chips);
+      
+      a.appendChild(img);
+      a.appendChild(body);
+      return a;
+    }
+    
+    // 게임 카드 DOM 생성
+    function gameCard(item) {
+      const id = item.id || item._id || 'game_01';
+      const a = document.createElement('a');
+      a.className = 'card';
+      a.href = `/game.html?game=${id}`;
+      a.addEventListener('click', () => { try { sessionStorage.setItem('lastGame', id); } catch(_){ } });
+
+      const img = document.createElement('img');
+      img.className = 'thumb';
+      img.alt = item.title || id;
+      img.src = item.image || 
+                item.background_image_url || 
+                (item.world_snapshot && item.world_snapshot.image_url) || 
+                '/assets/img/placeholder.jpg';
+
+      const body = document.createElement('div');
+      body.className = 'body';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = item.title || id;
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      const summaryText = (item.scenario_summary || item.title || '').toString();
+      meta.textContent = summaryText.length > 60 ? summaryText.substring(0, 60) + '...' : summaryText;
+
+      body.appendChild(name);
+      body.appendChild(meta);
+      
+      const chips = document.createElement('div');
+      chips.style.marginTop = '6px';
+      chips.style.display = 'flex';
+      chips.style.gap = '6px';
+      chips.style.flexWrap = 'wrap';
+      const chipValues = [...(item.tags || [])].filter(Boolean);
+      chips.innerHTML = chipValues.map(v => `<span style="font-size:11px;padding:2px 8px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#a5b4fc">${v}</span>`).join('');
+      body.appendChild(chips);
+      
+      a.appendChild(img);
+      a.appendChild(body);
+      return a;
+    }
+
+    // 간단 토스트
+    function showToast(msg='준비중입니다', ms=1200){
+      const el = document.getElementById('toast');
+      el.querySelector('.box').textContent = msg;
+      el.classList.add('show');
+      clearTimeout(showToast.tid);
+      showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+    // 공통 그리드 렌더링
+    async function fetchAndRender(category, q) {
+      const grid = document.getElementById('grid');
+      if (!grid) return;
+
+      grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
+
+      try {
+        let items = [];
+        const query = (q || '').trim();
+
+        if (category === 'characters') {
+          items = await loadCharacters(query);
+        } else if (category === 'worlds') {
+          items = await loadWorlds(query);
+        } else if (category === 'games') {
+          items = await loadGames(query);
+        }
+
+        console.log('[fetchAndRender] Category:', category, 'q:', query, 'Items:', items.length);
+
+        grid.innerHTML = '';
+
+        if (!items || items.length === 0) {
+          const label = category === 'characters' ? '캐릭터' : (category === 'worlds' ? '세계관' : '게임');
+          grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">검색 결과가 없습니다.' +
+                           (query ? `<br/><button id="reset-search" style="margin-top:12px;padding:8px 14px;background:#111827;border:1px solid #1f2937;border-radius:999px;color:#e5e7eb;cursor:pointer;font-size:13px;">검색어 초기화</button>` : '') +
+                           '</div>';
+
+          const resetBtn = document.getElementById('reset-search');
+          if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+              clearSearch(true);
+            });
+          }
+          return;
+        }
+
+        items.forEach((it, index) => {
+          try {
+            let cardElement;
+            if (category === 'characters') {
+              cardElement = card(it);
+            } else if (category === 'worlds') {
+              cardElement = worldCard(it);
+            } else if (category === 'games') {
+              cardElement = gameCard(it);
+            }
+            if (cardElement) {
+              grid.appendChild(cardElement);
+            }
+          } catch (err) {
+            console.error('[fetchAndRender] Error creating card for item', index, ':', err, it);
+          }
+        });
+      } catch (error) {
+        console.error('[fetchAndRender] Failed to load items:', error);
+        grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">검색에 실패했습니다. 잠시 후 다시 시도하세요.</div>';
+      }
+    }
+
+    // 검색 상태 초기화
+    function clearSearch(shouldRefetch = false) {
+      qInput = '';
+      qApplied = '';
+      searchApplied = false;
+
+      const inputEl = document.getElementById('search-input');
+      if (inputEl) inputEl.value = '';
+
+      if (shouldRefetch) {
+        fetchAndRender(currentCategory, '');
+      }
+    }
+
+    function applySearch() {
+      const inputEl = document.getElementById('search-input');
+      if (!inputEl) return;
+
+      qInput = inputEl.value || '';
+      qApplied = (qInput || '').trim();
+      searchApplied = qApplied.length > 0;
+
+      fetchAndRender(currentCategory, qApplied);
+    }
+
+    // 검색바 이벤트 설정
+    function setupSearchBar() {
+      const inputEl = document.getElementById('search-input');
+      const searchBtn = document.getElementById('search-button');
+
+      if (inputEl) {
+        inputEl.addEventListener('input', (e) => {
+          qInput = e.target.value;
+        });
+        inputEl.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            applySearch();
+          }
+        });
+      }
+
+      if (searchBtn) {
+        searchBtn.addEventListener('click', () => {
+          applySearch();
+        });
+      }
+    }
+
+    // 카테고리 탭 클릭 핸들러
+    function setupCategoryTabs() {
+      document.querySelectorAll('.category-tab').forEach(tab => {
+        tab.addEventListener('click', async function() {
+          const category = this.getAttribute('data-category');
+          if (category === currentCategory) return;
+          
+          document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
+          this.classList.add('active');
+          
+          currentCategory = category;
+          
+          const h1 = document.querySelector('h1');
+          if (category === 'characters') {
+            h1.textContent = '캐릭터 / 세계관 / 게임 검색';
+          } else if (category === 'worlds') {
+            h1.textContent = '세계관 검색';
+          } else if (category === 'games') {
+            h1.textContent = '게임 검색';
+          }
+          
+          const query = searchApplied ? qApplied : '';
+          fetchAndRender(currentCategory, query);
+        });
+      });
+    }
+
+    // nav 탭 클릭 처리 (Search는 그대로 두고, 나머지는 기존 정책 유지)
+    function setupNavTabs() {
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const navType = btn.getAttribute('data-nav');
+
+          if (navType === 'search') {
+            // Search 는 단순 링크로 동작시키고, 로그인 체크 없음
+            return;
+          }
+        });
+      });
+    }
+
+    (async function init(){
+      setupNavTabs();
+      setupSearchBar();
+      setupCategoryTabs();
+
+      await fetchAndRender(currentCategory, '');
+    })();
+  </script>
+</body>
+</html>
+
+

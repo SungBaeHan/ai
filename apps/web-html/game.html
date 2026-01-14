@@ -67,9 +67,17 @@
       flex-direction: column;
     }
     .topbar-wrap { display:flex; justify-content:center; border-bottom:1px solid #1b2430; background:#0e141c; position:sticky; top:0; z-index:20; }
-    .topbar { width:100%; max-width:980px; display:flex; align-items:center; gap:10px; padding:10px 14px; }
+    .topbar { width:100%; max-width:980px; display:flex; align-items:center; gap:10px; padding:10px 14px; justify-content:space-between; }
+    .topbar-left { display:flex; align-items:center; gap:10px; flex:1; }
+    .topbar-right { display:flex; align-items:center; gap:10px; }
     .back { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:1px solid #223042; background:#0f172a; color:#cbd5e1; cursor:pointer; }
     .title { font-weight:700; font-size:15px; color:#f1f5f9; }
+    .persona-btn { padding:6px 12px; border-radius:8px; border:1px solid #334155; background:#1f2937; color:#e5e7eb; font-size:13px; cursor:pointer; transition:all .15s ease; }
+    .persona-btn:hover { background:#334155; border-color:#475569; }
+    .header-persona-badge { display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:8px; border:1px solid #334155; background:#1f2937; cursor:pointer; transition:all .15s ease; }
+    .header-persona-badge:hover { background:#334155; border-color:#475569; }
+    .header-persona-avatar { width:24px; height:24px; border-radius:50%; object-fit:cover; box-shadow:0 0 4px rgba(0,0,0,.3); }
+    .header-persona-name { font-size:13px; color:#e5e7eb; }
     .hero { position:relative; margin:18px auto; max-width:980px; }
     .hero img { width:100%; border-radius:14px; border:1px solid #1f2937; box-shadow:0 10px 28px rgba(0,0,0,.35); display:block; }
     .panel { max-width:980px; margin:10px auto 18px; background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:12px 14px; }
@@ -232,6 +240,14 @@
       flex-direction: column;
       gap: 8px;
     }
+    /* 메시지 행 스타일 */
+    .msg { display:flex; align-items:flex-end; gap:8px; margin:8px 0; }
+    .msg.me { justify-content:flex-end; }
+    .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
+    .me .bubble { background:rgba(63,131,248,0.25); border-color:#334155; }
+    .user-persona-badge { display:flex; align-items:center; gap:8px; }
+    .user-persona-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; box-shadow:0 0 4px rgba(0,0,0,.3); }
+    .user-persona-name { font-size:12px; color:#cbd5e1; opacity:0.85; }
     .game-chat-log::-webkit-scrollbar {
       display: none;  /* Chrome/Safari: 스크롤바 숨김 */
     }
@@ -368,6 +384,165 @@
     .toast.show { opacity:1; }
     .toast .box { pointer-events:auto; min-width:200px; max-width:80vw; background:#0f172a; border:1px solid #1f2937; color:#e5e7eb; padding:14px 18px; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.45); text-align:center; }
     @keyframes fadeInUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    
+    /* persona modal */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:100; opacity:0; pointer-events:none; transition:opacity .2s ease; }
+    .modal-backdrop.show { opacity:1; pointer-events:auto; }
+    .modal-backdrop.force-open { pointer-events:auto; } /* 강제 모달 (닫기 불가) */
+    .modal { background:#111827; border:1px solid #1f2937; border-radius:12px; width:90%; max-width:500px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+    .modal-header { display:flex; justify-content:space-between; align-items:center; padding:20px; border-bottom:1px solid #1f2937; }
+    .modal-header h2 { margin:0; font-size:18px; color:#f3f4f6; }
+    .modal-close { background:none; border:none; color:#94a3b8; font-size:24px; cursor:pointer; padding:0; width:32px; height:32px; display:flex; align-items:center; justify-content:center; }
+    .modal-close:hover { color:#e5e7eb; }
+    .modal-close.hidden { display:none; } /* 강제 모달에서 닫기 버튼 숨김 */
+    .modal-body { padding:20px; max-height:60vh; overflow-y:auto; }
+    
+    /* Persona Card Styles */
+    .persona-list { display:flex; flex-direction:column; gap:12px; }
+    .persona-card { background:#111827; border:1px solid #1f2937; border-radius:12px; padding:16px; transition:all .15s ease; cursor:pointer; }
+    .persona-card:hover { border-color:#3b82f6; }
+    .persona-card.selected { border-color:#3b82f6; border-width:2px; background:#1e3a8a; }
+    .persona-card.default { border-color:#3b82f6; background:#1e3a8a; }
+    .persona-card-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+    .persona-avatar { width:64px; height:64px; border-radius:8px; background:#1f2937; object-fit:cover; border:2px solid #334155; }
+    .persona-info { flex:1; }
+    .persona-name { font-size:16px; font-weight:600; color:#f3f4f6; margin-bottom:4px; }
+    .persona-badge { display:inline-block; padding:2px 8px; background:#3b82f6; color:#fff; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; }
+    .persona-gender { font-size:12px; color:#94a3b8; }
+    .persona-bio { font-size:13px; color:#cbd5e1; line-height:1.5; margin-bottom:12px; max-height:60px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    .persona-selected-info { padding:12px; background:#1e293b; border-radius:8px; margin-top:12px; font-size:13px; color:#cbd5e1; }
+    .persona-selected-info strong { color:#3b82f6; }
+    .modal-footer { padding:20px; border-top:1px solid #1f2937; flex-shrink:0; }
+    .btn-modal { padding:10px 20px; border-radius:6px; border:1px solid #334155; background:#1f2937; color:#e5e7eb; font-size:14px; font-weight:500; cursor:pointer; transition:all .15s ease; }
+    .btn-modal:hover { background:#334155; }
+    .btn-modal.primary { background:#3b82f6; border-color:#2563eb; color:#fff; }
+    .btn-modal.primary:hover { background:#2563eb; }
+    .modal-loading { text-align:center; padding:40px; color:#94a3b8; }
+    
+    /* Confirm Dialog */
+    .confirm-dialog { position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:110; opacity:0; pointer-events:none; transition:opacity .2s ease; }
+    .confirm-dialog.show { opacity:1; pointer-events:auto; }
+    .confirm-dialog-box { background:#111827; border:1px solid #1f2937; border-radius:12px; width:90%; max-width:400px; padding:24px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+    .confirm-dialog-title { font-size:18px; font-weight:600; color:#f3f4f6; margin-bottom:16px; }
+    .confirm-dialog-message { font-size:14px; color:#cbd5e1; margin-bottom:24px; line-height:1.5; }
+    .confirm-dialog-actions { display:flex; gap:12px; justify-content:flex-end; }
+    
+    /* ===== Game Chat Message System (UX v1) ===== */
+    .game-msg {
+      display: flex;
+      margin: 10px 0;
+    }
+    .game-bubble {
+      position: relative;
+      max-width: 62%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      line-height: 1.35;
+      font-size: 13px;
+    }
+    /* Alignment (role 기반, action은 modifier로 정렬 영향 없음) */
+    .game-msg--player {
+      display: flex;
+      justify-content: flex-end;
+      align-items: flex-end;
+      gap: 8px;  /* bubble과 badge 간격 */
+    }
+    .game-msg--npc,
+    .game-msg--narrator { justify-content: flex-start; }
+    /* Color/tones (no hard-coded brand colors, use existing theme vars if any) */
+    .game-msg--player .game-bubble {
+      background: rgba(80, 120, 255, 0.22);
+      max-width: 70%;
+    }
+    .game-msg--npc .game-bubble { background: rgba(255, 255, 255, 0.14); }
+    .game-msg--narrator .game-bubble {
+      background: rgba(255, 255, 255, 0.08);
+      font-style: italic;
+    }
+    /* action style as modifier (do not override alignment) */
+    .game-msg--action .game-bubble {
+      background: rgba(255, 200, 80, 0.14);
+      border: 1px solid rgba(255, 200, 80, 0.25);
+    }
+    /* Action head */
+    .game-action-head {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      opacity: 0.8;
+      margin-bottom: 6px;
+    }
+    /* NPC avatar next to bubble (캐릭터/세계관 채팅 수준 크기) */
+    .game-avatar {
+      width: 38px;
+      height: 38px;
+      border-radius: 999px;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      margin-right: 10px;
+      align-self: flex-end;
+      border: 1px solid rgba(255,255,255,0.25);
+      background-color: rgba(0,0,0,0.25);
+      flex: 0 0 auto;
+    }
+    .game-avatar--fallback {
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      color: rgba(255,255,255,0.9);
+    }
+    /* Mini persona badge: stamp style (bubble 밖, 형제로 배치) */
+    .persona-badge--mini {
+      position: static;  /* absolute 제거 - bubble 밖 형제로 배치 */
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      overflow: hidden;
+      padding: 0;  /* pill 형태 방지 */
+      box-sizing: border-box;
+      flex: 0 0 auto;
+      display: inline-flex;  /* inline-flex로 변경 */
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.25);
+      user-select: none;
+      pointer-events: auto;
+      z-index: 2;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    }
+    .persona-badge--mini img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 50%;
+      display: block;
+    }
+    .persona-badge--mini .persona-badge__fallback {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      line-height: 1;
+      color: rgba(255,255,255,0.9);
+    }
+    /* Small tags */
+    .game-npc-tag,
+    .game-narrator-tag {
+      position: absolute;
+      left: 8px;
+      top: -8px;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.30);
+      border: 1px solid rgba(255,255,255,0.15);
+      opacity: 0.85;
+    }
+    .game-narrator-tag { opacity: 0.6; }
   </style>
 </head>
 <body>
@@ -375,8 +550,17 @@
 
   <div class="topbar-wrap">
     <div class="topbar">
-      <button id="backBtn" class="back" title="뒤로 가기">←</button> <!-- 뒤로가기 -->
-      <div class="title" id="title">로딩 중…</div>                   <!-- 게임 이름 -->
+      <div class="topbar-left">
+        <button id="backBtn" class="back" title="뒤로 가기">←</button> <!-- 뒤로가기 -->
+        <div class="title" id="title">로딩 중…</div>                   <!-- 게임 이름 -->
+      </div>
+      <div class="topbar-right">
+        <div id="headerPersonaBadge" class="header-persona-badge" style="display:none;" title="페르조나 설정" onclick="openPersonaModal()">
+          <img id="headerPersonaAvatar" class="header-persona-avatar" src="" alt="" />
+          <span id="headerPersonaName" class="header-persona-name"></span>
+        </div>
+        <button id="personaBtn" class="persona-btn" title="페르조나 설정" style="display:none;">Persona</button> <!-- 페르조나 버튼 (fallback) -->
+      </div>
     </div>
   </div>
 
@@ -448,11 +632,47 @@
     <div class="box">준비중입니다</div>
   </div>
 
+  <!-- Persona Modal -->
+  <div id="personaModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>페르조나 선택</h2>
+        <button class="modal-close" id="personaModalClose" onclick="closePersonaModal()">×</button>
+      </div>
+      <div class="modal-body" id="personaModalBody">
+        <div class="modal-loading">로딩 중...</div>
+      </div>
+      <div class="modal-footer">
+        <div id="personaSelectedInfo" class="persona-selected-info" style="display:none;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:12px; width:100%;">
+          <button class="btn-modal" id="personaCancelBtn" onclick="closePersonaModal()" style="display:none;">취소</button>
+          <button class="btn-modal primary" id="personaConfirmBtn" onclick="confirmPersonaSelection()" disabled>완료</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Dialog (전투 중 변경 확인) -->
+  <div id="confirmDialog" class="confirm-dialog">
+    <div class="confirm-dialog-box">
+      <div class="confirm-dialog-title">페르조나 변경 확인</div>
+      <div class="confirm-dialog-message" id="confirmDialogMessage">게임 중에 페르조나를 변경하면 이후 대사와 전투 판정에 즉시 영향을 줍니다. 정말 변경하시겠습니까?</div>
+      <div class="confirm-dialog-actions">
+        <button class="btn-modal" onclick="closeConfirmDialog(false)">아니오</button>
+        <button class="btn-modal primary" onclick="closeConfirmDialog(true)">예</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // API_BASE_URL은 이미 위쪽에서 window.API_BASE_URL로 설정됨
 
     // --- 전역/유틸 -------------------------------------------------------------
     let CURRENT_GAME = null;  // 현재 게임
+    let PERSONAS_LIST = [];  // 페르조나 목록
+    let SELECTED_PERSONA_ID = null;  // 선택된 페르조나 ID
+    let isPersonaModalForceOpen = false;  // 강제 모달 여부
+    let pendingPersonaSelection = null;  // 전투 중 확인 대기 중인 persona 선택
     const FALLBACK_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
       `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675"><rect width="100%" height="100%" fill="#0e141c"/><text x="50%" y="50%" fill="#94a3b8" font-size="48" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">No Image</text></svg>`
     );
@@ -569,7 +789,43 @@
         c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
       );
     }
-    function addUser(text){ const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg me'; row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
+    function addUser(text){ 
+      const chat=document.getElementById('chat'); 
+      const row=document.createElement('div'); 
+      row.className='msg me'; 
+      
+      // persona 정보 가져오기 (게임 세션의 player_persona)
+      const persona = getActivePersonaForGame();
+      
+      // persona 뱃지 생성
+      let personaBadge = '';
+      if (persona) {
+        let imageKey = persona.image_key || 'F01';
+        if (imageKey && imageKey.startsWith('preset_')) {
+          try {
+            const match = imageKey.match(/preset_([MF]\d+)/);
+            if (match) imageKey = match[1];
+          } catch (e) {}
+        }
+        const personaImageUrl = `/assets/persona/${imageKey}.png`;
+        personaBadge = `
+          <div class="user-persona-badge" data-role="persona-badge-message">
+            <img src="${personaImageUrl}" alt="${escapeHtml(persona.name || '')}" class="user-persona-avatar" onerror="this.src='/assets/persona/F01.png'" />
+            <span class="user-persona-name" data-role="persona-name">${escapeHtml(persona.name || '')}</span>
+          </div>
+        `;
+      }
+      
+      row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>${personaBadge}`; 
+      chat.appendChild(row); 
+      
+      const chatContainer = document.querySelector('.game-chat-log');
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      } else {
+        chat.scrollTop = chat.scrollHeight;
+      }
+    }
     function addBot(text, name=null){  
       const chat=document.getElementById('chat'); 
       const row=document.createElement('div'); 
@@ -703,6 +959,523 @@
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
     }
 
+    // 페르조나 이미지 URL 정규화 함수
+    const R2_BASE = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
+    function resolvePersonaUrl(u) {
+      if (!u) return "";
+      if (u.startsWith("http://") || u.startsWith("https://")) return u;
+      if (u.startsWith("/")) return `${R2_BASE}${u}`;
+      return `${R2_BASE}/assets/persona/${u}`;
+    }
+    
+    // 게임 세션의 활성 persona 반환 (persona_ref_id로 복구 지원)
+    function getActivePersonaForGame() {
+      // 0) 세션에 player_persona가 이미 "충분한 정보"를 갖고 있으면 그걸 최우선으로 사용
+      const sp = currentSession?.player_persona;
+      if (sp && (sp.name || sp.image_key || sp.image_url || sp.image?.url)) {
+        // preset_XX 정리
+        let key = sp.image_key || sp.image?.key || '';
+        if (key && key.startsWith('preset_')) {
+          const m = key.match(/preset_([MF]\d+)/);
+          if (m) key = m[1];
+        }
+
+        return {
+          persona_ref_id: String(sp.persona_ref_id ?? currentSession?.persona_ref_id ?? sp.persona_id ?? ''),
+          persona_id: String(sp.persona_id ?? currentSession?.persona_ref_id ?? ''),
+          name: sp.name,
+          gender: sp.gender,
+          intro: sp.intro || sp.bio || sp.summary || '',
+          image_key: key || null,
+          image_url: sp.image_url || sp.image?.url || (key ? resolvePersonaUrl(`/assets/persona/${key}.png`) : null),
+        };
+      }
+
+      // 1) refId는 무조건 문자열로 정규화해서 매칭 실패 줄이기
+      let refId =
+        currentSession?.player_persona?.persona_ref_id ??
+        currentSession?.player_persona?._id ??
+        currentSession?.persona_ref_id ??
+        currentSession?.player_persona?.persona_id ??
+        null;
+
+      if (refId != null) refId = String(refId);
+
+      // 2) PERSONAS_LIST 매칭도 문자열 비교로
+      const ps = PERSONAS_LIST || [];
+      if (refId && ps.length > 0) {
+        const matched = ps.find(p => {
+          const a = p.persona_ref_id != null ? String(p.persona_ref_id) : null;
+          const b = p._id != null ? String(p._id) : null;
+          const c = p.persona_id != null ? String(p.persona_id) : null;
+          return a === refId || b === refId || c === refId;
+        });
+
+        if (matched) {
+          const imageKey = matched.image_key || matched.image?.key || null;
+          return {
+            persona_ref_id: String(matched.persona_ref_id || matched._id || matched.persona_id || ''),
+            persona_id: matched.persona_id != null ? String(matched.persona_id) : null,
+            name: matched.name,
+            gender: matched.gender,
+            intro: matched.intro || matched.bio || matched.summary || '',
+            image_key: imageKey,
+            image_url: matched.image_url || matched.image?.url || (imageKey ? resolvePersonaUrl(`/assets/persona/${imageKey}.png`) : null),
+          };
+        }
+      }
+
+      // 3) 최후 fallback: default
+      const d = ps.find(p => p.is_default) || ps[0];
+      if (!d) return null;
+
+      const imageKey = d.image_key || d.image?.key || null;
+      return {
+        persona_ref_id: String(d.persona_ref_id || d._id || d.persona_id || ''),
+        persona_id: d.persona_id != null ? String(d.persona_id) : null,
+        name: d.name,
+        gender: d.gender,
+        intro: d.intro || d.bio || d.summary || '',
+        image_key: imageKey,
+        image_url: d.image_url || d.image?.url || (imageKey ? resolvePersonaUrl(`/assets/persona/${imageKey}.png`) : null),
+      };
+    }
+
+    // 헤더의 persona 뱃지 갱신 (페르조나 변경 시에만 호출, 기본 페르조나 fallback 방지)
+    function refreshHeaderPersonaBadge() {
+      const persona = getActivePersonaForGame();
+      const badgeEl = document.getElementById('headerPersonaBadge');
+      const avatarEl = document.getElementById('headerPersonaAvatar');
+      const nameEl = document.getElementById('headerPersonaName');
+      const personaBtn = document.getElementById('personaBtn');
+      
+      if (!badgeEl || !avatarEl || !nameEl) {
+        console.warn('[PERSONA] Header elements not found');
+        return;
+      }
+      
+      console.log('[PERSONA] refreshHeaderPersonaBadge - persona:', persona);
+      console.log('[PERSONA] refreshHeaderPersonaBadge - currentSession.player_persona:', currentSession?.player_persona);
+      console.log('[PERSONA] refreshHeaderPersonaBadge - currentSession.persona_ref_id:', currentSession?.persona_ref_id);
+      
+      // ⚠️ persona가 없거나 기본 페르조나로 fallback된 경우, 기존 헤더를 유지 (덮어쓰지 않음)
+      if (!persona) {
+        console.warn('[PERSONA] No persona found, keeping existing header state');
+        // 기존 헤더 상태를 유지하되, badge가 없으면 Persona 버튼 표시
+        if (badgeEl.style.display === 'none' || !badgeEl.querySelector('img')?.src) {
+          badgeEl.style.display = 'none';
+          if (personaBtn) {
+            personaBtn.style.display = 'inline-block';
+            personaBtn.textContent = 'Persona';
+          }
+        }
+        return;
+      }
+      
+      // 기본 페르조나로 fallback된 경우도 기존 헤더 유지 (페르조나 변경 시에만 갱신)
+      // 현재 헤더에 이미 페르조나가 표시되어 있고, 새로 가져온 persona가 기본 페르조나면 유지
+      const currentHeaderName = nameEl.textContent;
+      const isDefaultPersona = !persona.persona_ref_id || !currentSession?.persona_ref_id || 
+                               (persona.name && currentHeaderName && persona.name !== currentHeaderName && 
+                                !currentSession?.player_persona?.name);
+      
+      if (isDefaultPersona && badgeEl.style.display !== 'none' && badgeEl.querySelector('img')?.src && currentHeaderName) {
+        console.log('[PERSONA] Default persona fallback detected, keeping existing header state:', currentHeaderName);
+        return;
+      }
+      
+      // persona가 있으면 badge 표시
+      badgeEl.style.display = 'flex';
+      if (personaBtn) personaBtn.style.display = 'none';
+      
+      // 이미지 URL 처리 (image_key 또는 image_url)
+      let imageUrl = '';
+      if (persona.image_key) {
+        imageUrl = resolvePersonaUrl(`/assets/persona/${persona.image_key}.png`);
+      } else if (persona.image_url) {
+        imageUrl = persona.image_url;
+      } else {
+        imageUrl = resolvePersonaUrl('/assets/persona/F01.png');
+      }
+      
+      avatarEl.src = imageUrl;
+      avatarEl.alt = persona.name || 'persona';
+      avatarEl.onerror = function() {
+        this.src = resolvePersonaUrl('/assets/persona/F01.png');
+      };
+      nameEl.textContent = persona.name || 'persona';
+      
+      console.log('[PERSONA] Header badge updated:', persona.name, imageUrl);
+    }
+
+    // 페르조나 프리뷰 텍스트 추출
+    function getPersonaPreview(p) {
+      if (p.bio) return p.bio;
+      if (p.summary) return p.summary;
+      if (p.detail) return p.detail.substring(0, 120) + (p.detail.length > 120 ? '...' : '');
+      if (p.intro) return p.intro;
+      return '';
+    }
+
+    // 페르조나 목록 조회
+    async function fetchPersonas() {
+      try {
+        const token = localStorage.getItem('user_info_v2');
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['X-User-Info-Token'] = token;
+        }
+
+        const res = await fetch(`${API_BASE_URL}/v1/users/me/personas`, {
+          credentials: 'include',
+          headers
+        });
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            throw new Error('로그인이 필요합니다.');
+          }
+          throw new Error(`Failed to load: ${res.status}`);
+        }
+
+        const personas = await res.json();
+        return personas;
+      } catch (e) {
+        console.error('[PERSONA] Load error:', e);
+        throw e;
+      }
+    }
+
+    // 페르조나 모달 열기
+    async function openPersonaModal(forceOpen = false) {
+      const modal = document.getElementById('personaModal');
+      const body = document.getElementById('personaModalBody');
+      const closeBtn = document.getElementById('personaModalClose');
+      const cancelBtn = document.getElementById('personaCancelBtn');
+      
+      isPersonaModalForceOpen = forceOpen;
+      
+      if (forceOpen) {
+        modal.classList.add('force-open');
+        if (closeBtn) closeBtn.classList.add('hidden');
+        if (cancelBtn) cancelBtn.style.display = 'none';
+      } else {
+        modal.classList.remove('force-open');
+        if (closeBtn) closeBtn.classList.remove('hidden');
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+      }
+      
+      modal.classList.add('show');
+      SELECTED_PERSONA_ID = null;
+      body.innerHTML = '<div class="modal-loading">로딩 중...</div>';
+
+      try {
+        PERSONAS_LIST = await fetchPersonas();
+        renderPersonaList();
+      } catch (e) {
+        body.innerHTML = `<div class="modal-loading" style="color:#ef4444;">페르조나를 불러오는데 실패했습니다: ${e.message}</div>`;
+        console.error('[PERSONA] Failed to load personas:', e);
+      }
+    }
+
+    // 페르조나 목록 렌더링
+    function renderPersonaList() {
+      const body = document.getElementById('personaModalBody');
+      const selectedInfo = document.getElementById('personaSelectedInfo');
+      const confirmBtn = document.getElementById('personaConfirmBtn');
+      const cancelBtn = document.getElementById('personaCancelBtn');
+      
+      if (PERSONAS_LIST.length === 0) {
+        // 페르조나가 없을 때: 강제 모달 해제 및 탈출 버튼 제공
+        isPersonaModalForceOpen = false;
+        const modal = document.getElementById('personaModal');
+        const closeBtn = document.getElementById('personaModalClose');
+        
+        if (modal) modal.classList.remove('force-open');
+        if (closeBtn) closeBtn.classList.remove('hidden');
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        
+        body.innerHTML = `
+          <div style="text-align:center; padding:40px 20px;">
+            <div style="font-size:16px; color:#f3f4f6; margin-bottom:24px;">페르조나가 없습니다.</div>
+            <div style="font-size:14px; color:#94a3b8; margin-bottom:32px;">My 메뉴에서 페르조나를 생성해주세요.</div>
+            <div style="display:flex; gap:12px; justify-content:center;">
+              <button class="btn-modal primary" onclick="window.location.href='/my.html'">My로 이동</button>
+            </div>
+          </div>
+        `;
+        selectedInfo.style.display = 'none';
+        if (confirmBtn) confirmBtn.style.display = 'none';
+        return;
+      }
+      
+      // confirmBtn 표시 (페르조나가 있을 때)
+      if (confirmBtn) confirmBtn.style.display = 'inline-block';
+
+      // 카드 UI로 렌더링
+      body.innerHTML = `<div class="persona-list">${PERSONAS_LIST.map(p => {
+        const genderText = {
+          male: '남성',
+          female: '여성',
+          nonbinary: '논바이너리'
+        }[p.gender] || '논바이너리';
+
+        // image_key 처리
+        let imageKey = p.image_key || 'F01';
+        if (imageKey && imageKey.startsWith('preset_')) {
+          try {
+            const num = parseInt(imageKey.replace('preset_', ''));
+            if (num <= 4 || num === 9 || num === 10 || num === 13 || num === 15) {
+              const mIndex = num <= 4 ? num : (num === 9 ? 5 : num === 10 ? 6 : num === 13 ? 7 : 8);
+              imageKey = `M${String(mIndex).padStart(2, '0')}`;
+            } else {
+              const fIndex = num <= 8 ? num - 4 : (num === 11 ? 3 : num === 12 ? 4 : num === 14 ? 5 : 6);
+              imageKey = `F${String(fIndex).padStart(2, '0')}`;
+            }
+          } catch {
+            imageKey = 'F01';
+          }
+        }
+        const imageUrl = resolvePersonaUrl(`/assets/persona/${imageKey}.png`);
+        const previewText = getPersonaPreview(p);
+        const selected = SELECTED_PERSONA_ID === p.persona_id ? 'selected' : '';
+        const defaultClass = p.is_default ? 'default' : '';
+
+        return `
+          <div class="persona-card ${selected} ${defaultClass}" onclick="selectPersona('${p.persona_id}')">
+            <div class="persona-card-header">
+              <img src="${imageUrl}" alt="${escapeHtml(p.name)}" class="persona-avatar" onerror="this.src='${resolvePersonaUrl('/assets/persona/F01.png')}'" />
+              <div class="persona-info">
+                <div class="persona-name">
+                  ${p.is_default ? '<span class="persona-badge">기본</span>' : ''}
+                  ${escapeHtml(p.name)}
+                </div>
+                <div class="persona-gender">${genderText}</div>
+              </div>
+            </div>
+            ${previewText ? `<div class="persona-bio">${escapeHtml(previewText)}</div>` : ''}
+          </div>
+        `;
+      }).join('')}</div>`;
+
+      // 선택된 페르조나 정보 표시
+      if (SELECTED_PERSONA_ID) {
+        const selectedPersona = PERSONAS_LIST.find(p => p.persona_id === SELECTED_PERSONA_ID);
+        if (selectedPersona) {
+          selectedInfo.innerHTML = `선택됨: <strong>${escapeHtml(selectedPersona.name)}</strong>`;
+          selectedInfo.style.display = 'block';
+          confirmBtn.disabled = false;
+        } else {
+          selectedInfo.style.display = 'none';
+          confirmBtn.disabled = true;
+        }
+      } else {
+        selectedInfo.style.display = 'none';
+        confirmBtn.disabled = true;
+      }
+    }
+
+    // 페르조나 선택
+    function selectPersona(personaId) {
+      SELECTED_PERSONA_ID = personaId;
+      renderPersonaList();
+    }
+
+    // 페르조나 모달 닫기
+    function closePersonaModal() {
+      if (isPersonaModalForceOpen) {
+        // 강제 모달은 닫을 수 없음
+        return;
+      }
+      
+      const modal = document.getElementById('personaModal');
+      modal.classList.remove('show');
+      modal.classList.remove('force-open');
+      SELECTED_PERSONA_ID = null;
+      pendingPersonaSelection = null;
+    }
+
+    // 확인 다이얼로그 표시
+    function showConfirmDialog(message, onConfirm) {
+      const dialog = document.getElementById('confirmDialog');
+      const messageEl = document.getElementById('confirmDialogMessage');
+      
+      if (messageEl) {
+        messageEl.textContent = message;
+      }
+      
+      dialog.onConfirmCallback = onConfirm;
+      dialog.classList.add('show');
+    }
+
+    // 확인 다이얼로그 닫기
+    function closeConfirmDialog(confirmed) {
+      const dialog = document.getElementById('confirmDialog');
+      dialog.classList.remove('show');
+      
+      if (confirmed && dialog.onConfirmCallback) {
+        dialog.onConfirmCallback();
+      }
+      
+      dialog.onConfirmCallback = null;
+    }
+
+    // 페르조나 선택 완료 (전투 중 확인 포함)
+    async function confirmPersonaSelection() {
+      if (!SELECTED_PERSONA_ID) {
+        showToast('페르조나를 선택해주세요.');
+        return;
+      }
+
+      if (!CURRENT_GAME || !CURRENT_GAME.id) {
+        console.warn('[PERSONA] No game ID available');
+        showToast('게임 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      const selectedPersona = PERSONAS_LIST.find(p => p.persona_id === SELECTED_PERSONA_ID);
+      if (!selectedPersona) {
+        showToast('선택한 페르조나를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 전투 중인지 확인
+      const inCombat = currentSession?.combat?.in_combat === true;
+      
+      if (inCombat) {
+        // 전투 중이면 확인 다이얼로그 표시
+        pendingPersonaSelection = selectedPersona;
+        showConfirmDialog(
+          '게임 중에 페르조나를 변경하면 이후 대사와 전투 판정에 즉시 영향을 줍니다. 정말 변경하시겠습니까?',
+          () => applyPersonaToGame(selectedPersona)
+        );
+      } else {
+        // 전투 중이 아니면 즉시 적용
+        await applyPersonaToGame(selectedPersona);
+      }
+    }
+
+    // 페르조나를 게임 세션에 적용
+    async function applyPersonaToGame(persona) {
+      if (!persona || !CURRENT_GAME || !CURRENT_GAME.id) {
+        return;
+      }
+
+      const gameId = CURRENT_GAME.id;
+      const confirmBtn = document.getElementById('personaConfirmBtn');
+      const originalText = confirmBtn ? confirmBtn.textContent : '';
+      
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = '적용 중...';
+      }
+
+      try {
+        // persona_ref_id 결정: persona_id를 우선 사용 (백엔드가 persona_id로 조회함)
+        const finalRefId = persona.persona_id;
+        if (!finalRefId) {
+          console.error('[PERSONA] persona_id is required');
+          showToast('페르조나 ID가 없습니다.', 2000);
+          return;
+        }
+
+        // Optimistic UI 업데이트
+        if (currentSession) {
+          currentSession.player_persona = {
+            persona_id: persona.persona_id,
+            name: persona.name,
+            gender: persona.gender,
+            intro: persona.intro || persona.bio || persona.summary,
+            image_url: persona.image?.url || resolvePersonaUrl(`/assets/persona/${persona.image_key || 'F01'}.png`),
+            image_key: persona.image_key || persona.image?.key
+          };
+          currentSession.persona_ref_id = finalRefId;
+          
+          // 헤더 badge 즉시 갱신
+          refreshHeaderPersonaBadge();
+          
+          // ✅ 페르조나 변경 시 game chat 전체 리렌더링 (기존 메시지 배지도 새 페르조나로 통일)
+          console.log('[PERSONA] persona changed, re-rendering game chat');
+          renderHudFromSession(currentSession);
+          renderChatLogsFromSession(currentSession, { isInitialLoad: true });
+        }
+
+        // 서버에 저장
+        const token = localStorage.getItem('user_info_v2');
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['X-User-Info-Token'] = token;
+        }
+
+        const res = await fetch(`${API_BASE_URL}/v1/games/${gameId}/persona`, {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify({ persona_ref_id: finalRefId })
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text().catch(() => 'Unknown error');
+          console.error(`[PERSONA] API error: ${res.status} ${errorText}`);
+          showToast(`페르조나 적용 실패: HTTP ${res.status}`);
+          // TODO: 롤백 (선택사항)
+          return;
+        }
+
+        const data = await res.json().catch(() => ({}));
+        console.log('[PERSONA] Successfully applied persona:', data);
+        
+        // 서버 응답으로 세션 업데이트 (canonical 데이터)
+        if (currentSession && data.player_persona) {
+          // image_key가 없으면 PERSONAS_LIST에서 찾아서 채우기 (프론트 방어 로직)
+          if (!data.player_persona.image_key && data.persona_ref_id && PERSONAS_LIST) {
+            const foundPersona = PERSONAS_LIST.find(p => p.persona_id === data.persona_ref_id);
+            if (foundPersona) {
+              const imageKey = foundPersona.image_key || foundPersona.image?.key;
+              if (imageKey) {
+                data.player_persona.image_key = imageKey;
+                console.log('[PERSONA] Filled missing image_key from PERSONAS_LIST:', imageKey);
+              }
+            }
+          }
+          
+          currentSession.player_persona = data.player_persona;
+          currentSession.persona_ref_id = data.persona_ref_id;
+          refreshHeaderPersonaBadge();
+          
+          // ✅ 서버 응답 후에도 game chat 전체 리렌더링 (기존 메시지 배지도 새 페르조나로 통일)
+          console.log('[PERSONA] persona updated from server, re-rendering game chat');
+          renderHudFromSession(currentSession);
+          renderChatLogsFromSession(currentSession, { isInitialLoad: true });
+        }
+        
+        showToast('페르조나가 적용되었습니다.');
+        
+        // 강제 모달이면 닫기 가능하도록 설정
+        if (isPersonaModalForceOpen) {
+          isPersonaModalForceOpen = false;
+          const modal = document.getElementById('personaModal');
+          const closeBtn = document.getElementById('personaModalClose');
+          const cancelBtn = document.getElementById('personaCancelBtn');
+          modal.classList.remove('force-open');
+          if (closeBtn) closeBtn.classList.remove('hidden');
+          if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        }
+        
+        closePersonaModal();
+      } catch (e) {
+        console.error('[PERSONA] Failed to apply persona:', e);
+        showToast(`페르조나 적용 중 오류가 발생했습니다: ${e.message}`);
+        // TODO: 롤백 (선택사항)
+      } finally {
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = originalText;
+        }
+        pendingPersonaSelection = null;
+      }
+    }
+
     // 현재 페이지가 /game 인지 여부
     const isGamePage = window.location.pathname.startsWith('/game') || window.location.pathname.includes('game.html');
     
@@ -804,17 +1577,48 @@
         // 로컬로 추가하지 않고 백엔드가 내려준 session을 그대로 사용
         if (j.session) {
           // 백엔드 응답의 session을 그대로 사용 (중복 방지: 세션 전체 교체)
-          const prevLength = currentSession?.turn_logs?.length || 0;
+          const prev = currentSession || null;
+          const prevPersonaRefId = prev?.persona_ref_id ?? null;
+          const prevPlayerPersona = prev?.player_persona ?? null;
+
+          const prevLength = prev?.turn_logs?.length || 0;
           currentSession = j.session;
-          const newLength = currentSession.turn_logs.length;
+          const newLength = currentSession?.turn_logs?.length || 0;
+
+          // ✅ persona 보존: 서버가 누락/빈값으로 내려줄 때 default fallback 방지
+          // 1) persona_ref_id 보존
+          if (!currentSession?.persona_ref_id && prevPersonaRefId) {
+            currentSession.persona_ref_id = prevPersonaRefId;
+            console.log('[PERSONA][MERGE] preserved persona_ref_id:', prevPersonaRefId);
+          }
+
+          // 2) player_persona 보존 (name/image_key/image_url 중 하나라도 없으면 보존 대상으로 판단)
+          const sp = currentSession?.player_persona;
+          const spHasEnough =
+            !!(sp && (sp.name || sp.image_key || sp.image_url || sp.image?.url));
+
+          if (!spHasEnough && prevPlayerPersona) {
+            currentSession.player_persona = prevPlayerPersona;
+            console.log('[PERSONA][MERGE] preserved player_persona:', prevPlayerPersona?.name);
+          }
+
           console.log("[DEBUG] Using session from response, turn_logs length:", prevLength, "->", newLength);
+          
+          // ⚠️ refreshHeaderPersonaBadge() 호출 제거 - 페르조나 변경 시에만 갱신
+          // 세션 교체 시에는 헤더를 갱신하지 않아 기존 페르조나가 유지됨
+          // refreshHeaderPersonaBadge();
+          // ⚠️ refreshPlayerPersonaBadgesInGameChat()는 호출하지 않음 - 기존 메시지 배지 보존
           
           // 1) HUD 업데이트
           renderHudFromSession(currentSession);
           
-          // 2) 채팅 로그 업데이트 (전체 재렌더링 - session.turn_logs만 사용, 한 번만)
+          // 2) 채팅 로그 업데이트 (delta append 방식 - 배지 유지)
           // 로컬 메시지 배열 없이 오직 session.turn_logs만 렌더링
-          renderChatLogsFromSession(currentSession);
+          renderChatLogsFromSession(currentSession, { isInitialLoad: false });
+          
+          // 디버그 로그: persona 정보 확인
+          console.log('[PERSONA][POST-ASK] currentSession.persona_ref_id:', currentSession?.persona_ref_id);
+          console.log('[PERSONA][POST-ASK] currentSession.player_persona:', currentSession?.player_persona);
           
           // 3) 내레이션 업데이트
           if (narrationEl) {
@@ -830,12 +1634,39 @@
           console.warn('[askLLM] j.session not found, loading from API');
           const sessionData = await loadSession(GAME_ID);
           if (sessionData) {
-            const prevLength = currentSession?.turn_logs?.length || 0;
+            // persona 보존: 서버가 누락/빈값으로 내려줄 때 default fallback 방지
+            const prev = currentSession || null;
+            const prevPersonaRefId = prev?.persona_ref_id ?? null;
+            const prevPlayerPersona = prev?.player_persona ?? null;
+
+            const prevLength = prev?.turn_logs?.length || 0;
             currentSession = sessionData;
-            const newLength = currentSession.turn_logs.length;
+            const newLength = currentSession?.turn_logs?.length || 0;
+
+            // ✅ persona 보존: 서버가 누락/빈값으로 내려줄 때 default fallback 방지
+            // 1) persona_ref_id 보존
+            if (!currentSession?.persona_ref_id && prevPersonaRefId) {
+              currentSession.persona_ref_id = prevPersonaRefId;
+              console.log('[PERSONA][MERGE] preserved persona_ref_id:', prevPersonaRefId);
+            }
+
+            // 2) player_persona 보존 (name/image_key/image_url 중 하나라도 없으면 보존 대상으로 판단)
+            const sp = currentSession?.player_persona;
+            const spHasEnough =
+              !!(sp && (sp.name || sp.image_key || sp.image_url || sp.image?.url));
+
+            if (!spHasEnough && prevPlayerPersona) {
+              currentSession.player_persona = prevPlayerPersona;
+              console.log('[PERSONA][MERGE] preserved player_persona:', prevPlayerPersona?.name);
+            }
+
             console.log("[DEBUG] Loaded session from API, turn_logs length:", prevLength, "->", newLength);
             renderHudFromSession(currentSession);
-            renderChatLogsFromSession(currentSession);
+            renderChatLogsFromSession(currentSession, { isInitialLoad: false });
+            
+            // 디버그 로그: persona 정보 확인
+            console.log('[PERSONA][POST-ASK] currentSession.persona_ref_id:', currentSession?.persona_ref_id);
+            console.log('[PERSONA][POST-ASK] currentSession.player_persona:', currentSession?.player_persona);
             if (narrationEl) {
               const lastNarration = currentSession.turn_logs
                 .filter(log => log.speaker_type === 'narration')
@@ -1079,8 +1910,273 @@
       });
     }
 
-    // 세션 기반 채팅 로그 렌더링 (오직 session.turn_logs만 사용)
-    function renderChatLogsFromSession(session) {
+    // 게임 메시지 ID 생성 (안정적 ID 보장)
+    function getGameMessageId(log) {
+      if (log.id) return String(log.id);
+      return `${log.turn || 0}-${log.speaker_type || 'unknown'}-${log.speaker_id || ''}`;
+    }
+
+    // 메시지 role 분류 (player/npc/narrator) - action은 modifier로 처리
+    function getLogRole(log) {
+      const st = String(log?.speaker_type ?? '').toLowerCase();
+      if (st === 'player') return 'player';
+      if (st === 'npc' || st === 'monster') return 'npc';
+      return 'narrator';
+    }
+
+    // persona 미니 배지 생성 (스탬프 스타일)
+    function createMiniPersonaBadge(persona) {
+      if (!persona) return null;
+
+      const badge = document.createElement('div');
+      badge.className = 'persona-badge persona-badge--mini';
+      badge.title = `${persona.name ?? 'persona'}`;
+
+      // persona 이미지 URL 생성 (다양한 입력 구조 지원, resolvePersonaUrl로 통일)
+      let src = '';
+      // 우선순위: image_url > image?.url > image_key > image?.key > fallback
+      if (persona.image_url) {
+        src = persona.image_url;
+      } else if (persona.image?.url) {
+        src = persona.image.url;
+      } else {
+        let key = persona.image_key || persona.image?.key || '';
+        if (key && key.startsWith('preset_')) {
+          const m = key.match(/preset_([MF]\d+)/);
+          if (m) key = m[1];
+        }
+        // resolvePersonaUrl은 /assets/persona/... 형태의 경로를 받음
+        if (key) {
+          src = resolvePersonaUrl(`/assets/persona/${key}.png`);
+        } else {
+          // 최종 fallback
+          src = resolvePersonaUrl('/assets/persona/F01.png');
+        }
+      }
+
+      if (src) {
+        const img = document.createElement('img');
+        img.src = src;
+        img.alt = persona.name ?? 'persona';
+        img.onerror = function() {
+          this.src = resolvePersonaUrl('/assets/persona/F01.png');
+        };
+        badge.appendChild(img);
+      } else {
+        const fallback = document.createElement('span');
+        fallback.className = 'persona-badge__fallback';
+        fallback.textContent = String(persona.name ?? 'P').slice(0, 1).toUpperCase();
+        badge.appendChild(fallback);
+      }
+
+      return badge;
+    }
+
+    // 게임 메시지 노드 생성 (role + action modifier 방식)
+    function createGameMessageElement(log, session) {
+      const role = getLogRole(log);
+      const isAction = !!log?.is_action;
+      const messageId = getGameMessageId(log);
+
+      // 공통 row (role + action modifier)
+      const row = document.createElement('div');
+      row.className = `game-msg game-msg--${role}` + (isAction ? ' game-msg--action' : '');
+      row.setAttribute('data-message-id', messageId);
+      row.dataset.turn = String(log?.turn ?? '');
+      row.dataset.speakerType = String(log?.speaker_type ?? '');
+      row.dataset.isAction = String(isAction);
+
+      // ✅ NPC: 아바타를 bubble "밖(좌측)"에 붙이기
+      if (role === 'npc') {
+        try {
+          const characterMaps = buildCharacterMaps(session);
+          const { avatarUrl, name } = getAvatarForLog(log, characterMaps, session);
+
+          const av = document.createElement('div');
+          av.className = 'game-avatar';
+          av.title = name || 'NPC';
+
+          if (avatarUrl) {
+            av.style.backgroundImage = `url("${avatarUrl}")`;
+          } else {
+            av.textContent = (name || 'N').slice(0, 1).toUpperCase();
+            av.classList.add('game-avatar--fallback');
+          }
+
+          row.appendChild(av);
+        } catch (e) {
+          console.warn('[createGameMessageElement] NPC avatar creation failed:', e);
+        }
+      }
+
+      // bubble/card
+      const bubble = document.createElement('div');
+      bubble.className = 'game-bubble';
+
+      // ✅ action UI는 role 유지한 채로 modifier일 때만
+      if (isAction) {
+        const head = document.createElement('div');
+        head.className = 'game-action-head';
+        head.textContent = 'ACTION';
+        bubble.appendChild(head);
+      }
+
+      // 내용
+      const content = document.createElement('div');
+      content.className = 'game-content';
+      
+      // renderMessageText() 사용 (기존 로직 유지)
+      const textContent = renderMessageText(log?.text ?? '');
+      if (textContent.includes('<em>')) {
+        content.innerHTML = textContent;
+      } else {
+        content.textContent = log?.text ?? '';
+      }
+      bubble.appendChild(content);
+
+      // ✅ narrator: narrator 표식(작게)
+      if (role === 'narrator') {
+        const tag = document.createElement('div');
+        tag.className = 'game-narrator-tag';
+        tag.textContent = 'NARRATOR';
+        bubble.appendChild(tag);
+      }
+
+      // bubble을 row에 append
+      row.appendChild(bubble);
+
+      // ✅ player: is_action 여부와 무관하게 항상 persona badge (bubble 밖, 형제로)
+      if (role === 'player') {
+        // ⚠️ 우선순위: 1) 세션의 player_persona (가장 확실), 2) log의 persona_id, 3) 현재 활성 persona
+        let persona = null;
+        let personaId = null;
+        
+        // 1) 세션의 player_persona를 최우선으로 사용 (세션 교체 직후에도 안정적)
+        const sp = session?.player_persona || currentSession?.player_persona;
+        if (sp && (sp.name || sp.image_key || sp.image_url || sp.image?.url)) {
+          // preset_XX 정리
+          let key = sp.image_key || sp.image?.key || '';
+          if (key && key.startsWith('preset_')) {
+            const m = key.match(/preset_([MF]\d+)/);
+            if (m) key = m[1];
+          }
+          
+          persona = {
+            persona_ref_id: String(sp.persona_ref_id ?? session?.persona_ref_id ?? currentSession?.persona_ref_id ?? sp.persona_id ?? ''),
+            persona_id: String(sp.persona_id ?? session?.persona_ref_id ?? currentSession?.persona_ref_id ?? ''),
+            name: sp.name,
+            gender: sp.gender,
+            intro: sp.intro || sp.bio || sp.summary || '',
+            image_key: key || null,
+            image_url: sp.image_url || sp.image?.url || (key ? resolvePersonaUrl(`/assets/persona/${key}.png`) : null),
+          };
+          personaId = persona.persona_ref_id || persona.persona_id;
+          console.log('[DEBUG] createGameMessageElement: using session player_persona:', persona.name, persona.image_key);
+        }
+        
+        // 2) log에 persona_id가 있으면 해당 persona를 PERSONAS_LIST에서 찾기
+        if (!persona && (log?.persona_id || log?.persona_ref_id)) {
+          personaId = log.persona_id || log.persona_ref_id;
+          if (personaId && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
+            const matched = PERSONAS_LIST.find(p => {
+              const a = p.persona_ref_id != null ? String(p.persona_ref_id) : null;
+              const b = p._id != null ? String(p._id) : null;
+              const c = p.persona_id != null ? String(p.persona_id) : null;
+              const targetId = String(personaId);
+              return a === targetId || b === targetId || c === targetId;
+            });
+            if (matched) {
+              persona = {
+                persona_ref_id: String(matched.persona_ref_id || matched._id || matched.persona_id || ''),
+                persona_id: matched.persona_id != null ? String(matched.persona_id) : null,
+                name: matched.name,
+                gender: matched.gender,
+                intro: matched.intro || matched.bio || matched.summary || '',
+                image_key: matched.image_key || matched.image?.key,
+                image_url: matched.image_url || matched.image?.url || (matched.image_key ? resolvePersonaUrl(`/assets/persona/${matched.image_key}.png`) : null),
+              };
+              console.log('[DEBUG] createGameMessageElement: matched persona from log persona_id:', persona.name);
+            }
+          }
+        }
+        
+        // 3) SELECTED_PERSONA_ID 확인 (사용자가 선택한 페르조나 우선)
+        if (!persona) {
+          console.log('[DEBUG] createGameMessageElement: checking SELECTED_PERSONA_ID:', SELECTED_PERSONA_ID, 'PERSONAS_LIST length:', PERSONAS_LIST?.length || 0);
+          if (SELECTED_PERSONA_ID && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
+            const selectedPersona = PERSONAS_LIST.find(p => p.persona_id === SELECTED_PERSONA_ID);
+            console.log('[DEBUG] createGameMessageElement: found selectedPersona:', selectedPersona?.name || 'null');
+            if (selectedPersona) {
+              persona = {
+                persona_ref_id: String(selectedPersona.persona_ref_id || selectedPersona._id || selectedPersona.persona_id || ''),
+                persona_id: selectedPersona.persona_id != null ? String(selectedPersona.persona_id) : null,
+                name: selectedPersona.name,
+                gender: selectedPersona.gender,
+                intro: selectedPersona.intro || selectedPersona.bio || selectedPersona.summary || '',
+                image_key: selectedPersona.image_key || selectedPersona.image?.key,
+                image_url: selectedPersona.image_url || selectedPersona.image?.url || (selectedPersona.image_key ? resolvePersonaUrl(`/assets/persona/${selectedPersona.image_key}.png`) : null),
+              };
+              personaId = persona.persona_ref_id || persona.persona_id;
+              console.log('[DEBUG] createGameMessageElement: using SELECTED_PERSONA_ID:', persona.name);
+            }
+          }
+        }
+        
+        // 4) 현재 활성 persona 사용 (fallback)
+        if (!persona) {
+          console.log('[DEBUG] createGameMessageElement: calling getActivePersonaForGame() - currentSession.persona_ref_id:', currentSession?.persona_ref_id, 'currentSession.player_persona:', currentSession?.player_persona);
+          persona = getActivePersonaForGame();
+          if (persona) {
+            personaId = persona.persona_ref_id || persona.persona_id;
+            console.log('[DEBUG] createGameMessageElement: using active persona as fallback:', persona.name, persona.image_key);
+          } else {
+            console.warn('[DEBUG] createGameMessageElement: no persona found for player message');
+          }
+        }
+        
+        // persona_id를 data attribute로 저장 (기존 메시지 보존용)
+        if (personaId) {
+          row.setAttribute('data-persona-id', String(personaId));
+        }
+        
+        // 배지 생성
+        const badge = createMiniPersonaBadge(persona);
+        if (badge) {
+          // 배지에도 persona_id 저장
+          if (personaId) {
+            badge.setAttribute('data-persona-id', String(personaId));
+          }
+          row.appendChild(badge); // bubble 형제로 append
+        }
+      }
+
+      return row;
+    }
+
+    // 게임 메시지 노드를 채팅 컨테이너에 append
+    function appendGameMessage(log, session) {
+      const chatEl = document.getElementById('chat');
+      if (!chatEl) return;
+      
+      const row = createGameMessageElement(log, session);
+      chatEl.appendChild(row);
+      
+      // 기존 스크롤 정책 유지 (자동 바닥)
+      const chatContainer = document.querySelector('.game-chat-log');
+      if (chatContainer) {
+        setTimeout(() => {
+          const bottomMarker = document.getElementById('chat-bottom-marker');
+          if (bottomMarker) {
+            bottomMarker.scrollIntoView({ behavior: 'smooth', block: 'end' });
+          } else {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          }
+        }, 50);
+      }
+    }
+
+    // 세션 기반 채팅 로그 렌더링 (delta append 방식 - 배지 유지)
+    function renderChatLogsFromSession(session, opts = { isInitialLoad: false }) {
       if (!session) {
         console.warn("[DEBUG] renderChatLogsFromSession: no session");
         return;
@@ -1092,19 +2188,67 @@
         return;
       }
       
-      // 기존 로그 제거 (중복 방지) - 항상 완전히 비우기
-      const beforeLength = chatEl.children.length;
-      chatEl.innerHTML = '';
-      console.log("[DEBUG] renderChatLogsFromSession: cleared", beforeLength, "existing messages, rendering", (session.turn_logs || []).length, "logs");
-      
-      // 선택지 버튼 영역도 비우기 (중복 방지) - 항상 완전히 비우기
-      const actionsEl = document.getElementById('game-turn-actions');
-      if (actionsEl) {
-        const beforeActions = actionsEl.children.length;
-        actionsEl.innerHTML = '';
-        console.log("[DEBUG] renderChatLogsFromSession: cleared", beforeActions, "existing action buttons");
+      // 초기 로드 시에만 전체 비우기 (업데이트 시에는 비우지 않음)
+      if (opts.isInitialLoad) {
+        const beforeLength = chatEl.children.length;
+        chatEl.innerHTML = '';
+        console.log("[DEBUG] renderChatLogsFromSession: initial load, cleared", beforeLength, "existing messages");
+      } else {
+        // 업데이트 모드: 기존 메시지 ID 수집 (존재하는 메시지 추적)
+        const existingIds = new Set(
+          Array.from(chatEl.querySelectorAll('[data-message-id]'))
+            .map(el => el.getAttribute('data-message-id'))
+            .filter(Boolean)
+        );
+        console.log("[DEBUG] renderChatLogsFromSession: update mode, existing messages:", existingIds.size);
+        
+        // 세션의 turn_logs에서 중복 제거
+        const rawLogs = session.turn_logs || [];
+        const logs = dedupeMessages(rawLogs);
+        
+        // 아직 없는 메시지만 append (delta append)
+        let newCount = 0;
+        logs.forEach((log) => {
+          if (log.speaker_type === 'narration') {
+            return;
+          }
+          
+          const messageId = getGameMessageId(log);
+          if (!existingIds.has(messageId)) {
+            appendGameMessage(log, session);
+            newCount++;
+          }
+        });
+        console.log("[DEBUG] renderChatLogsFromSession: appended", newCount, "new messages");
+        
+        // 선택지 버튼 처리 (마지막 턴만)
+        const actionsEl = document.getElementById('game-turn-actions');
+        if (actionsEl && logs.length > 0) {
+          const lastLog = logs[logs.length - 1];
+          const choices = lastLog?.choices || lastLog?.meta?.choices || [];
+          if (choices.length > 0) {
+            actionsEl.innerHTML = '';
+            choices.forEach((choice) => {
+              const btn = document.createElement('button');
+              btn.textContent = choice.text || choice;
+              btn.onclick = () => {
+                const choiceText = choice.text || choice;
+                const ta = document.getElementById('ta');
+                if (ta) {
+                  ta.value = choiceText;
+                  const sendBtn = document.getElementById('send');
+                  if (sendBtn) sendBtn.click();
+                }
+              };
+              actionsEl.appendChild(btn);
+            });
+          }
+        }
+        
+        return; // 업데이트 모드는 여기서 종료
       }
       
+      // 초기 로드 모드: 전체 렌더링
       // 캐릭터 맵 생성 (id와 name 둘 다로 매핑) - session만 사용
       const characterMaps = buildCharacterMaps(session);
       
@@ -1120,28 +2264,11 @@
           return;
         }
         
-        const isPlayer = log.speaker_type === 'player';
-        const row = document.createElement('div');
-        row.className = `msg ${isPlayer ? 'me' : ''}`;
-        
-        // 페이지 레벨에서 아바타 URL 계산
-        const { avatarUrl, name: displayName } = getAvatarForLog(log, characterMaps, session);
-        
-        // 이름 레이블 생성
-        const nameLabel = displayName ? `<strong>${escapeHtml(displayName)}</strong>: ` : '';
-        
-        // 플레이어는 아바타 없이
-        if (isPlayer) {
-          row.innerHTML = `<div class="bubble">${renderMessageText(log.text)}</div>`;
-        } else {
-          // NPC/Monster는 아바타와 함께 (이미 풀 URL로 변환된 avatarUrl 사용)
-          row.innerHTML = `<img class="avatar" src="${avatarUrl}" alt="${displayName || 'NPC'}"/><div class="bubble">${nameLabel}${renderMessageText(log.text)}</div>`;
-        }
-        
-        chatEl.appendChild(row);
+        appendGameMessage(log, session);
       });
       
       // 마지막 턴의 선택지 처리 (한 번만, 중복 방지)
+      const actionsEl = document.getElementById('game-turn-actions');
       if (logs.length > 0 && actionsEl) {
         const lastLog = logs[logs.length - 1];
         const choices = lastLog?.choices || lastLog?.meta?.choices || [];
@@ -1196,6 +2323,85 @@
       return escapeHtml(text);
     }
 
+    // player 메시지 배지 갱신 (페르조나 변경 시에만 호출, 기존 메시지의 persona_id는 보존)
+    function refreshPlayerPersonaBadgesInGameChat() {
+      try {
+        const persona = getActivePersonaForGame();
+        if (!persona) {
+          console.log('[PERSONA] No active persona, skipping badge refresh');
+          return;
+        }
+
+        const playerRows = document.querySelectorAll('.game-msg--player');
+        let updated = 0;
+        let preserved = 0;
+
+        playerRows.forEach(row => {
+          // 기존 메시지의 persona_id 확인 (data attribute에서)
+          const existingPersonaId = row.getAttribute('data-persona-id');
+          
+          // persona_id가 있으면 해당 persona를 찾아서 사용 (기존 메시지 보존)
+          if (existingPersonaId && PERSONAS_LIST && PERSONAS_LIST.length > 0) {
+            const matched = PERSONAS_LIST.find(p => {
+              const a = p.persona_ref_id != null ? String(p.persona_ref_id) : null;
+              const b = p._id != null ? String(p._id) : null;
+              const c = p.persona_id != null ? String(p.persona_id) : null;
+              const targetId = String(existingPersonaId);
+              return a === targetId || b === targetId || c === targetId;
+            });
+            
+            if (matched) {
+              // 기존 persona로 배지 갱신
+              const preservedPersona = {
+                persona_ref_id: String(matched.persona_ref_id || matched._id || matched.persona_id || ''),
+                persona_id: matched.persona_id != null ? String(matched.persona_id) : null,
+                name: matched.name,
+                gender: matched.gender,
+                intro: matched.intro || matched.bio || matched.summary || '',
+                image_key: matched.image_key || matched.image?.key,
+                image_url: matched.image_url || matched.image?.url || (matched.image_key ? resolvePersonaUrl(`/assets/persona/${matched.image_key}.png`) : null),
+              };
+              
+              // 기존 배지 제거
+              row.querySelectorAll('.persona-badge--mini').forEach(b => b.remove());
+              
+              // 기존 persona로 새 배지 생성
+              const badge = createMiniPersonaBadge(preservedPersona);
+              if (badge) {
+                badge.setAttribute('data-persona-id', String(existingPersonaId));
+                row.appendChild(badge);
+                preserved++;
+              }
+              return;
+            }
+          }
+          
+          // persona_id가 없거나 매칭 실패한 경우에만 현재 활성 persona 사용 (새 메시지 또는 페르조나 변경)
+          // 기존 배지 제거
+          row.querySelectorAll('.persona-badge--mini').forEach(b => b.remove());
+          
+          // 현재 활성 persona로 배지 생성
+          const badge = createMiniPersonaBadge(persona);
+          if (badge) {
+            // 현재 활성 persona_id 저장
+            const currentPersonaId = persona.persona_ref_id || persona.persona_id;
+            if (currentPersonaId) {
+              badge.setAttribute('data-persona-id', String(currentPersonaId));
+              row.setAttribute('data-persona-id', String(currentPersonaId));
+            }
+            row.appendChild(badge);
+            updated++;
+          }
+        });
+
+        if (updated > 0 || preserved > 0) {
+          console.log(`[PERSONA] Updated ${updated} badges, preserved ${preserved} badges with original persona`);
+        }
+      } catch (e) {
+        console.error('[PERSONA] Error refreshing player badges:', e);
+      }
+    }
+
     // 초기화
     // .top-hud(.game-hero-card) width 동기화 함수
     // 주의: CSS game-inner-width로 고정 폭을 사용하므로 동적 width 설정은 제거
@@ -1221,6 +2427,19 @@
       
       // 뒤로가기
       document.getElementById('backBtn').onclick=()=>{ if(history.length>1) history.back(); else location.href='/home.html'; };
+      
+      // Persona 버튼 클릭 이벤트
+      const personaBtn = document.getElementById('personaBtn');
+      const headerPersonaBadge = document.getElementById('headerPersonaBadge');
+      if (personaBtn) personaBtn.onclick = () => openPersonaModal(false);
+      if (headerPersonaBadge) headerPersonaBadge.onclick = () => openPersonaModal(false);
+      
+      // 모달 backdrop 클릭으로 닫기 (강제 모달이 아닐 때만)
+      document.getElementById('personaModal').addEventListener('click', (e) => {
+        if (e.target.id === 'personaModal' && !isPersonaModalForceOpen) {
+          closePersonaModal();
+        }
+      });
 
       // URL → 게임 id 정규화
       const raw  = qs('game') || qs('game_id') || null;
@@ -1250,11 +2469,24 @@
         currentSession = sessionData;
         console.log("[DEBUG] Initial session load, turn_logs length:", currentSession.turn_logs.length);
         
-        // HUD 렌더링
+        // 1) HUD 먼저
         renderHudFromSession(currentSession);
         
-        // 채팅 로그 렌더링 (session.turn_logs만 사용 - 한 번만)
-        renderChatLogsFromSession(currentSession);
+        // 2) personas 먼저 로드 (가능하면 여기서)
+        try {
+          PERSONAS_LIST = await fetchPersonas();
+        } catch (e) {
+          console.warn('[GAME][BOOTSTRAP] Failed to load personas:', e);
+        }
+        
+        // 3) header 갱신
+        refreshHeaderPersonaBadge();
+        
+        // 4) 채팅 렌더 (이 시점에는 PERSONAS_LIST가 채워져서 배지 생성 가능)
+        renderChatLogsFromSession(currentSession, { isInitialLoad: true });
+        
+        // 5) 혹시 still null 케이스(세션에 player_persona 있고 personas 없어도) 대비 후처리 한번 더
+        refreshPlayerPersonaBadgesInGameChat();
         
         // 내레이션 영역 업데이트
         if (narrationEl && currentSession.turn_logs.length > 0) {
@@ -1265,12 +2497,33 @@
             narrationEl.textContent = lastNarration.text;
           }
         }
+        
+        // persona가 없으면 강제 모달 열기 (페르조나 목록이 있을 때만 강제)
+        const needsPersona = !currentSession.player_persona && !currentSession.persona_ref_id;
+        const hasPersonas = (PERSONAS_LIST?.length ?? 0) > 0;
+        
+        if (needsPersona && hasPersonas) {
+          console.log('[PERSONA] No persona found in session, forcing modal open');
+          await openPersonaModal(true);
+        } else if (needsPersona && !hasPersonas) {
+          // 페르조나가 없으면 강제 모달 없이 일반 모달로 열기 (닫기 가능)
+          console.log('[PERSONA] No persona found in session, opening modal (closable)');
+          await openPersonaModal(false);
+        }
       } else {
         // 초기 내레이션 영역에 게임 소개 텍스트 설정
         if (narrationEl) {
           const initialText = game.scenario_summary || game.scenario_detail || game.title || '게임을 시작하세요.';
           narrationEl.textContent = initialText;
         }
+        
+        // 세션이 없어도 페르조나 목록 로드 및 헤더 badge 갱신 (헤더 badge용, 하지만 세션이 없으면 강제 모달은 열지 않음)
+        try {
+          PERSONAS_LIST = await fetchPersonas();
+        } catch (e) {
+          console.warn('[GAME][BOOTSTRAP] Failed to load personas:', e);
+        }
+        refreshHeaderPersonaBadge();
       }
 
       // 게임은 인사말 없이 자유롭게 채팅 시작
@@ -1394,6 +2647,21 @@
         }
       });
     });
+
+    // 디버그 유틸: 게임 배지 상태 체크
+    window.__debugGameBadges = function () {
+      const playerRows = document.querySelectorAll('.game-msg--player').length;
+      const miniBadges = document.querySelectorAll('.persona-badge--mini').length;
+      const npcAvatars = document.querySelectorAll('.game-msg--npc .game-avatar').length;
+      console.log({ 
+        playerRows, 
+        miniBadges, 
+        npcAvatars, 
+        currentSessionPersonaRef: currentSession?.persona_ref_id, 
+        currentSessionPlayerPersona: currentSession?.player_persona 
+      });
+      return { playerRows, miniBadges, npcAvatars };
+    };
   </script>
 </body>
 </html>

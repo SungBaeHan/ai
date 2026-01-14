@@ -17,21 +17,21 @@ services:
       disable: true  # 이미지에 내장된 curl 기반 HEALTHCHECK 완전 비활성화
 
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ../_volumes/ollama_models:/root/.ollama
-      - ../infra/ollama-entrypoint.sh:/ollama-entrypoint.sh:ro
-      - ../trpg-gen.Modelfile:/trpg-gen.Modelfile:ro
-      - ../trpg-polish.Modelfile:/trpg-polish.Modelfile:ro
-    entrypoint: ["/bin/sh", "/ollama-entrypoint.sh"]
+#  ollama:
+#    image: ollama/ollama:latest
+#    container_name: ollama
+#    restart: unless-stopped
+#    ports:
+#      - "11434:11434"
+#    volumes:
+#      - ../_volumes/ollama_models:/root/.ollama
+#      - ../infra/ollama-entrypoint.sh:/ollama-entrypoint.sh:ro
+#      - ../trpg-gen.Modelfile:/trpg-gen.Modelfile:ro
+#      - ../trpg-polish.Modelfile:/trpg-polish.Modelfile:ro
+#    entrypoint: ["/bin/sh", "/ollama-entrypoint.sh"]
     # NOTE: disable default image HEALTHCHECK (curl not installed in container)
-    healthcheck:
-      disable: true  # ollama도 도커 HEALTHCHECK는 사용하지 않음
+#    healthcheck:
+#      disable: true  # ollama도 도커 HEALTHCHECK는 사용하지 않음
 
   api:
     build:

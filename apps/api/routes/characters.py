@@ -11,18 +11,19 @@
 
 import time
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from fastapi import APIRouter, Query, HTTPException, UploadFile, File, Form, Depends, Request
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from adapters.persistence.factory import get_character_repo
 from adapters.persistence.mongo import get_db
 from src.domain.character import Character
-from apps.api.utils import build_public_image_url
+from apps.api.utils.common import build_public_image_url
 from adapters.file_storage.r2_storage import R2Storage
 from langchain_openai import ChatOpenAI
 from apps.api.dependencies.auth import get_optional_user, User
 from apps.api.core.user_info_token import decode_user_info_token
 from adapters.persistence.mongo.factory import get_mongo_client
+from apps.api.deps.auth import get_current_user_from_token
 from bson import ObjectId
 from datetime import datetime, timezone
 import json
@@ -116,6 +117,9 @@ def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = 
             items = result.get("items", [])
             for it in items:
                 it["image"] = normalize_image(it.get("image"))
+                # creator ObjectId를 문자열로 변환
+                if "creator" in it and it["creator"] is not None:
+                    it["creator"] = str(it["creator"])
             return {
                 "items": items,
                 "total": result.get("total", len(items)),
@@ -145,6 +149,9 @@ def get_list(skip: int = Query(0, ge=0), limit: int = Query(20, ge=1), q: str = 
     for doc in cursor:
         doc.pop("_id", None)  # _id 제거
         doc["image"] = normalize_image(doc.get("image"))
+        # creator ObjectId를 문자열로 변환
+        if "creator" in doc and doc["creator"] is not None:
+            doc["creator"] = str(doc["creator"])
         # 프론트엔드 호환성을 위해 summary를 shortBio로도 매핑
         if "summary" in doc and "shortBio" not in doc:
             doc["shortBio"] = doc["summary"]
@@ -181,6 +188,7 @@ def get_one(character_id: str):
     
     char_dict = char.to_dict()
     char_dict["image"] = normalize_image(char_dict.get("image"))
+    # creator는 이미 문자열로 변환되어 있음 (Character.to_dict에서)
     # 프론트엔드 호환성을 위해 summary를 shortBio로도 매핑
     if "summary" in char_dict and "shortBio" not in char_dict:
         char_dict["shortBio"] = char_dict["summary"]
@@ -194,6 +202,72 @@ def get_count():
     """등록된 캐릭터 총 수 반환"""
     # Repository 인터페이스를 통한 조회
     return {"count": repo.count()}
+
+@router.get("/my", summary="내가 만든 캐릭터 목록")
+def get_my_characters(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1),
+    q: str = Query(None),
+    db = Depends(get_db),
+    current_user = Depends(get_current_user_from_token),
+):
+    """
+    현재 로그인한 사용자가 만든 캐릭터 목록 조회
+    - creator == current_user._id 조건으로 필터링
+    - 로그인 필수
+    """
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+    
+    # user_id를 ObjectId로 변환
+    user_id_str = current_user.get("user_id")
+    if not user_id_str:
+        raise HTTPException(status_code=401, detail="사용자 정보를 찾을 수 없습니다.")
+    
+    try:
+        creator_id = ObjectId(user_id_str)
+    except Exception:
+        raise HTTPException(status_code=400, detail="유효하지 않은 사용자 ID입니다.")
+    
+    # 필터 쿼리 구성
+    filter_query = {"creator": creator_id}
+    
+    # 검색어가 있으면 추가 필터
+    if q:
+        filter_query["$and"] = [
+            {"creator": creator_id},
+            {
+                "$or": [
+                    {"name": {"$regex": q, "$options": "i"}},
+                    {"tags": {"$regex": q, "$options": "i"}},
+                    {"summary": {"$regex": q, "$options": "i"}},
+                ]
+            }
+        ]
+    
+    # MongoDB 쿼리
+    cursor = db.characters.find(filter_query).sort([
+        ("created_at", -1),
+        ("id", -1),
+    ]).skip(skip).limit(limit)
+    
+    items = []
+    for doc in cursor:
+        doc.pop("_id", None)  # _id 제거
+        doc["image"] = normalize_image(doc.get("image"))
+        # creator ObjectId를 문자열로 변환
+        if "creator" in doc and doc["creator"] is not None:
+            doc["creator"] = str(doc["creator"])
+        # 프론트엔드 호환성을 위해 summary를 shortBio로도 매핑
+        if "summary" in doc and "shortBio" not in doc:
+            doc["shortBio"] = doc["summary"]
+        # detail을 longBio로도 매핑
+        if "detail" in doc and "longBio" not in doc:
+            doc["longBio"] = doc["detail"]
+        items.append(doc)
+    
+    total = db.characters.count_documents(filter_query)
+    return {"items": items, "total": total, "skip": skip, "limit": limit}
 
 # === 이미지 업로드 ===
 @router.post("/upload-image", summary="캐릭터 이미지 업로드")
@@ -283,6 +357,17 @@ class CharacterMeta(BaseModel):
     created_at: Optional[int] = None
     updated_at: Optional[int] = None
     reg_user: Optional[str] = Field(default=None, description="등록한 사용자의 google_id 또는 email")
+    gender: Optional[Literal["male", "female", "none"]] = Field(default="none", description="성별: male/female/none")
+    
+    @field_validator('gender')
+    @classmethod
+    def validate_gender(cls, v):
+        """gender 값 검증"""
+        if v is None:
+            return "none"
+        if v not in ["male", "female", "none"]:
+            raise ValueError("gender must be one of: male, female, none")
+        return v
 
 @router.post("/ai-detail", response_model=CharacterDetailResponse, summary="AI로 캐릭터 상세 생성")
 async def ai_generate_character_detail(payload: CharacterBaseInfo):
@@ -408,84 +493,15 @@ async def ai_generate_character_detail(payload: CharacterBaseInfo):
         logger.exception("AI generation failed")
         raise HTTPException(status_code=500, detail="캐릭터 상세 설정 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
 
-# === 사용자 인증 의존성 (validate-session과 동일한 로직) ===
-def get_current_user_from_token(token: str):
-    """
-    user_info_v2 토큰을 검증하고 사용자 정보를 반환하는 함수.
-    validate-session 엔드포인트와 완전히 동일한 로직을 사용.
-    """
-    try:
-        info = decode_user_info_token(token)
-    except ValueError:
-        return None
-
-    now = datetime.now(timezone.utc)
-    if info.expired_at < now:
-        return None
-
-    db = get_mongo_client()
-    users = db.users
-
-    try:
-        user = users.find_one({"_id": ObjectId(info.user_id)})
-    except Exception:
-        return None
-
-    if not user:
-        return None
-
-    # last_login_at 이 DB 값과 다르면, 이전 세션 토큰 → 무효
-    db_last_login = user.get("last_login_at")
-    if db_last_login is None:
-        return None
-
-    # timezone 정보가 없으면 UTC로 가정
-    if isinstance(db_last_login, datetime):
-        if db_last_login.tzinfo is None:
-            db_last_login = db_last_login.replace(tzinfo=timezone.utc)
-    else:
-        return None
-
-    # last_login_at 비교 (마이크로초 단위 차이 무시)
-    if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
-        return None
-
-    # 사용자 정보 반환 (dict 형태, validate-session과 동일한 구조)
-    return {
-        "user_id": str(user["_id"]),
-        "email": user.get("email", info.email),
-        "display_name": user.get("display_name", info.display_name),
-        "google_id": user.get("google_id"),
-        "sub": user.get("google_id"),
-        "is_use": user.get("is_use", "Y"),
-        "is_lock": user.get("is_lock", "N"),
-    }
-
-def get_current_user_v2(request: Request):
-    """
-    Request에서 user_info_v2 토큰을 읽어서 사용자 정보를 반환하는 의존성 함수.
-    validate-session과 동일한 로직을 사용.
-    """
-    # Authorization 헤더 또는 X-User-Info-Token 헤더에서 토큰 추출
-    token = None
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-    else:
-        # 별도 헤더에서 토큰 읽기 시도
-        token = request.headers.get("X-User-Info-Token")
-    
-    if not token:
-        return None
-    
-    return get_current_user_from_token(token)
+# === 사용자 인증 의존성은 worlds.py에서 import ===
+# 인증 함수는 apps.api.deps.auth.get_current_user_from_token을 사용
 
 @router.post("", summary="캐릭터 생성")
 async def create_character(
     file: UploadFile = File(...),
     meta: str = Form(...),
     db = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
 ):
     """
     캐릭터 이미지와 메타데이터를 함께 받아 R2 업로드 + Mongo 저장.
@@ -578,6 +594,20 @@ async def create_character(
                 for ex in payload.examples
             ]
             
+            # gender 필드 처리: 없으면 "none" 기본값
+            gender_value = payload.gender if payload.gender else "none"
+            
+            # --- creator 필드 세팅 (보안: payload의 creator는 무시, 서버에서만 설정) ---
+            creator_id = None
+            user_id_str = current_user.get("user_id")
+            if user_id_str:
+                try:
+                    # user_id를 ObjectId로 변환하여 저장
+                    creator_id = ObjectId(user_id_str)
+                except Exception:
+                    logger.warning(f"Invalid user_id format: {user_id_str}")
+                    creator_id = None
+            
             doc = {
                 "id": new_id,
                 "name": payload.name.strip(),
@@ -598,6 +628,8 @@ async def create_character(
                 "scenario": payload.scenario or "",
                 "system_prompt": payload.system_prompt or "",
                 "status": payload.status or "active",
+                "gender": gender_value,  # 성별 필드
+                "creator": creator_id,  # 생성자 사용자 ID (ObjectId)
                 "reg_user": reg_user,  # 등록자 식별자
                 "created_at": now,
                 "updated_at": now,
@@ -625,5 +657,115 @@ async def create_character(
     except HTTPException:
         raise
     except Exception as e:
-        logger.exception("Character creation failed")
-        raise HTTPException(status_code=500, detail="캐릭터 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+            logger.exception("Character creation failed")
+            raise HTTPException(status_code=500, detail="캐릭터 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.")
+
+
+@router.get("/{character_id}/chat/bootstrap", summary="캐릭터 채팅 재개 (Bootstrap)")
+async def bootstrap_character_chat(
+    character_id: str,
+    limit: int = Query(50, ge=1, le=200, description="최대 메시지 수"),
+    request: Request = None,
+    db = Depends(get_db),
+    current_user = Depends(get_current_user_from_token),
+):
+    """
+    캐릭터 채팅 세션을 불러와서 재개합니다.
+    - (user_id, character_id) 기준으로 세션을 조회
+    - 해당 세션의 메시지 히스토리를 created_at 오름차순으로 반환
+    - 세션이 없으면 빈 세션과 빈 메시지 목록 반환
+    """
+    try:
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+        
+        user_id = current_user.get("google_id") or current_user.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="사용자 정보를 찾을 수 없습니다.")
+        
+        # character_id 정규화 (char_XX 형태 처리)
+        char_id_str = character_id
+        if isinstance(char_id_str, str) and char_id_str.startswith("char_"):
+            try:
+                char_id_str = str(int(char_id_str.split("_", 1)[1]))
+            except Exception:
+                pass
+        else:
+            char_id_str = str(char_id_str)
+        
+        # 1) 세션 조회 (get-or-create)
+        session_col = db["characters_session"]
+        session_filter = {
+            "user_id": str(user_id),
+            "chat_type": "character",
+            "entity_id": char_id_str,
+        }
+        
+        session_doc = session_col.find_one(session_filter)
+        
+        if not session_doc:
+            # 세션이 없으면 빈 세션 정보 반환
+            return {
+                "session": None,
+                "messages": [],
+            }
+        
+        session_id = session_doc["_id"]
+        
+        # 2) 메시지 조회 (created_at 오름차순)
+        message_col = db["characters_message"]
+        cursor = message_col.find(
+            {"session_id": session_id}
+        ).sort("created_at", 1).limit(limit)
+        
+        messages = []
+        for msg_doc in cursor:
+            msg = {
+                "id": str(msg_doc["_id"]),
+                "session_id": str(msg_doc.get("session_id", "")),
+                "role": msg_doc.get("role", "user"),
+                "content": msg_doc.get("content", ""),
+                "created_at": msg_doc.get("created_at"),
+            }
+            if "request_id" in msg_doc:
+                msg["request_id"] = msg_doc["request_id"]
+            if "meta" in msg_doc:
+                msg["meta"] = msg_doc["meta"]
+            messages.append(msg)
+        
+        # 3) 세션 정보 정리 (ObjectId를 문자열로 변환)
+        session_summary = {
+            "id": str(session_doc["_id"]),
+            "user_id": session_doc.get("user_id"),
+            "chat_type": session_doc.get("chat_type"),
+            "entity_id": session_doc.get("entity_id"),
+            "status": session_doc.get("status", "idle"),
+            "created_at": session_doc.get("created_at"),
+            "updated_at": session_doc.get("updated_at"),
+            "last_message_at": session_doc.get("last_message_at"),
+            "last_message_preview": session_doc.get("last_message_preview"),
+            "state_version": session_doc.get("state_version", 0),
+        }
+        
+        # persona 필드가 있으면 포함
+        if "persona" in session_doc:
+            session_summary["persona"] = session_doc.get("persona")
+        
+        logger.info(
+            "[CHAT][BOOTSTRAP] user=%s char=%s session_id=%s messages_count=%d",
+            user_id,
+            char_id_str,
+            session_summary["id"],
+            len(messages),
+        )
+        
+        return {
+            "session": session_summary,
+            "messages": messages,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[CHAT][BOOTSTRAP][ERROR] character_id=%s error=%s", character_id, str(e))
+        raise HTTPException(status_code=500, detail=f"채팅 재개 중 오류가 발생했습니다: {str(e)}")

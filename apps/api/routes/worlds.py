@@ -17,7 +17,8 @@ from adapters.file_storage.r2_storage import R2Storage
 from langchain_openai import ChatOpenAI
 from apps.api.core.user_info_token import decode_user_info_token
 from adapters.persistence.mongo.factory import get_mongo_client
-from apps.api.utils import build_public_image_url
+from apps.api.utils.common import build_public_image_url
+from apps.api.deps.auth import get_current_user_from_token
 from bson import ObjectId
 from datetime import datetime, timezone
 from fastapi.encoders import jsonable_encoder
@@ -27,6 +28,121 @@ from motor.motor_asyncio import AsyncIOMotorClient
 logger = logging.getLogger(__name__)
 
 router = APIRouter()                                   # 서브 라우터
+
+
+@router.get("/{world_id}/chat/bootstrap", summary="세계관 채팅 재개 (Bootstrap)")
+async def bootstrap_world_chat(
+    world_id: str,
+    limit: int = Query(50, ge=1, le=200, description="최대 메시지 수"),
+    request: Request = None,
+    db = Depends(get_db),
+    current_user = Depends(get_current_user_from_token),
+):
+    """
+    세계관 채팅 세션을 불러와서 재개합니다.
+    - (user_id, world_id) 기준으로 세션을 조회
+    - 해당 세션의 메시지 히스토리를 created_at 오름차순으로 반환
+    - 세션이 없으면 빈 세션과 빈 메시지 목록 반환
+    """
+    try:
+        if current_user is None:
+            raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+        
+        user_id = current_user.get("google_id") or current_user.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="사용자 정보를 찾을 수 없습니다.")
+        
+        # world_id 정규화 (ObjectId 문자열 처리)
+        world_id_str = str(world_id)
+        
+        # 1) 세션 조회 (get-or-create)
+        session_col = db["worlds_session"]
+        session_filter = {
+            "user_id": str(user_id),
+            "chat_type": "world",
+            "entity_id": world_id_str,
+        }
+        
+        logger.info(
+            "[CHAT][BOOTSTRAP] world session filter: user_id=%s world_id=%s entity_id=%s",
+            str(user_id),
+            world_id_str,
+            world_id_str,
+        )
+        
+        session_doc = session_col.find_one(session_filter)
+        
+        if not session_doc:
+            # 세션이 없으면 빈 세션 정보 반환
+            logger.info("[CHAT][BOOTSTRAP] world session not found for user_id=%s world_id=%s", str(user_id), world_id_str)
+            return {
+                "session": None,
+                "messages": [],
+            }
+        
+        session_id = session_doc["_id"]
+        
+        # 2) 메시지 조회 (created_at 오름차순)
+        # messages는 session_id로만 조회 (world_id/entity_id/chat_type 필드 없음)
+        message_col = db["worlds_message"]
+        message_filter = {"session_id": session_id}
+        
+        logger.info(
+            "[CHAT][BOOTSTRAP] world message filter: session_id=%s",
+            str(session_id),
+        )
+        
+        cursor = message_col.find(message_filter).sort("created_at", 1).limit(limit)
+        
+        messages = []
+        for msg_doc in cursor:
+            msg = {
+                "id": str(msg_doc["_id"]),
+                "session_id": str(msg_doc.get("session_id", "")),
+                "role": msg_doc.get("role", "user"),
+                "content": msg_doc.get("content", ""),
+                "created_at": msg_doc.get("created_at"),
+            }
+            if "request_id" in msg_doc:
+                msg["request_id"] = msg_doc["request_id"]
+            if "meta" in msg_doc:
+                msg["meta"] = msg_doc["meta"]
+            messages.append(msg)
+        
+        # 3) 세션 정보 정리 (ObjectId를 문자열로 변환)
+        session_summary = {
+            "id": str(session_doc["_id"]),
+            "user_id": session_doc.get("user_id"),
+            "chat_type": session_doc.get("chat_type"),
+            "entity_id": session_doc.get("entity_id"),
+            "status": session_doc.get("status", "idle"),
+            "created_at": session_doc.get("created_at"),
+            "updated_at": session_doc.get("updated_at"),
+            "last_message_at": session_doc.get("last_message_at"),
+            "last_message_preview": session_doc.get("last_message_preview"),
+            "state_version": session_doc.get("state_version", 0),
+            "persona": session_doc.get("persona"),
+        }
+        
+        logger.info(
+            "[CHAT][BOOTSTRAP] user=%s world=%s session_id=%s messages_count=%d",
+            user_id,
+            world_id_str,
+            session_summary["id"],
+            len(messages),
+        )
+        
+        return {
+            "session": session_summary,
+            "messages": messages,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("[CHAT][BOOTSTRAP][ERROR] world_id=%s error=%s", world_id, str(e))
+        raise HTTPException(status_code=500, detail=f"채팅 재개 중 오류가 발생했습니다: {str(e)}")
+
 
 # R2 Storage 인스턴스 (지연 초기화)
 _r2_storage: Optional[R2Storage] = None
@@ -144,77 +260,7 @@ def get_next_world_id(db):
             pass
     return 1
 
-# === 사용자 인증 의존성 (validate-session과 동일한 로직) ===
-def get_current_user_from_token(token: str):
-    """
-    user_info_v2 토큰을 검증하고 사용자 정보를 반환하는 함수.
-    validate-session 엔드포인트와 완전히 동일한 로직을 사용.
-    """
-    try:
-        info = decode_user_info_token(token)
-    except ValueError:
-        return None
-
-    now = datetime.now(timezone.utc)
-    if info.expired_at < now:
-        return None
-
-    db = get_mongo_client()
-    users = db.users
-
-    try:
-        user = users.find_one({"_id": ObjectId(info.user_id)})
-    except Exception:
-        return None
-
-    if not user:
-        return None
-
-    # last_login_at 이 DB 값과 다르면, 이전 세션 토큰 → 무효
-    db_last_login = user.get("last_login_at")
-    if db_last_login is None:
-        return None
-
-    # timezone 정보가 없으면 UTC로 가정
-    if isinstance(db_last_login, datetime):
-        if db_last_login.tzinfo is None:
-            db_last_login = db_last_login.replace(tzinfo=timezone.utc)
-    else:
-        return None
-
-    # last_login_at 비교 (마이크로초 단위 차이 무시)
-    if db_last_login.replace(microsecond=0) != info.last_login_at.replace(microsecond=0):
-        return None
-
-    # 사용자 정보 반환 (dict 형태, validate-session과 동일한 구조)
-    return {
-        "user_id": str(user["_id"]),
-        "email": user.get("email", info.email),
-        "display_name": user.get("display_name", info.display_name),
-        "google_id": user.get("google_id"),
-        "sub": user.get("google_id"),
-        "is_use": user.get("is_use", "Y"),
-        "is_lock": user.get("is_lock", "N"),
-    }
-
-def get_current_user_v2(request: Request):
-    """
-    Request에서 user_info_v2 토큰을 읽어서 사용자 정보를 반환하는 의존성 함수.
-    validate-session과 동일한 로직을 사용.
-    """
-    # Authorization 헤더 또는 X-User-Info-Token 헤더에서 토큰 추출
-    token = None
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-    else:
-        # 별도 헤더에서 토큰 읽기 시도
-        token = request.headers.get("X-User-Info-Token")
-    
-    if not token:
-        return None
-    
-    return get_current_user_from_token(token)
+# 인증 함수는 apps.api.deps.auth.get_current_user_from_token을 직접 사용합니다.
 
 # === 이미지 업로드 ===
 @router.post("/upload-image", summary="세계관 이미지 업로드")
@@ -405,7 +451,7 @@ async def create_world(
     file: UploadFile = File(...),
     meta: str = Form(...),
     db = Depends(get_db),
-    current_user = Depends(get_current_user_v2),
+    current_user = Depends(get_current_user_from_token),
 ):
     """
     세계관 이미지와 메타데이터를 함께 받아 R2 업로드 + Mongo 저장.
@@ -576,16 +622,42 @@ class WorldListResponse(BaseModel):
 async def list_worlds(
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=200),
+    q: Optional[str] = Query(None, description="이름/태그/요약 검색어"),
 ):
     """
     세계관 목록 조회.
-    프론트에서는 /v1/worlds?offset=0&limit=200 으로 호출하고,
+
+    - 기본: created_at DESC 정렬
+    - q 가 있으면 name / tags / summary 에 대한 부분 일치(case-insensitive) 검색
+
+    프론트에서는 /v1/worlds?offset=0&limit=200[&q=검색어] 형태로 호출하고,
     응답은 { total: number, items: World[] } 형태를 기대하고 있음.
     """
     db = get_mongo_db()
     coll = db["worlds"]
+
+    # 검색어 전처리
+    if q is not None:
+        q = q.strip()
+        if q == "":
+            q = None
+
     # 필요하면 status="active" 조건만 주기
-    query = {}  # 예: {"status": "active"}
+    base_query: Dict[str, Any] = {}  # 예: {"status": "active"}
+
+    if q:
+        # name / tags / summary 에 대해 부분 일치 검색
+        search_filter: Dict[str, Any] = {
+            "$or": [
+                {"name": {"$regex": q, "$options": "i"}},
+                {"tags": {"$regex": q, "$options": "i"}},
+                {"summary": {"$regex": q, "$options": "i"}},
+            ]
+        }
+        query: Dict[str, Any] = {**base_query, **search_filter}
+    else:
+        query = base_query
+
     total = await coll.count_documents(query)
     cursor = (
         coll.find(query)

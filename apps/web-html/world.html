@@ -19,24 +19,40 @@
   </script>
   <style>
     :root { color-scheme: dark; } /* 다크 테마 힌트 */
-    body { margin:0; background:#0b0f14; color:#e5e7eb; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; }
-    .topbar-wrap { display:flex; justify-content:center; border-bottom:1px solid #1b2430; background:#0e141c; position:sticky; top:0; z-index:20; }
-    .topbar { width:100%; max-width:980px; display:flex; align-items:center; gap:10px; padding:10px 14px; }
+    html, body { height:100%; margin:0; overflow:hidden; }
+    body { background:#0b0f14; color:#e5e7eb; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Noto Sans,'Apple SD Gothic Neo','Malgun Gothic',sans-serif; display:flex; flex-direction:column; }
+    .topbar-wrap { display:flex; justify-content:center; border-bottom:1px solid #1b2430; background:#0e141c; position:sticky; top:0; z-index:20; flex-shrink:0; }
+    .topbar { width:100%; max-width:980px; display:flex; align-items:center; gap:10px; padding:10px 14px; justify-content:space-between; }
+    .topbar-left { display:flex; align-items:center; gap:10px; flex:1; }
+    .topbar-right { display:flex; align-items:center; gap:10px; }
     .back { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; border:1px solid #223042; background:#0f172a; color:#cbd5e1; cursor:pointer; }
     .title { font-weight:700; font-size:15px; color:#f1f5f9; }
+    .persona-btn { padding:6px 12px; border-radius:8px; border:1px solid #334155; background:#1f2937; color:#e5e7eb; font-size:13px; cursor:pointer; transition:all .15s ease; }
+    .persona-btn:hover { background:#334155; border-color:#475569; }
+    .header-persona-badge { display:flex; align-items:center; gap:8px; padding:4px 8px; border-radius:8px; border:1px solid #334155; background:#1f2937; cursor:pointer; transition:all .15s ease; }
+    .header-persona-badge:hover { background:#334155; border-color:#475569; }
+    .header-persona-avatar { width:24px; height:24px; border-radius:50%; object-fit:cover; box-shadow:0 0 4px rgba(0,0,0,.3); }
+    .header-persona-name { font-size:13px; color:#e5e7eb; }
+    .chat-page-content { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+    .chat-top-section { flex-shrink:0; }
     .hero { position:relative; margin:18px auto; max-width:980px; }
     .hero img { width:100%; border-radius:14px; border:1px solid #1f2937; box-shadow:0 10px 28px rgba(0,0,0,.35); display:block; }
     .panel { max-width:980px; margin:10px auto 18px; background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:12px 14px; }
     .chips { margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; }
     .chip { padding:3px 8px; font-size:11px; border-radius:999px; border:1px solid #334155; color:#a5b4fc; background:#0b1220; }
     .hint { font-size:12px; color:#9ca3af; margin-top:6px; }
-    .chat { max-width:980px; margin:0 auto 90px; padding:0 4px; }
-    .msg { display:flex; align-items:flex-start; gap:10px; margin:14px 0; animation:fadeInUp .35s ease; }
-    .msg.me { flex-direction:row-reverse; }
+    .chat-container { flex:1 1 auto; min-height:0; overflow-y:auto; display:flex; flex-direction:column; scrollbar-width:none; -ms-overflow-style:none; }
+    .chat-container::-webkit-scrollbar { width:0; height:0; }
+    .chat { max-width:980px; margin:0 auto; padding:14px 4px; width:100%; flex:1; }
+    .msg { display:flex; align-items:flex-end; gap:8px; margin:14px 0; animation:fadeInUp .35s ease; }
+    .msg.me { justify-content:flex-end; }
     .avatar { width:42px; height:42px; border-radius:50%; object-fit:cover; box-shadow:0 0 6px rgba(0,0,0,.4); }
     .bubble { background:#111827; border:1px solid #1f2937; padding:10px 14px; border-radius:14px; white-space:pre-wrap; line-height:1.6; max-width:70%; }
     .me .bubble { background:rgba(63,131,248,0.25); border-color:#334155; }
-    .inputBar { position:fixed; left:0; right:0; bottom:0; border-top:1px solid #1b2430; background:#0e141c; padding:12px; }
+    .user-persona-badge { display:flex; align-items:center; padding:0; }
+    .user-persona-avatar { width:38px; height:38px; border-radius:50%; object-fit:cover; box-shadow:0 0 4px rgba(0,0,0,.3); }
+    .user-persona-name { display:none !important; } /* 이름 제거 - 아이콘만 표시 */
+    .inputBar { border-top:1px solid #1b2430; background:#0e141c; padding:12px; flex-shrink:0; }
     .inputIn { max-width:980px; margin:0 auto; display:flex; gap:8px; }
     textarea { flex:1; resize:none; background:#0b1220; border:1px solid #1f2937; border-radius:10px; color:#e5e7eb; padding:10px 12px; min-height:44px; }
     button { padding:0 14px; border-radius:10px; border:1px solid #334155; background:#111827; color:#c7d2fe; height:44px; }
@@ -48,6 +64,38 @@
     .toast.show { opacity:1; }
     .toast .box { pointer-events:auto; min-width:200px; max-width:80vw; background:#0f172a; border:1px solid #1f2937; color:#e5e7eb; padding:14px 18px; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.45); text-align:center; }
     @keyframes fadeInUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+    
+    /* persona modal */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.75); display:flex; align-items:center; justify-content:center; z-index:100; opacity:0; pointer-events:none; transition:opacity .2s ease; }
+    .modal-backdrop.show { opacity:1; pointer-events:auto; }
+    .modal { background:#111827; border:1px solid #1f2937; border-radius:12px; width:90%; max-width:500px; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+    .modal-header { display:flex; justify-content:space-between; align-items:center; padding:20px; border-bottom:1px solid #1f2937; }
+    .modal-header h2 { margin:0; font-size:18px; color:#f3f4f6; }
+    .modal-close { background:none; border:none; color:#94a3b8; font-size:24px; cursor:pointer; padding:0; width:32px; height:32px; display:flex; align-items:center; justify-content:center; }
+    .modal-close:hover { color:#e5e7eb; }
+    .modal-body { padding:20px; max-height:60vh; overflow-y:auto; }
+    
+    /* Persona Card Styles (from personas.html) */
+    .persona-list { display:flex; flex-direction:column; gap:12px; }
+    .persona-card { background:#111827; border:1px solid #1f2937; border-radius:12px; padding:16px; transition:all .15s ease; cursor:pointer; }
+    .persona-card:hover { border-color:#3b82f6; }
+    .persona-card.selected { border-color:#3b82f6; border-width:2px; background:#1e3a8a; }
+    .persona-card.default { border-color:#3b82f6; background:#1e3a8a; }
+    .persona-card-header { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+    .persona-avatar { width:64px; height:64px; border-radius:8px; background:#1f2937; object-fit:cover; border:2px solid #334155; }
+    .persona-info { flex:1; }
+    .persona-name { font-size:16px; font-weight:600; color:#f3f4f6; margin-bottom:4px; }
+    .persona-badge { display:inline-block; padding:2px 8px; background:#3b82f6; color:#fff; border-radius:4px; font-size:11px; font-weight:600; margin-right:6px; }
+    .persona-gender { font-size:12px; color:#94a3b8; }
+    .persona-bio { font-size:13px; color:#cbd5e1; line-height:1.5; margin-bottom:12px; max-height:60px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    .persona-selected-info { padding:12px; background:#1e293b; border-radius:8px; margin-top:12px; font-size:13px; color:#cbd5e1; }
+    .persona-selected-info strong { color:#3b82f6; }
+    .modal-footer { padding:20px; border-top:1px solid #1f2937; flex-shrink:0; }
+    .btn-modal { padding:10px 20px; border-radius:6px; border:1px solid #334155; background:#1f2937; color:#e5e7eb; font-size:14px; font-weight:500; cursor:pointer; transition:all .15s ease; }
+    .btn-modal:hover { background:#334155; }
+    .btn-modal.primary { background:#3b82f6; border-color:#2563eb; color:#fff; }
+    .btn-modal.primary:hover { background:#2563eb; }
+    .modal-loading { text-align:center; padding:40px; color:#94a3b8; }
   </style>
 </head>
 <body>
@@ -55,27 +103,41 @@
 
   <div class="topbar-wrap">
     <div class="topbar">
-      <button id="backBtn" class="back" title="뒤로 가기">←</button> <!-- 뒤로가기 -->
-      <div class="title" id="title">로딩 중…</div>                   <!-- 세계관 이름 -->
+      <div class="topbar-left">
+        <button id="backBtn" class="back" title="뒤로 가기">←</button> <!-- 뒤로가기 -->
+        <div class="title" id="title">로딩 중…</div>                   <!-- 세계관 이름 -->
+      </div>
+      <div class="topbar-right">
+        <div id="headerPersonaBadge" class="header-persona-badge" style="display:none;" title="페르조나 설정" onclick="openPersonaModal()">
+          <img id="headerPersonaAvatar" class="header-persona-avatar" src="" alt="" />
+          <span id="headerPersonaName" class="header-persona-name"></span>
+        </div>
+        <button id="personaBtn" class="persona-btn" title="페르조나 설정" style="display:none;">Persona</button> <!-- 페르조나 버튼 (fallback) -->
+      </div>
     </div>
   </div>
 
-  <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
-  <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
+  <div class="chat-page-content">
+    <div class="chat-top-section">
+      <div class="hero"><img id="hero" alt="cover" src="/assets/img/placeholder.jpg" /></div> <!-- 히어로 이미지 -->
+      <div class="debug" id="dbg"></div> <!-- 디버그 로그(요청/이미지 경로) -->
 
-  <div class="panel" id="about">
-    <div style="font-weight:700; margin-bottom:6px;">소개</div>
-    <div id="bio" style="opacity:.9"></div> <!-- 장문 소개/배경 -->
-    <div class="chips">
-      <span class="chip">TRPG</span>
-      <span class="chip" id="chip-name">세계관</span>
+      <div class="panel" id="about">
+        <div style="font-weight:700; margin-bottom:6px;">소개</div>
+        <div id="bio" style="opacity:.9"></div> <!-- 장문 소개/배경 -->
+        <div class="chips">
+          <span class="chip">TRPG</span>
+          <span class="chip" id="chip-name">세계관</span>
+        </div>
+        <div class="hint">Tip: 메세지를 보내면 /v1/chat (TRPG 모드)로 요청합니다.</div>
+      </div>
     </div>
-    <div class="hint">Tip: 메세지를 보내면 /v1/chat (TRPG 모드)로 요청합니다.</div>
-  </div>
 
-  <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
+    <div class="chat-container">
+      <div class="chat" id="chat"></div> <!-- 채팅 로그 -->
+    </div>
 
-  <div class="inputBar">
+    <div class="inputBar" style="flex-shrink:0;">
     <div class="inputIn">
       <textarea id="ta" placeholder="메시지 입력…"></textarea>  <!-- 입력창 -->
       <button id="send">보내기</button>                         <!-- 전송 -->
@@ -85,6 +147,26 @@
   <!-- Toast Layer -->
   <div id="toast" class="toast" aria-live="polite" aria-atomic="true">
     <div class="box">준비중입니다</div>
+  </div>
+
+  <!-- Persona Modal -->
+  <div id="personaModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>페르조나 선택</h2>
+        <button class="modal-close" onclick="closePersonaModal()">×</button>
+      </div>
+      <div class="modal-body" id="personaModalBody">
+        <div class="modal-loading">로딩 중...</div>
+      </div>
+      <div class="modal-footer">
+        <div id="personaSelectedInfo" class="persona-selected-info" style="display:none;"></div>
+        <div style="display:flex; justify-content:flex-end; gap:12px; width:100%;">
+          <button class="btn-modal" onclick="closePersonaModal()">취소</button>
+          <button class="btn-modal primary" id="personaConfirmBtn" onclick="confirmPersonaSelection()" disabled>완료</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -97,6 +179,9 @@
 
     // --- 전역/유틸 -------------------------------------------------------------
     let CURRENT_WORLD = null;  // 현재 세계관
+    let CURRENT_WORLD_SESSION = null;  // 현재 세션
+    let PERSONAS_LIST = [];  // 페르조나 목록
+    let SELECTED_PERSONA_ID = null;  // 선택된 페르조나 ID
     const FALLBACK_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
       `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675"><rect width="100%" height="100%" fill="#0e141c"/><text x="50%" y="50%" fill="#94a3b8" font-size="48" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">No Image</text></svg>`
     );
@@ -157,6 +242,77 @@
       return j;
     }
 
+    // 세계관 채팅 bootstrap API 호출 (기존 메시지 불러오기)
+    async function bootstrapWorldChat(worldId, limit = 50){
+      const token = getToken();
+
+      // world_id 정규화 (world_XX 형태 처리)
+      let worldIdStr = worldId;
+      if (typeof worldIdStr === 'string' && worldIdStr.startsWith('world_')) {
+        try {
+          worldIdStr = String(parseInt(worldIdStr.split('_')[1], 10));
+        } catch (e) {
+          worldIdStr = String(worldId);
+        }
+      } else if (typeof worldIdStr === 'string' && worldIdStr.startsWith('world-')) {
+        // world-3 형태 처리
+        try {
+          worldIdStr = worldIdStr.replace('world-', '');
+        } catch (e) {
+          worldIdStr = String(worldId);
+        }
+      } else {
+        worldIdStr = String(worldId);
+      }
+
+      console.log(`[CHAT][BOOTSTRAP] request world_id=${worldIdStr} limit=${limit} token_exists=${!!token} token_len=${token ? token.length : 0}`);
+
+      try {
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+        
+        // token이 있을 때만 Authorization 헤더 추가
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const url = `${API_BASE_URL}/v1/worlds/${worldIdStr}/chat/bootstrap?limit=${limit}`;
+        const r = await fetch(url, {
+          method: "GET",
+          credentials: "include",  // 쿠키 기반 인증 지원
+          headers: headers,
+          cache: 'no-store'
+        });
+
+        console.log(`[CHAT][BOOTSTRAP] response status=${r.status} statusText=${r.statusText}`);
+
+        if (!r.ok) {
+          const errorText = await r.text();
+          console.error(`[CHAT][BOOTSTRAP] fail status=${r.status} statusText=${r.statusText} detail=${errorText}`);
+          console.error(`[CHAT][BOOTSTRAP] request_url=${url} headers=${JSON.stringify(headers)}`);
+          
+          if (r.status === 401) {
+            console.error('[CHAT][BOOTSTRAP] Authentication failed - token may be expired or missing');
+            showToast('세션이 만료되었습니다. 다시 로그인해주세요.', 3000);
+          }
+          
+          return { session: null, messages: [] };
+        }
+
+        const data = await r.json();
+        const messages = data.messages || [];
+        const session = data.session;
+
+        console.log(`[CHAT][BOOTSTRAP] ok messages=${messages.length} session_id=${session ? session.id : 'null'}`);
+
+        return { session, messages };
+      } catch (e) {
+        console.error(`[CHAT][BOOTSTRAP] fail error=${e.message}`, e);
+        return { session: null, messages: [] };
+      }
+    }
+
     // 상단/배경/칩 렌더
     function paintWorld(world){
       document.getElementById('title').textContent=world.name||world.id;
@@ -189,8 +345,48 @@
         c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])
       );
     }
-    function addUser(text){ const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg me'; row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
-    function addBot(text){  const chat=document.getElementById('chat'); const row=document.createElement('div'); row.className='msg'; const img=resolvePath(CURRENT_WORLD?.image); row.innerHTML=`<img class="avatar" src="${img}" alt="bot"/><div class="bubble">${escapeHtml(text)}</div>`; chat.appendChild(row); chat.scrollTop=chat.scrollHeight; }
+    function addUser(text){
+      const chat=document.getElementById('chat');
+      const row=document.createElement('div');
+      row.className='msg me';
+      
+      // persona 정보 가져오기 (세션 우선, 없으면 default)
+      const persona = getActivePersonaForSession();
+      
+      // persona 뱃지 생성 (이름 제거 - 아이콘만)
+      let personaBadge = '';
+      if (persona) {
+        const personaImageUrl = resolvePersonaUrl(`/assets/persona/${persona.image_key || 'F01'}.png`);
+        personaBadge = `
+          <div class="user-persona-badge" data-role="persona-badge-message">
+            <img src="${personaImageUrl}" alt="${escapeHtml(persona.name || '')}" class="user-persona-avatar" onerror="this.src='${resolvePersonaUrl('/assets/persona/F01.png')}'" />
+          </div>
+        `;
+      }
+      
+      row.innerHTML=`<div class="bubble">${escapeHtml(text)}</div>${personaBadge}`;
+      chat.appendChild(row);
+      const chatContainer = document.querySelector('.chat-container');
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      } else {
+        chat.scrollTop = chat.scrollHeight;
+      }
+    }
+    function addBot(text){  
+      const chat=document.getElementById('chat'); 
+      const row=document.createElement('div'); 
+      row.className='msg'; 
+      const img=resolvePath(CURRENT_WORLD?.image); 
+      row.innerHTML=`<img class="avatar" src="${img}" alt="bot"/><div class="bubble">${escapeHtml(text)}</div>`; 
+      chat.appendChild(row); 
+      const chatContainer = document.querySelector('.chat-container');
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      } else {
+        chat.scrollTop = chat.scrollHeight;
+      }
+    }
 
     // 토큰 관리
     const TOKEN_KEY = 'access_token';
@@ -261,6 +457,309 @@
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
     }
 
+    // 페르조나 이미지 URL 정규화 함수 (personas.html에서 가져옴)
+    const R2_BASE = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
+    function resolvePersonaUrl(u) {
+      if (!u) return "";
+      // 이미 절대 URL이면 그대로 반환
+      if (u.startsWith("http://") || u.startsWith("https://")) return u;
+      // 상대 경로(/assets/...)를 R2 절대 URL로 변환
+      if (u.startsWith("/")) return `${R2_BASE}${u}`;
+      // /로 시작하지 않으면 /assets/persona/를 prefix로 추가
+      return `${R2_BASE}/assets/persona/${u}`;
+    }
+    
+    // 활성 persona 반환 (세션 우선, 없으면 default persona)
+    function getActivePersonaForSession() {
+      // 1) 세션 persona 스냅샷 최우선
+      if (CURRENT_WORLD_SESSION?.persona?.persona_id) {
+        return CURRENT_WORLD_SESSION.persona;
+      }
+      
+      // 2) fallback: PERSONAS_LIST에서 default persona
+      const ps = PERSONAS_LIST || [];
+      const d = ps.find(p => p.is_default) || ps[0];
+      if (d?.persona_id) {
+        return {
+          persona_id: d.persona_id,
+          name: d.name,
+          gender: d.gender,
+          image_key: d.image_key
+        };
+      }
+      
+      // 3) nothing
+      return null;
+    }
+    
+    // 모든 유저 메시지의 persona 뱃지 갱신
+    function refreshAllUserMessageBadges() {
+      const persona = getActivePersonaForSession();
+      document.querySelectorAll('[data-role="persona-badge-message"]').forEach(badge => {
+        if (!persona) {
+          badge.style.display = 'none';
+          return;
+        }
+        
+        badge.style.display = 'flex';
+        const img = badge.querySelector('img');
+        
+        if (img) {
+          const personaImageUrl = resolvePersonaUrl(`/assets/persona/${persona.image_key || 'F01'}.png`);
+          img.src = personaImageUrl;
+          img.onerror = function() {
+            this.src = resolvePersonaUrl('/assets/persona/F01.png');
+          };
+        }
+        // 이름 요소는 제거됨 (아이콘만 표시)
+      });
+    }
+
+    // 헤더의 persona 뱃지 갱신
+    function refreshHeaderPersonaBadge() {
+      const persona = getActivePersonaForSession();
+      const badgeEl = document.getElementById('headerPersonaBadge');
+      const avatarEl = document.getElementById('headerPersonaAvatar');
+      const nameEl = document.getElementById('headerPersonaName');
+      const personaBtn = document.getElementById('personaBtn');
+      
+      if (!badgeEl || !avatarEl || !nameEl) return;
+      
+      if (!persona) {
+        badgeEl.style.display = 'none';
+        // persona가 없으면 Persona 버튼 표시 (fallback)
+        if (personaBtn) personaBtn.style.display = 'inline-block';
+        return;
+      }
+      
+      // persona가 있으면 badge 표시
+      badgeEl.style.display = 'flex';
+      if (personaBtn) personaBtn.style.display = 'none';
+      
+      // 이미지 및 이름 업데이트
+      const personaImageUrl = resolvePersonaUrl(`/assets/persona/${persona.image_key || 'F01'}.png`);
+      avatarEl.src = personaImageUrl;
+      avatarEl.alt = persona.name || 'persona';
+      avatarEl.onerror = function() {
+        this.src = resolvePersonaUrl('/assets/persona/F01.png');
+      };
+      nameEl.textContent = persona.name || 'persona';
+    }
+
+    // 페르조나 프리뷰 텍스트 추출 (우선순위: bio > summary > detail > 빈 문자열)
+    function getPersonaPreview(p) {
+      if (p.bio) return p.bio;
+      if (p.summary) return p.summary;
+      if (p.detail) return p.detail.substring(0, 120) + (p.detail.length > 120 ? '...' : '');
+      return '';
+    }
+
+    // 페르조나 목록 조회
+    async function fetchPersonas() {
+      try {
+        const token = localStorage.getItem('user_info_v2');
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['X-User-Info-Token'] = token;
+        }
+
+        const res = await fetch(`${API_BASE_URL}/v1/users/me/personas`, {
+          credentials: 'include',
+          headers
+        });
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            throw new Error('로그인이 필요합니다.');
+          }
+          throw new Error(`Failed to load: ${res.status}`);
+        }
+
+        const personas = await res.json();
+        return personas;
+      } catch (e) {
+        console.error('[PERSONA] Load error:', e);
+        throw e;
+      }
+    }
+
+    // 페르조나 모달 열기
+    async function openPersonaModal() {
+      const modal = document.getElementById('personaModal');
+      const body = document.getElementById('personaModalBody');
+      
+      modal.classList.add('show');
+      SELECTED_PERSONA_ID = null;
+      body.innerHTML = '<div class="modal-loading">로딩 중...</div>';
+
+      try {
+        PERSONAS_LIST = await fetchPersonas();
+        renderPersonaList();
+      } catch (e) {
+        body.innerHTML = `<div class="modal-loading" style="color:#ef4444;">페르조나를 불러오는데 실패했습니다: ${e.message}</div>`;
+        console.error('[PERSONA] Failed to load personas:', e);
+      }
+    }
+
+    // 페르조나 목록 렌더링
+    function renderPersonaList() {
+      const body = document.getElementById('personaModalBody');
+      const selectedInfo = document.getElementById('personaSelectedInfo');
+      const confirmBtn = document.getElementById('personaConfirmBtn');
+      
+      if (PERSONAS_LIST.length === 0) {
+        body.innerHTML = '<div class="modal-loading">페르조나가 없습니다. My 메뉴에서 페르조나를 생성해주세요.</div>';
+        selectedInfo.style.display = 'none';
+        confirmBtn.disabled = true;
+        return;
+      }
+
+      // 카드 UI로 렌더링
+      body.innerHTML = `<div class="persona-list">${PERSONAS_LIST.map(p => {
+        const genderText = {
+          male: '남성',
+          female: '여성',
+          nonbinary: '논바이너리'
+        }[p.gender] || '논바이너리';
+
+        // image_key 처리
+        let imageKey = p.image_key || 'F01';
+        if (imageKey && imageKey.startsWith('preset_')) {
+          try {
+            const num = parseInt(imageKey.replace('preset_', ''));
+            if (num <= 4 || num === 9 || num === 10 || num === 13 || num === 15) {
+              const mIndex = num <= 4 ? num : (num === 9 ? 5 : num === 10 ? 6 : num === 13 ? 7 : 8);
+              imageKey = `M${String(mIndex).padStart(2, '0')}`;
+            } else {
+              const fIndex = num <= 8 ? num - 4 : (num === 11 ? 3 : num === 12 ? 4 : num === 14 ? 5 : 6);
+              imageKey = `F${String(fIndex).padStart(2, '0')}`;
+            }
+          } catch {
+            imageKey = 'F01';
+          }
+        }
+        const imageUrl = resolvePersonaUrl(`/assets/persona/${imageKey}.png`);
+        const previewText = getPersonaPreview(p);
+        const selected = SELECTED_PERSONA_ID === p.persona_id ? 'selected' : '';
+        const defaultClass = p.is_default ? 'default' : '';
+
+        return `
+          <div class="persona-card ${selected} ${defaultClass}" onclick="selectPersona('${p.persona_id}')">
+            <div class="persona-card-header">
+              <img src="${imageUrl}" alt="${escapeHtml(p.name)}" class="persona-avatar" onerror="this.src='${resolvePersonaUrl('/assets/persona/F01.png')}'" />
+              <div class="persona-info">
+                <div class="persona-name">
+                  ${p.is_default ? '<span class="persona-badge">기본</span>' : ''}
+                  ${escapeHtml(p.name)}
+                </div>
+                <div class="persona-gender">${genderText}</div>
+              </div>
+            </div>
+            ${previewText ? `<div class="persona-bio">${escapeHtml(previewText)}</div>` : ''}
+          </div>
+        `;
+      }).join('')}</div>`;
+
+      // 선택된 페르조나 정보 표시
+      if (SELECTED_PERSONA_ID) {
+        const selectedPersona = PERSONAS_LIST.find(p => p.persona_id === SELECTED_PERSONA_ID);
+        if (selectedPersona) {
+          selectedInfo.innerHTML = `선택됨: <strong>${escapeHtml(selectedPersona.name)}</strong>`;
+          selectedInfo.style.display = 'block';
+          confirmBtn.disabled = false;
+        } else {
+          selectedInfo.style.display = 'none';
+          confirmBtn.disabled = true;
+        }
+      } else {
+        selectedInfo.style.display = 'none';
+        confirmBtn.disabled = true;
+      }
+    }
+
+    // 페르조나 선택
+    function selectPersona(personaId) {
+      SELECTED_PERSONA_ID = personaId;
+      renderPersonaList();
+    }
+
+    // 페르조나 모달 닫기
+    function closePersonaModal() {
+      const modal = document.getElementById('personaModal');
+      modal.classList.remove('show');
+      SELECTED_PERSONA_ID = null;
+    }
+
+    // 페르조나 선택 완료
+    async function confirmPersonaSelection() {
+      if (!SELECTED_PERSONA_ID) {
+        showToast('페르조나를 선택해주세요.');
+        return;
+      }
+
+      if (!CURRENT_WORLD_SESSION || !CURRENT_WORLD_SESSION.id) {
+        console.warn('[PERSONA] No session ID available');
+        showToast('세션 정보를 찾을 수 없습니다.');
+        return;
+      }
+
+      const sessionId = CURRENT_WORLD_SESSION.id;
+      const confirmBtn = document.getElementById('personaConfirmBtn');
+      const originalText = confirmBtn.textContent;
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = '적용 중...';
+
+      try {
+        const token = localStorage.getItem('user_info_v2');
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['X-User-Info-Token'] = token;
+        }
+
+        // world-sessions API 호출
+        const res = await fetch(`${API_BASE_URL}/v1/world-sessions/${sessionId}/persona`, {
+          method: 'POST',
+          credentials: 'include',
+          headers,
+          body: JSON.stringify({ persona_id: SELECTED_PERSONA_ID })
+        });
+
+        if (!res.ok) {
+          if (res.status === 404) {
+            console.log('[PERSONA] API endpoint not found (404) - this is expected if backend is not implemented yet');
+            showToast('페르조나 적용 API가 아직 구현되지 않았습니다.');
+          } else {
+            const errorText = await res.text().catch(() => 'Unknown error');
+            console.error(`[PERSONA] API error: ${res.status} ${errorText}`);
+            showToast(`페르조나 적용 실패: HTTP ${res.status}`);
+          }
+          return;
+        }
+
+        const data = await res.json().catch(() => ({}));
+        console.log('[PERSONA] Successfully applied persona:', data);
+        
+        // CURRENT_WORLD_SESSION.persona 업데이트
+        if (CURRENT_WORLD_SESSION && data.persona) {
+          CURRENT_WORLD_SESSION.persona = data.persona;
+          console.log('[PERSONA] Updated CURRENT_WORLD_SESSION.persona:', CURRENT_WORLD_SESSION.persona);
+          
+          // UI 뱃지 즉시 갱신
+          refreshAllUserMessageBadges();
+          refreshHeaderPersonaBadge();
+        }
+        
+        showToast('페르조나가 적용되었습니다.');
+        closePersonaModal();
+      } catch (e) {
+        console.error('[PERSONA] Failed to apply persona:', e);
+        showToast(`페르조나 적용 중 오류가 발생했습니다: ${e.message}`);
+      } finally {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = originalText;
+      }
+    }
+
     // 백엔드 LLM 호출
     async function askLLM(message, mode='trpg', choices=0){
       try {
@@ -320,6 +819,16 @@
     document.addEventListener('DOMContentLoaded', async ()=>{
       // 뒤로가기
       document.getElementById('backBtn').onclick=()=>{ if(history.length>1) history.back(); else location.href='/'; };
+      
+      // Persona 버튼 클릭 이벤트
+      document.getElementById('personaBtn').onclick = openPersonaModal;
+      
+      // 모달 backdrop 클릭으로 닫기
+      document.getElementById('personaModal').addEventListener('click', (e) => {
+        if (e.target.id === 'personaModal') {
+          closePersonaModal();
+        }
+      });
 
       // URL → 세계관 id 정규화
       const raw  = qs('world') || qs('world_id') || null;
@@ -333,7 +842,75 @@
       CURRENT_WORLD = world;
       paintWorld(world);
 
-      // 세계관은 인사말 없이 자유롭게 채팅 시작 (캐릭터와 달리 greeting 없음)
+      // Bootstrap: 기존 채팅 메시지 불러오기
+      let isLoadingBootstrap = true;
+      const sendBtn = document.getElementById('send');
+      const inputTa = document.getElementById('ta');
+      
+      // 로딩 중에는 입력 비활성화
+      sendBtn.disabled = true;
+      inputTa.disabled = true;
+
+      try {
+        const bootstrapResult = await bootstrapWorldChat(norm, 50);
+        const messages = bootstrapResult.messages || [];
+        const session = bootstrapResult.session;
+        
+        // CURRENT_WORLD_SESSION 설정
+        if (session) {
+          CURRENT_WORLD_SESSION = session;
+          console.log('[WORLD][BOOTSTRAP] Session loaded:', session.id);
+        }
+        
+        // 메시지가 있으면 기존 메시지 렌더링 (created_at 오름차순 정렬 보장)
+        if (messages.length > 0) {
+          // created_at 기준으로 한 번 더 정렬 (안전장치)
+          messages.sort((a, b) => {
+            const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return timeA - timeB;
+          });
+
+          // 기존 메시지 렌더링
+          messages.forEach(msg => {
+            if (msg.role === 'user') {
+              addUser(msg.content || '');
+            } else if (msg.role === 'assistant') {
+              addBot(msg.content || '');
+            }
+          });
+          
+          // 페르조나 목록 로드 (fallback용)
+          try {
+            PERSONAS_LIST = await fetchPersonas();
+          } catch (e) {
+            console.warn('[WORLD][BOOTSTRAP] Failed to load personas:', e);
+          }
+          
+          // 뱃지 갱신
+          refreshAllUserMessageBadges();
+          refreshHeaderPersonaBadge();
+        } else {
+          // 메시지가 없어도 세션이 있으면 헤더 badge 표시
+          if (session) {
+            // 페르조나 목록 로드 (fallback용)
+            try {
+              PERSONAS_LIST = await fetchPersonas();
+            } catch (e) {
+              console.warn('[WORLD][BOOTSTRAP] Failed to load personas:', e);
+            }
+            refreshHeaderPersonaBadge();
+          }
+        }
+      } catch (e) {
+        console.error('[CHAT][BOOTSTRAP] Error loading messages:', e);
+      } finally {
+        // 로딩 완료 후 입력 활성화
+        isLoadingBootstrap = false;
+        sendBtn.disabled = false;
+        inputTa.disabled = false;
+        inputTa.focus();
+      }
 
       // 입력 동작
       const ta=document.getElementById('ta'), btn=document.getElementById('send');

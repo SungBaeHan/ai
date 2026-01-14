@@ -29,14 +29,16 @@ ALLOWED_ORIGINS = [
     # 로컬 개발
     "http://localhost",
     "http://127.0.0.1",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
     # 프로덕션 도메인 (Cloudflare Pages)
-        "https://arcanaverse.ai",
-        "https://www.arcanaverse.ai",
-    ]
+    "https://arcanaverse.ai",
+    "https://www.arcanaverse.ai",
+]
 
 logger.info("CORS ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
 
@@ -46,7 +48,14 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,          # 쿠키/인증정보 허용
     allow_methods=["*"],             # 모든 메서드 허용
-    allow_headers=["*"],             # 모든 헤더 허용
+    allow_headers=[
+        "Authorization",
+        "X-Access-Token",
+        "X-Authorization",
+        "X-User-Info-Token",
+        "Content-Type",
+        "*",  # 모든 헤더 허용 (하위 호환)
+    ],
     expose_headers=["*"],
     max_age=3600,
 )
@@ -60,14 +69,16 @@ app.include_router(assets.router)  # /assets/images 라우터를 먼저 등록
 
 
 # === 정적 파일 마운트 ===
-# 주의: /assets/images는 API 라우터가 처리하므로, /assets 경로에 정적 파일을 마운트하지 않음
-# 정적 파일은 nginx에서 직접 서빙하거나, 필요시 /static 경로를 사용
-# assets_path = os.path.join(os.path.dirname(__file__), "../../apps/web-html/assets")
-# 정적 파일 마운트 제거: /assets/images 라우터와 충돌 방지
-print(f"[INFO] Static files should be served via nginx, not FastAPI /assets mount")
-
+# /assets/images는 API 라우터가 처리하므로, /assets 전체를 마운트하지 않음
+# /assets/persona/ 경로만 별도로 마운트 (API 라우터보다 구체적이므로 우선순위 높음)
 if ASSETS_DIR.is_dir():
-    print(f"[INFO] Assets directory exists: {ASSETS_DIR} (served via API or nginx)")
+    persona_dir = ASSETS_DIR / "persona"
+    if persona_dir.is_dir():
+        app.mount("/assets/persona", StaticFiles(directory=str(persona_dir)), name="persona-assets")
+        logger.info(f"[INFO] Mounted /assets/persona from {persona_dir}")
+    else:
+        logger.warning(f"[CHAT][PERSONA] trace=startup persona_missing path={persona_dir}")
+    logger.info(f"[INFO] Assets directory exists: {ASSETS_DIR}")
 if JSON_DIR.is_dir():
     app.mount("/json", StaticFiles(directory=str(JSON_DIR)), name="json")  # 홈/챗 폴백 JSON용
 
@@ -93,9 +104,15 @@ from apps.api.routes import auth_google            # /v1/auth/google
 from apps.api.routes import debug_db
 from apps.api.routes import migrate
 from apps.api.routes.user import router as user_router
+from apps.api.routes import personas
+from apps.api.routes import chat_v2
+from apps.api.routes import character_sessions
+from apps.api.routes import world_sessions
 
 app.include_router(characters.router, prefix="/v1/characters", tags=["characters"])
+app.include_router(character_sessions.router, prefix="/v1/character-sessions", tags=["character-sessions"])
 app.include_router(worlds.router, prefix="/v1/worlds", tags=["worlds"])
+app.include_router(world_sessions.router, prefix="/v1/world-sessions", tags=["world-sessions"])
 app.include_router(games.router, prefix="/v1/games", tags=["games"])
 app.include_router(game_turn.router, prefix="/v1/games", tags=["games"])
 app.include_router(chat_router.router,   prefix="/v1/chat",        tags=["chat"])
@@ -103,6 +120,8 @@ app.include_router(ask_router.router,    prefix="/v1/ask",         tags=["ask"])
 app.include_router(auth_router.router,   prefix="/v1/auth",        tags=["auth"])
 app.include_router(auth_google.router,   prefix="/v1/auth",        tags=["auth"])
 app.include_router(user_router, prefix="/v1")
+app.include_router(personas.router, prefix="/v1")
+app.include_router(chat_v2.router, prefix="/chat/v2", tags=["chat_v2"])
 app.include_router(debug_db.router)
 app.include_router(migrate.router)
 
@@ -139,6 +158,45 @@ async def general_exception_handler(request: Request, exc: Exception):
 # === Startup Hook ===
 @app.on_event("startup")
 async def _on_startup():
+    # MongoDB 연결 정보 로그 출력
+    try:
+        from adapters.persistence.mongo import get_db
+        db = get_db()
+        db_env = os.getenv("MONGO_DB", "arcanaverse")
+        mongo_uri = os.getenv("MONGO_URI", "")
+        
+        # URI 마스킹 (user/password 제거)
+        if mongo_uri:
+            try:
+                # user:password@host 형태를 user:***@host로 마스킹
+                if "@" in mongo_uri:
+                    parts = mongo_uri.split("@")
+                    if "://" in parts[0]:
+                        scheme_userpass = parts[0]
+                        host_part = "@".join(parts[1:])
+                        if ":" in scheme_userpass.split("://")[1]:
+                            scheme = scheme_userpass.split("://")[0]
+                            userpass = scheme_userpass.split("://")[1]
+                            user = userpass.split(":")[0]
+                            masked_uri = f"{scheme}://{user}:***@{host_part}"
+                        else:
+                            masked_uri = mongo_uri
+                    else:
+                        masked_uri = mongo_uri
+                else:
+                    masked_uri = mongo_uri
+            except Exception:
+                masked_uri = "***"
+        else:
+            masked_uri = "not_set"
+        
+        logger.info(f"[BOOT] DB_NAME env={db_env}")
+        logger.info(f"[BOOT] Mongo db.name={db.name}")
+        logger.info(f"[BOOT] Mongo URI (masked)={masked_uri}")
+    except Exception as e:
+        logger.warning(f"[BOOT] Failed to log MongoDB connection info: {e}")
+    
+    # 인덱스 초기화
     try:
         init_mongo_indexes()
     except Exception:

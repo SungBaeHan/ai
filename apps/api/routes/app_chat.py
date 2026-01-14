@@ -7,7 +7,7 @@ import asyncio
 import logging
 from typing import Dict, List, Any, Optional
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -15,6 +15,11 @@ from qdrant_client import QdrantClient
 # from langchain_ollama import ChatOllama  # OpenAI로 통일하여 주석 처리
 from langchain_openai import ChatOpenAI
 from adapters.external.embedding.sentence_transformer import embed
+from apps.api.utils.trace import make_trace_id
+from apps.api.services.chat_persist import persist_character_chat, persist_world_chat
+from adapters.persistence.mongo import get_db
+from apps.api.deps.auth import get_current_user_from_token
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +152,8 @@ def character_to_context(char: Dict[str, Any]) -> str:
     return profile, system_rules
 
 def build_messages(mode: str, history: List[Dict[str,str]], user_msg: str,
-                   context: str, char_ctx: str = "", char_rules: str = "", choices: int = 0) -> List[Dict[str,str]]:
+                   context: str, char_ctx: str = "", char_rules: str = "", choices: int = 0,
+                   persona: Optional[Dict[str, Any]] = None, character_gender: Optional[str] = None) -> List[Dict[str,str]]:
     if mode == "trpg":
         sys_prompt = (SYS_TRPG if choices and choices > 0 else SYS_TRPG_NOCHOICE)
     else:
@@ -157,6 +163,25 @@ def build_messages(mode: str, history: List[Dict[str,str]], user_msg: str,
         sys_prompt += f"\n\n[플레이어 캐릭터 프로필]\n{char_ctx}\n"
     if mode == "trpg" and char_rules:
         sys_prompt += f"\n[캐릭터 톤/규칙]\n{char_rules}\n"
+    
+    # Persona 및 Gender 정보 추가 (TRPG 모드일 때만)
+    if mode == "trpg":
+        persona_section = ""
+        if persona:
+            persona_name = persona.get("name") or "unknown"
+            persona_gender = persona.get("gender") or "unknown"
+            persona_section = f"\n[User Persona]\n- persona_name: {persona_name}\n- persona_gender: {persona_gender}\nGuidelines:\n- Use persona_gender only for honorifics/pronouns and social tone.\n- Do not mention these fields explicitly.\n- Keep replies concise, consistent with the character.\n"
+        else:
+            persona_section = "\n[User Persona]\n- persona_name: unknown\n- persona_gender: unknown\nGuidelines:\n- Use neutral expressions.\n"
+        
+        character_gender_section = ""
+        if character_gender:
+            character_gender_section = f"\n[Character Gender]\n- character_gender: {character_gender}\nGuidelines:\n- Maintain consistent speaking style and gendered nuance if applicable.\n"
+        else:
+            character_gender_section = "\n[Character Gender]\n- character_gender: unknown\nGuidelines:\n- Maintain consistent speaking style.\n"
+        
+        sys_prompt += persona_section + character_gender_section
+    
     if context:
         sys_prompt += f"\n[검색 컨텍스트]\n{context}\n"
 
@@ -319,11 +344,13 @@ class ChatIn(BaseModel):
     top_p: float = 0.9
     character_id: Optional[str] = None
     character: Optional[Dict[str, Any]] = None
+    world_id: Optional[str] = None
+    chat_type: Optional[str] = None
 
 router = APIRouter()
 
 @router.post("/")
-async def chat(req: Request):
+async def chat(req: Request, current_user: dict = Depends(get_current_user_from_token)):
     """
     /v1/chat 엔드포인트 (TRPG + QA 겸용)
     - OpenAI로 강제 통일 (gpt-4o-mini, max_tokens=32)
@@ -331,8 +358,22 @@ async def chat(req: Request):
     - Cloudflare 524 방지를 위해:
       * 전체 LLM 호출을 25초로 제한
       * 에러/타임아웃 시 HTTP 500 으로 바로 응답
+    - 인증 필수: current_user dependency로 user_id 보장
     """
-    logger.info("[TRPG] /v1/chat endpoint called")
+    # 트레이스 ID 생성
+    trace_id = make_trace_id()
+    
+    # MongoDB 연결 정보 (진입 로그용)
+    db = get_db()
+    db_env = os.getenv("MONGO_DB", "arcanaverse")
+    db_name = db.name
+    
+    # current_user에서 user_id 추출 (dependency에서 보장됨)
+    user_id = current_user.get("google_id")
+    if not user_id:
+        logger.error("[CHAT][FATAL] trace=%s missing google_id in current_user – chat persistence aborted", trace_id)
+        raise HTTPException(status_code=500, detail="User identity missing (no google_id)")
+    
     try:
         # 1) 요청 파싱
         try:
@@ -359,6 +400,21 @@ async def chat(req: Request):
         character_id = data.get("character_id") or (
             (character.get("id") if isinstance(character, dict) else None)
         )
+        
+        # 진입 로그
+        msg_len = len(q) if q else 0
+        char_id_str = str(character_id) if character_id else None
+        mode_str = mode if mode else "qa"
+        logger.info(
+            "[CHAT][IN] trace=%s user=%s mode=%s char=%s msg_len=%d db_env=%s db=%s",
+            trace_id,
+            user_id or "none",
+            mode_str,
+            char_id_str or "none",
+            msg_len,
+            db_env,
+            db_name,
+        )
 
         sid = get_or_create_sid(req)
         sess = SESSIONS[sid]
@@ -382,11 +438,40 @@ async def chat(req: Request):
         context = ""  # 이전: "" if mode == "trpg" else retrieve_context(q)
 
         char_ctx, char_rules = ("", "")
+        persona_info = None
+        character_gender = None
         if mode == "trpg" and isinstance(character, dict):
             try:
                 char_ctx, char_rules = character_to_context(dict(character))
+                character_gender = character.get("gender")
             except Exception:
                 char_ctx, char_rules = ("", "")
+            
+            # 캐릭터 세션에서 persona 정보 조회
+            if character_id:
+                try:
+                    from adapters.persistence.mongo.factory import get_mongo_client
+                    mongo = get_mongo_client()
+                    session_col = mongo["characters_session"]
+                    char_id_str = str(character_id)
+                    # character_id 정규화 (char_XX 형태 처리)
+                    if char_id_str.startswith("char_"):
+                        try:
+                            char_id_str = str(int(char_id_str.split("_", 1)[1]))
+                        except Exception:
+                            pass
+                    
+                    session_doc = session_col.find_one({
+                        "user_id": str(user_id),
+                        "chat_type": "character",
+                        "entity_id": char_id_str,
+                    })
+                    if session_doc and "persona" in session_doc:
+                        persona_info = session_doc.get("persona")
+                        logger.info("[CHAT][PERSONA] trace=%s persona_id=%s", trace_id, persona_info.get("persona_id") if persona_info else "none")
+                except Exception as e:
+                    logger.warning("[CHAT][PERSONA][WARN] trace=%s failed to load persona: %s", trace_id, str(e))
+                    persona_info = None
 
         # 3) 메인 LLM 설정 (OpenAI로 강제 통일)
         logger.info("[TRPG] Using OpenAI model=%s", use_model)
@@ -404,6 +489,8 @@ async def chat(req: Request):
             char_ctx=char_ctx,
             char_rules=char_rules,
             choices=choices,
+            persona=persona_info,
+            character_gender=character_gender,
         )
 
         # 4) LLM 호출 (전체 타임아웃 제한)
@@ -438,9 +525,67 @@ async def chat(req: Request):
             ]
         )
         sess[key] = sess[key][-MAX_TURNS * 2 :]
+        
+        # 7) 캐릭터 채팅 저장 (인증 필수이므로 user_id는 항상 보장됨)
+        if not user_id:
+            logger.error(
+                "[CHAT][FATAL] trace=%s missing user_id – chat persistence aborted",
+                trace_id,
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="User identity missing in chat persistence",
+            )
+        
+        # character_id 또는 world_id가 있으면 저장 (캐릭터/세계관 채팅 모드일 때만)
+        world_id = data.get("world_id")
+        chat_type_from_body = data.get("chat_type")
+        
+        # World Chat 분기 (world_id가 있거나 chat_type="world")
+        if world_id or chat_type_from_body == "world":
+            if world_id:
+                logger.info("[CHAT][BRANCH] trace=%s -> world_chat_save world_id=%s", trace_id, world_id)
+                try:
+                    persist_result = persist_world_chat(
+                        db=db,
+                        trace_id=trace_id,
+                        user_id=str(user_id),
+                        world_id=str(world_id),
+                        payload={"message": q, "mode": mode},
+                        llm_answer=text,
+                    )
+                    logger.info("[CHAT][PERSIST] trace=%s result=%s", trace_id, persist_result.get("ok", False))
+                except Exception as persist_error:
+                    logger.exception("[CHAT][PERSIST][ERR] trace=%s error=%s", trace_id, str(persist_error))
+                    # 저장 실패 시 에러 발생 (조용히 스킵하지 않음)
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Chat persistence failed: {str(persist_error)}",
+                    )
+        
+        # Character Chat 분기 (character_id가 있고 world 분기가 아닐 때)
+        elif character_id and mode in ["trpg", "qa"]:
+            logger.info("[CHAT][BRANCH] trace=%s -> character_chat_save", trace_id)
+            try:
+                persist_result = persist_character_chat(
+                    db=db,
+                    trace_id=trace_id,
+                    user_id=str(user_id),
+                    character_id=str(character_id),
+                    payload={"message": q, "mode": mode},
+                    llm_answer=text,
+                )
+                logger.info("[CHAT][PERSIST] trace=%s result=%s", trace_id, persist_result.get("ok", False))
+            except Exception as persist_error:
+                logger.exception("[CHAT][PERSIST][ERR] trace=%s error=%s", trace_id, str(persist_error))
+                # 저장 실패 시 에러 발생 (조용히 스킵하지 않음)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Chat persistence failed: {str(persist_error)}",
+                )
 
         return JSONResponse(
-            {"answer": text, "sid": sid},
+            {"trace_id": trace_id, "answer": text, "sid": sid},
             headers={"Set-Cookie": f"{SESSION_COOKIE}={sid}; Path=/"},
         )
 

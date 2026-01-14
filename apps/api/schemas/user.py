@@ -2,7 +2,7 @@ from datetime import datetime
 
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 # MongoDB에 저장되는 "Y" / "N" 값 그대로 사용
 
@@ -44,7 +44,5 @@ class UserOut(UserBase):
 
     id: str
 
-    class Config:
-
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
