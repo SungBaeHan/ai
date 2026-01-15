@@ -878,20 +878,20 @@
           
           // characters 탭일 때만 observer 재설정
           if (category === 'characters') {
+            // 무한 스크롤 상태 초기화 (누적 상태 방식)
+            initialized = false;
+            allCharacters = [];
+            seenIds.clear();
+            skip = 0;
+            isLoading = false;
+            hasMore = true;
+            
             setTimeout(() => {
-              const sentinel = document.getElementById('home-sentinel');
-              if (sentinel) {
-                const observer = new IntersectionObserver((entries) => {
-                  entries.forEach(entry => {
-                    if (entry.isIntersecting && hasMore && !isLoading) {
-                      loadNext();
-                    }
-                  });
-                }, {
-                  rootMargin: '100px'
-                });
-                observer.observe(sentinel);
-                window.homeScrollObserver = observer;
+              // setupInfiniteScroll이 반드시 정의된 다음 호출되게 가드 추가
+              if (typeof setupInfiniteScroll === 'function') {
+                setupInfiniteScroll();
+              } else {
+                console.warn('[home] setupInfiniteScroll not defined, infinite scroll disabled');
               }
             }, 100);
           }
@@ -948,7 +948,12 @@
       // 무한 스크롤: IntersectionObserver 설정 (characters 전용)
       if (currentCategory === 'characters') {
         setTimeout(() => {
-          setupInfiniteScroll();
+          // setupInfiniteScroll이 반드시 정의된 다음 호출되게 가드 추가
+          if (typeof setupInfiniteScroll === 'function') {
+            setupInfiniteScroll();
+          } else {
+            console.warn('[home] setupInfiniteScroll not defined, infinite scroll disabled');
+          }
         }, 100);
       }
      })();
