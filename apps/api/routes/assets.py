@@ -67,12 +67,12 @@ def list_images(
         # Prefer existing URL in document if present
         url = str(doc.get("url") or doc.get("public_url") or "")
         
-        # If there is no URL field, build it from R2_PUBLIC_BASE_URL using common utility
+        # If there is no URL field, build it from ASSET_BASE_URL using common utility
         if not url:
             url = build_public_image_url(key)
             if not url:
                 # Cannot build a valid URL without base; skip, but log once
-                logger.warning("Missing R2_PUBLIC_BASE_URL; cannot build URL for key=%s", key)
+                logger.warning("Missing ASSET_BASE_URL; cannot build URL for key=%s", key)
                 continue
         
         items.append(ImageItem(key=key, url=url))

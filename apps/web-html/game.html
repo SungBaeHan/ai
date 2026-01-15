@@ -693,25 +693,23 @@
     }
 
     // 이미지 경로 보정 → 상대 경로를 풀 URL로 변환
-    // R2 Public URL (배경 이미지와 동일한 방식)
-    const R2_PUBLIC_URL = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
-    const ASSET_BASE_URL = window.location.origin; // => https://www.arcanaverse.ai
+    // ASSET_BASE_URL 사용 (config.js에서 설정됨)
+    const ASSET_BASE_URL = window.ASSET_BASE_URL || window.IMAGE_BASE?.replace('/assets', '') || 'https://img.arcanaverse.ai';
     
     function resolveAssetUrl(path) {
       if (!path) return "";
-      // 이미 풀 URL이면 그대로 반환 (R2 URL 포함)
+      // 이미 풀 URL이면 그대로 반환
       if (path.startsWith("http://") || path.startsWith("https://")) return path;
       
-      // 상대 경로(/assets/...)를 R2 Public URL로 변환 (배경 이미지와 동일)
-      // 배경 이미지처럼 R2_PUBLIC_URL을 직접 사용
+      // 상대 경로(/assets/...)를 Asset Base URL로 변환
       if (path.startsWith("/")) {
-        return `${R2_PUBLIC_URL}${path}`;
+        return `${ASSET_BASE_URL}${path}`;
       }
       // 상대 경로가 /로 시작하지 않으면 /assets/char/ 또는 /assets/img/ 경로로 가정
       if (path.includes('/char/') || path.includes('char_')) {
-        return `${R2_PUBLIC_URL}/assets/char/${path.replace(/^.*\/(char\/|char_)/, '').replace(/^.*\//, '')}`;
+        return `${ASSET_BASE_URL}/assets/char/${path.replace(/^.*\/(char\/|char_)/, '').replace(/^.*\//, '')}`;
       }
-      return `${R2_PUBLIC_URL}/assets/img/${path}`;
+      return `${ASSET_BASE_URL}/assets/img/${path}`;
     }
     
     function resolvePath(p){
@@ -960,12 +958,15 @@
     }
 
     // 페르조나 이미지 URL 정규화 함수
-    const R2_BASE = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
     function resolvePersonaUrl(u) {
       if (!u) return "";
       if (u.startsWith("http://") || u.startsWith("https://")) return u;
-      if (u.startsWith("/")) return `${R2_BASE}${u}`;
-      return `${R2_BASE}/assets/persona/${u}`;
+      // buildAssetUrl 사용 (ASSET_BASE_URL 기반)
+      const assetBase = window.ASSET_BASE_URL || window.IMAGE_BASE?.replace('/assets', '') || 'https://img.arcanaverse.ai';
+      if (u.startsWith("/")) {
+        return assetBase + u;
+      }
+      return assetBase + "/assets/persona/" + u;
     }
     
     // 게임 세션의 활성 persona 반환 (persona_ref_id로 복구 지원)

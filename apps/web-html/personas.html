@@ -574,18 +574,18 @@
         ? "https://api.arcanaverse.ai"
         : "http://localhost:8000";
 
-    // R2 Public URL (페르조나 이미지용)
-    const R2_BASE = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
-
     // 페르조나 이미지 URL 정규화 함수
     function resolvePersonaUrl(u) {
       if (!u) return "";
       // 이미 절대 URL이면 그대로 반환
       if (u.startsWith("http://") || u.startsWith("https://")) return u;
-      // 상대 경로(/assets/...)를 R2 절대 URL로 변환
-      if (u.startsWith("/")) return `${R2_BASE}${u}`;
+      // buildAssetUrl 사용 (ASSET_BASE_URL 기반)
+      const assetBase = window.ASSET_BASE_URL || window.IMAGE_BASE?.replace('/assets', '') || 'https://img.arcanaverse.ai';
+      if (u.startsWith("/")) {
+        return assetBase + u;
+      }
       // /로 시작하지 않으면 /assets/persona/를 prefix로 추가
-      return `${R2_BASE}/assets/persona/${u}`;
+      return assetBase + "/assets/persona/" + u;
     }
 
     let personas = [];

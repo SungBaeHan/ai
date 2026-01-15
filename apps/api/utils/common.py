@@ -5,6 +5,7 @@
 import os
 import re
 from typing import Optional
+from apps.api.config import settings
 
 
 def mask_mongo_uri(uri: Optional[str]) -> str:
@@ -36,9 +37,9 @@ def build_public_image_url(src_file: Optional[str], prefix: str = "char") -> Opt
         prefix: 이미지 타입 접두사 ("char" 또는 "world", 기본값: "char")
     
     Returns:
-        R2 public URL (예: "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev/assets/char/lily_01.png")
+        Asset public URL (예: "https://img.arcanaverse.ai/assets/char/lily_01.png")
         src_file이 None이거나 빈 문자열이면 None 반환
-        R2_PUBLIC_BASE_URL이 설정되지 않았으면 None 반환
+        ASSET_BASE_URL이 설정되지 않았으면 None 반환
         이미 전체 URL인 경우 그대로 반환
     """
     if not src_file:
@@ -48,9 +49,9 @@ def build_public_image_url(src_file: Optional[str], prefix: str = "char") -> Opt
     if src_file.startswith("http://") or src_file.startswith("https://"):
         return src_file
     
-    # R2 public base URL 가져오기
-    r2_base = os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
-    if not r2_base:
+    # Asset base URL 가져오기 (ASSET_BASE_URL 우선, 하위 호환을 위해 R2_PUBLIC_BASE_URL도 지원)
+    asset_base = settings.ASSET_BASE_URL or os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
+    if not asset_base:
         return None
     
     # 파일명 추출: 기존 접두사 제거
@@ -62,8 +63,8 @@ def build_public_image_url(src_file: Optional[str], prefix: str = "char") -> Opt
         # 마지막 경로 세그먼트만 추출 (파일명)
         filename = filename.split("/")[-1]
     
-    # R2 URL 생성: prefix에 따라 /assets/char/ 또는 /assets/world/ 접두사 사용
-    return f"{r2_base}/assets/{prefix}/{filename}"
+    # Asset URL 생성: prefix에 따라 /assets/char/ 또는 /assets/world/ 접두사 사용
+    return f"{asset_base}/assets/{prefix}/{filename}"
 
 
 def build_public_image_url_from_path(path: Optional[str]) -> Optional[str]:
@@ -88,13 +89,13 @@ def build_public_image_url_from_path(path: Optional[str]) -> Optional[str]:
     if not path.startswith("/assets/"):
         return build_public_image_url(path)
     
-    # R2 public base URL 가져오기
-    r2_base = os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
-    if not r2_base:
+    # Asset base URL 가져오기 (ASSET_BASE_URL 우선, 하위 호환을 위해 R2_PUBLIC_BASE_URL도 지원)
+    asset_base = settings.ASSET_BASE_URL or os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
+    if not asset_base:
         return None
     
     # /assets/xxx/... 형식이면 그대로 사용
-    return f"{r2_base}{path}"
+    return f"{asset_base}{path}"
 
 
 # 하위 호환성을 위한 별칭

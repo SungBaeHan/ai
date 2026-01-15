@@ -10,9 +10,14 @@
     ? 'https://api.arcanaverse.ai'
     : 'http://localhost:8000';
 
-  const IMAGE_BASE = isProd
-    ? 'https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev/assets'
-    : 'http://localhost:8000/assets';
+  // Asset Base URL (이미지 CDN)
+  // 기본값: https://img.arcanaverse.ai
+  // 환경변수나 서버 설정에서 주입 가능하도록 설계
+  const ASSET_BASE_URL = (typeof window !== 'undefined' && window.__ASSET_BASE_URL__) 
+    ? window.__ASSET_BASE_URL__
+    : (isProd 
+      ? 'https://img.arcanaverse.ai'
+      : 'http://localhost:8000');
 
   if (typeof window !== 'undefined') {
     // window.API_BASE_URL이 이미 설정되어 있으면 덮어쓰지 않음
@@ -20,7 +25,9 @@
       window.API_BASE = API_BASE;
       window.API_BASE_URL = API_BASE;  // API_BASE와 동일 (이미 /api 없음)
     }
-    window.IMAGE_BASE = IMAGE_BASE;
+    // ASSET_BASE_URL 설정 (하위 호환을 위해 IMAGE_BASE도 유지)
+    window.ASSET_BASE_URL = ASSET_BASE_URL;
+    window.IMAGE_BASE = ASSET_BASE_URL + '/assets';  // 하위 호환
     
     // === anon_id 초기화 ===
     function initAnonId() {
@@ -158,6 +165,19 @@
         return _fetch(input, { ...init, headers });
       };
     })();
+    
+    // === Asset URL 빌더 유틸 함수 ===
+    window.buildAssetUrl = function(path) {
+      if (!path) return '';
+      // 이미 전체 URL이면 그대로 반환
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        return path;
+      }
+      // path 정규화: 앞뒤 슬래시 처리
+      const base = window.ASSET_BASE_URL || ASSET_BASE_URL;
+      const normalizedPath = path.startsWith('/') ? path : '/' + path;
+      return base + normalizedPath;
+    };
     
     // === apiFetch도 동일 헤더 보장 (이중 안전망) ===
     // apiFetch는 이미 패치된 fetch를 사용하므로 추가 헤더 설정 불필요하지만,
