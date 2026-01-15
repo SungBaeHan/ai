@@ -114,6 +114,12 @@
     let qInput = '';                           // 입력창 값
     let qApplied = '';                         // 실제 검색에 사용된 값
     let searchApplied = false;                 // 검색 실행 여부
+    
+    // 무한 스크롤 상태 (characters 전용)
+    let skip = 0;
+    let isLoading = false;
+    let hasMore = true;
+    let isFirstLoad = true;  // 첫 로드 여부 (preload용)
 
         // 서버 API에서 캐릭터 목록 로드
     async function loadFromApi({ q = '', skip = 0, limit = 60 } = {}) {
@@ -258,6 +264,35 @@
       return '/assets/img/' + p;
     }
     
+    // 캐릭터 대표 이미지 URL 추출 함수
+    function getCharacterImageUrl(item) {
+      // 우선순위: image_url, thumbnail_url, portrait_url, cover_url, image, thumbnail, portrait, cover
+      const imageField = item.image_url || item.thumbnail_url || item.portrait_url || item.cover_url ||
+                         item.image || item.thumbnail || item.portrait || item.cover;
+      
+      if (!imageField) {
+        return '/assets/img/placeholder.jpg';
+      }
+      
+      // 이미 전체 URL이면 정규화 후 반환
+      if (typeof imageField === 'string' && (imageField.startsWith('http://') || imageField.startsWith('https://'))) {
+        // r2.dev 차단 및 정규화
+        if (typeof window.normalizeAssetUrl === 'function') {
+          return window.normalizeAssetUrl(imageField);
+        }
+        return imageField;
+      }
+      
+      // path면 buildAssetUrl 사용
+      const path = resolvePath(imageField);
+      if (typeof window.buildAssetUrl === 'function') {
+        return window.buildAssetUrl(path);
+      }
+      // fallback: ASSET_BASE_URL 직접 사용
+      const assetBase = window.ASSET_BASE_URL || 'https://img.arcanaverse.ai';
+      return assetBase + (path.startsWith('/') ? path : '/' + path);
+    }
+    
         // 카드 DOM을 생성하여 그리드에 추가 (캐릭터용)
     function card(item) {
       const id = normalizeCharId(item.id || item.pk || item.slug || item.name || 'char_01');
@@ -269,7 +304,7 @@
       const img = document.createElement('img');
       img.className = 'thumb';
       img.alt = item.name || id;
-      img.src = resolvePath(item.image || item.cover || '/assets/img/placeholder.jpg');
+      img.src = getCharacterImageUrl(item);
 
       const body = document.createElement('div'); body.className='body';
       const name = document.createElement('div'); name.className='name'; name.textContent = item.name || id;
@@ -401,65 +436,194 @@
 
     // 현재 선택된 카테고리 (위에서 선언됨)
 
+    // 첫 16개 이미지 preload 함수
+    function preloadTopImages(items, count = 16) {
+      if (!items || items.length === 0) return;
+      
+      const preloadedUrls = new Set();
+      const topItems = items.slice(0, count);
+      
+      topItems.forEach(item => {
+        const imageUrl = getCharacterImageUrl(item);
+        if (!imageUrl || preloadedUrls.has(imageUrl)) return;
+        
+        preloadedUrls.add(imageUrl);
+        
+        // <link rel="preload"> 태그 생성
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = imageUrl;
+        document.head.appendChild(link);
+      });
+      
+      console.log(`[preloadTopImages] Preloaded ${preloadedUrls.size} images`);
+    }
+    
+    // 카드 렌더링 함수 (append 모드 지원)
+    function renderCharacterCards(items, { append = false } = {}) {
+      const grid = document.getElementById('grid');
+      if (!grid) return;
+      
+      if (!append) {
+        grid.innerHTML = '';
+      }
+      
+      items.forEach((it, index) => {
+        try {
+          let cardElement;
+          if (currentCategory === 'characters') {
+            cardElement = card(it);
+          } else if (currentCategory === 'worlds') {
+            cardElement = worldCard(it);
+          } else if (currentCategory === 'games') {
+            cardElement = gameCard(it);
+          }
+          if (cardElement) {
+            grid.appendChild(cardElement);
+          }
+        } catch (err) {
+          console.error('[renderCharacterCards] Error creating card for item', index, ':', err, it);
+        }
+      });
+    }
+    
+    // 캐릭터 페이지 fetch 함수
+    async function fetchCharactersPage(skip, limit, q = '') {
+      try {
+        return await loadFromApi({ q, skip, limit });
+      } catch (error) {
+        console.error('[fetchCharactersPage] Error:', error);
+        throw error;
+      }
+    }
+    
+    // 다음 페이지 로드 함수 (무한 스크롤)
+    async function loadNext() {
+      if (!hasMore || isLoading || currentCategory !== 'characters') return;
+      
+      isLoading = true;
+      const limit = 60;
+      skip += limit;
+      
+      // sentinel에 로딩 표시
+      const sentinel = document.getElementById('home-sentinel');
+      if (sentinel) {
+        sentinel.innerHTML = '<div style="opacity:.7;text-align:center;padding:20px;">로딩 중...</div>';
+      }
+      
+      try {
+        const items = await fetchCharactersPage(skip, limit, qApplied);
+        
+        if (items.length === 0 || items.length < limit) {
+          hasMore = false;
+          if (sentinel) {
+            sentinel.innerHTML = '';
+          }
+        } else {
+          renderCharacterCards(items, { append: true });
+          if (sentinel) {
+            sentinel.innerHTML = '';
+          }
+        }
+      } catch (error) {
+        console.error('[loadNext] Failed to load next page:', error);
+        hasMore = false;
+        if (sentinel) {
+          sentinel.innerHTML = '<div style="opacity:.7;text-align:center;padding:20px;color:#ef4444;">로드 실패<br/><button id="retry-load" style="margin-top:8px;padding:6px 12px;background:#111827;border:1px solid #1f2937;border-radius:6px;color:#e5e7eb;cursor:pointer;font-size:12px;">다시 시도</button></div>';
+          const retryBtn = document.getElementById('retry-load');
+          if (retryBtn) {
+            retryBtn.addEventListener('click', () => {
+              skip -= limit;  // 롤백
+              hasMore = true;
+              loadNext();
+            });
+          }
+        }
+      } finally {
+        isLoading = false;
+      }
+    }
+    
     // 공통 그리드 렌더링 헬퍼
-    async function fetchAndRender(category, q) {
+    async function fetchAndRender(category, q, { append = false } = {}) {
       const grid = document.getElementById('grid');
       if (!grid) return;
 
-      grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
+      if (!append) {
+        grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
+      }
 
       try {
         let items = [];
         const query = (q || '').trim();
 
         if (category === 'characters') {
-          items = await loadCharacters(query);
+          // 무한 스크롤 초기화
+          if (!append) {
+            skip = 0;
+            isLoading = false;
+            hasMore = true;
+            isFirstLoad = true;
+          }
+          const limit = 60;
+          items = await fetchCharactersPage(skip, limit, query);
         } else if (category === 'worlds') {
           items = await loadWorlds(query);
         } else if (category === 'games') {
           items = await loadGames(query);
         }
 
-        console.log('[fetchAndRender] Category:', category, 'q:', query, 'Items:', items.length);
+        console.log('[fetchAndRender] Category:', category, 'q:', query, 'Items:', items.length, 'append:', append);
 
-        grid.innerHTML = '';
+        if (!append) {
+          grid.innerHTML = '';
+        }
 
         if (!items || items.length === 0) {
-          const label = category === 'characters' ? '캐릭터' : (category === 'worlds' ? '세계관' : '게임');
-          const extra = query ? ` 검색어 "${query}" 에 대한 결과가 없습니다.` : ` 표시할 ${label}가 없습니다.`;
-          grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">검색 결과가 없습니다.' +
-                           (query ? `<br/><button id="reset-search" style="margin-top:12px;padding:8px 14px;background:#111827;border:1px solid #1f2937;border-radius:999px;color:#e5e7eb;cursor:pointer;font-size:13px;">검색어 초기화</button>` : '') +
-                           '</div>';
+          if (!append) {
+            const label = category === 'characters' ? '캐릭터' : (category === 'worlds' ? '세계관' : '게임');
+            const extra = query ? ` 검색어 "${query}" 에 대한 결과가 없습니다.` : ` 표시할 ${label}가 없습니다.`;
+            grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">검색 결과가 없습니다.' +
+                             (query ? `<br/><button id="reset-search" style="margin-top:12px;padding:8px 14px;background:#111827;border:1px solid #1f2937;border-radius:999px;color:#e5e7eb;cursor:pointer;font-size:13px;">검색어 초기화</button>` : '') +
+                             '</div>';
 
-          const resetBtn = document.getElementById('reset-search');
-          if (resetBtn) {
-            resetBtn.addEventListener('click', () => {
-              clearSearch(true);
-            });
+            const resetBtn = document.getElementById('reset-search');
+            if (resetBtn) {
+              resetBtn.addEventListener('click', () => {
+                clearSearch(true);
+              });
+            }
           }
           return;
         }
 
-        items.forEach((it, index) => {
-          try {
-            let cardElement;
-            if (category === 'characters') {
-              cardElement = card(it);
-            } else if (category === 'worlds') {
-              cardElement = worldCard(it);
-            } else if (category === 'games') {
-              cardElement = gameCard(it);
-            }
-            if (cardElement) {
-              grid.appendChild(cardElement);
-            }
-          } catch (err) {
-            console.error('[fetchAndRender] Error creating card for item', index, ':', err, it);
+        // 캐릭터 첫 로드 시 preload
+        if (category === 'characters' && isFirstLoad && !append) {
+          preloadTopImages(items, 16);
+          isFirstLoad = false;
+        }
+
+        renderCharacterCards(items, { append });
+
+        // 캐릭터 무한 스크롤: hasMore 업데이트 및 sentinel 추가
+        if (category === 'characters') {
+          if (items.length < 60) {
+            hasMore = false;
           }
-        });
+          // sentinel이 없으면 추가
+          if (!document.getElementById('home-sentinel')) {
+            const sentinel = document.createElement('div');
+            sentinel.id = 'home-sentinel';
+            sentinel.style.minHeight = '20px';
+            grid.appendChild(sentinel);
+          }
+        }
       } catch (error) {
         console.error('[fetchAndRender] Failed to load items:', error);
-        grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">검색에 실패했습니다. 잠시 후 다시 시도하세요.</div>';
+        if (!append) {
+          grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">검색에 실패했습니다. 잠시 후 다시 시도하세요.</div>';
+        }
       }
     }
 
@@ -468,6 +632,12 @@
       qInput = '';
       qApplied = '';
       searchApplied = false;
+      
+      // 무한 스크롤 상태도 초기화
+      skip = 0;
+      isLoading = false;
+      hasMore = true;
+      isFirstLoad = true;
 
       const inputEl = document.getElementById('search-input');
       if (inputEl) inputEl.value = '';
@@ -526,11 +696,23 @@
           const category = this.getAttribute('data-category');
           if (category === currentCategory) return;
           
+          // 기존 observer 정리
+          if (window.homeScrollObserver) {
+            window.homeScrollObserver.disconnect();
+            window.homeScrollObserver = null;
+          }
+          
           // 탭 활성화 상태 변경
           document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
           this.classList.add('active');
           
           currentCategory = category;
+          
+          // 무한 스크롤 상태 초기화
+          skip = 0;
+          isLoading = false;
+          hasMore = true;
+          isFirstLoad = true;
           
           // 제목 변경
           const h1 = document.querySelector('h1');
@@ -546,7 +728,27 @@
           // - 이미 검색이 적용된 상태면 같은 qApplied 로 해당 탭을 즉시 검색
           // - 아직 searchApplied=false 라면 기본 리스트만 로드
           const query = searchApplied ? qApplied : '';
-          fetchAndRender(currentCategory, query);
+          await fetchAndRender(currentCategory, query);
+          
+          // characters 탭일 때만 observer 재설정
+          if (category === 'characters') {
+            setTimeout(() => {
+              const sentinel = document.getElementById('home-sentinel');
+              if (sentinel) {
+                const observer = new IntersectionObserver((entries) => {
+                  entries.forEach(entry => {
+                    if (entry.isIntersecting && hasMore && !isLoading) {
+                      loadNext();
+                    }
+                  });
+                }, {
+                  rootMargin: '100px'
+                });
+                observer.observe(sentinel);
+                window.homeScrollObserver = observer;
+              }
+            }, 100);
+          }
         });
       });
     }
@@ -596,6 +798,27 @@
 
       // 초기 상태: 검색어 없이 캐릭터 기본 리스트
       await fetchAndRender(currentCategory, '');
+      
+      // 무한 스크롤: IntersectionObserver 설정 (characters 전용)
+      if (currentCategory === 'characters') {
+        const sentinel = document.getElementById('home-sentinel');
+        if (sentinel) {
+          const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting && hasMore && !isLoading) {
+                loadNext();
+              }
+            });
+          }, {
+            rootMargin: '100px'  // 100px 전에 미리 로드
+          });
+          
+          observer.observe(sentinel);
+          
+          // 카테고리 변경 시 observer 재설정을 위해 전역에 저장
+          window.homeScrollObserver = observer;
+        }
+      }
      })();
    </script>
   <div id="gallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;"></div>
