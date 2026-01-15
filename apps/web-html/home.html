@@ -769,6 +769,50 @@
       }
     }
 
+    // 무한 스크롤 설정 (IntersectionObserver) - 명시적 정의
+    function setupInfiniteScroll() {
+      const grid = getGridElement();
+      if (!grid) {
+        console.error('[home] grid not found, cannot setup infinite scroll');
+        return;
+      }
+
+      // 기존 observer 정리
+      if (window.homeScrollObserver) {
+        window.homeScrollObserver.disconnect();
+        window.homeScrollObserver = null;
+      }
+
+      let sentinel = document.getElementById('home-sentinel');
+      if (!sentinel) {
+        sentinel = document.createElement('div');
+        sentinel.id = 'home-sentinel';
+        sentinel.style.height = '1px';
+        sentinel.style.minHeight = '1px';
+        // grid 바로 뒤에 붙여야 스크롤 타이밍이 정확함
+        grid.after(sentinel);
+      }
+
+      const io = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            // loadNext()는 누적 상태 + 전체 재렌더 방식으로 동작
+            if (typeof loadNext === 'function' && hasMore && !isLoading && currentCategory === 'characters') {
+              loadNext();
+            } else {
+              if (typeof loadNext !== 'function') {
+                console.warn('[home] loadNext not defined');
+              }
+            }
+          }
+        }
+      }, { root: null, rootMargin: '800px 0px', threshold: 0 });
+
+      io.observe(sentinel);
+      window.homeScrollObserver = io;
+      console.log('[home] infinite scroll observer attached');
+    }
+
     // 검색 상태 초기화
     function clearSearch(shouldRefetch = false) {
       qInput = '';
