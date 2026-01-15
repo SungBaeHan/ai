@@ -264,27 +264,37 @@
       return '/assets/img/' + p;
     }
     
-    // 캐릭터 대표 이미지 URL 추출 함수
+    // 캐릭터 대표 이미지 URL 추출 함수 (안전한 fallback 보장)
     function getCharacterImageUrl(item) {
-      // 우선순위: image_url, thumbnail_url, portrait_url, cover_url, image, thumbnail, portrait, cover
-      const imageField = item.image_url || item.thumbnail_url || item.portrait_url || item.cover_url ||
-                         item.image || item.thumbnail || item.portrait || item.cover;
-      
-      if (!imageField) {
-        return '/assets/img/placeholder.jpg';
+      const candidates = [
+        item.image_url,
+        item.thumbnail_url,
+        item.portrait_url,
+        item.cover_url,
+        item.image,
+        item.thumbnail,
+        item.portrait,
+        item.cover,
+      ];
+
+      const raw = candidates.find(Boolean);
+
+      if (!raw) {
+        console.warn('[home] character has no image, using placeholder', item.id || item.name);
+        return '/assets/img/placeholder.jpg'; // 반드시 존재하는 기본 이미지
       }
-      
+
       // 이미 전체 URL이면 정규화 후 반환
-      if (typeof imageField === 'string' && (imageField.startsWith('http://') || imageField.startsWith('https://'))) {
+      if (typeof raw === 'string' && (raw.startsWith('http://') || raw.startsWith('https://'))) {
         // r2.dev 차단 및 정규화
         if (typeof window.normalizeAssetUrl === 'function') {
-          return window.normalizeAssetUrl(imageField);
+          return window.normalizeAssetUrl(raw);
         }
-        return imageField;
+        return raw;
       }
-      
+
       // path면 buildAssetUrl 사용
-      const path = resolvePath(imageField);
+      const path = resolvePath(raw);
       if (typeof window.buildAssetUrl === 'function') {
         return window.buildAssetUrl(path);
       }
@@ -293,8 +303,13 @@
       return assetBase + (path.startsWith('/') ? path : '/' + path);
     }
     
-        // 카드 DOM을 생성하여 그리드에 추가 (캐릭터용)
+        // 카드 DOM을 생성하여 그리드에 추가 (캐릭터용, null 반환 금지)
     function card(item) {
+      if (!item) {
+        console.warn('[home] card() called with null item');
+        return null;
+      }
+      
       const id = normalizeCharId(item.id || item.pk || item.slug || item.name || 'char_01');
       const a  = document.createElement('a');
       a.className = 'card';
@@ -304,6 +319,7 @@
       const img = document.createElement('img');
       img.className = 'thumb';
       img.alt = item.name || id;
+      // getCharacterImageUrl()은 항상 유효한 URL을 반환 (placeholder 포함)
       img.src = getCharacterImageUrl(item);
 
       const body = document.createElement('div'); body.className='body';
