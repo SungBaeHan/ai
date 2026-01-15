@@ -10,6 +10,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chat • TRPG</title>
+  <script>
+    // ASSET_BASE_URL 강제 설정 (r2.dev 차단)
+    window.__ASSET_BASE_URL__ = 'https://img.arcanaverse.ai';
+  </script>
   <script src="/js/config.js"></script>
   <script>
     // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
@@ -447,10 +451,25 @@
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
     }
 
-    // 페르조나 이미지 URL 정규화 함수
+    // 페르조나 이미지 URL 정규화 함수 (r2.dev 차단 포함)
     function resolvePersonaUrl(u) {
       if (!u) return "";
-      // 이미 절대 URL이면 그대로 반환
+      // r2.dev URL 차단 및 정규화
+      if (typeof window.normalizeAssetUrl === 'function') {
+        u = window.normalizeAssetUrl(u);
+      } else if (u.includes('r2.dev') || u.includes('cloudflarestorage.com')) {
+        console.error('🚨 r2.dev image URL blocked:', u);
+        const assetBase = window.ASSET_BASE_URL || 'https://img.arcanaverse.ai';
+        try {
+          const urlObj = new URL(u);
+          u = assetBase + urlObj.pathname + urlObj.search;
+        } catch (e) {
+          // URL 파싱 실패 시 경로만 추출
+          const pathMatch = u.match(/\/assets\/[^?]+/);
+          u = assetBase + (pathMatch ? pathMatch[0] : '/assets/persona/placeholder.png');
+        }
+      }
+      // 이미 절대 URL이면 그대로 반환 (이미 정규화됨)
       if (u.startsWith("http://") || u.startsWith("https://")) return u;
       // buildAssetUrl 사용 (ASSET_BASE_URL 기반)
       const assetBase = window.ASSET_BASE_URL || window.IMAGE_BASE?.replace('/assets', '') || 'https://img.arcanaverse.ai';

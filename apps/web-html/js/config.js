@@ -148,8 +148,8 @@
       });
     });
     
-    // === GLOBAL FETCH PATCH: always attach X-Anon-Id ===
-    // 모든 fetch() 호출에 자동으로 X-Anon-Id 헤더 추가
+    // === GLOBAL FETCH PATCH: always attach X-Anon-Id + r2.dev URL filtering ===
+    // 모든 fetch() 호출에 자동으로 X-Anon-Id 헤더 추가 및 응답에서 r2.dev URL 필터링
     // initAnonId() 실행 이후, 파일 맨 아래에 위치하여 모든 코드에서 적용됨
     (function patchFetchWithAnonId() {
       if (window.__FETCH_ANON_PATCHED__) return;
@@ -162,21 +162,82 @@
         const headers = new Headers(init.headers || {});
         const anonId = window.ANON_ID || localStorage.getItem('anon_id') || 'missing';
         headers.set('X-Anon-Id', anonId);
-        return _fetch(input, { ...init, headers });
+        
+        return _fetch(input, { ...init, headers }).then(async (response) => {
+          // JSON 응답인 경우 r2.dev URL 필터링
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            try {
+              const clonedResponse = response.clone();
+              const jsonData = await clonedResponse.json();
+              const normalizedData = window.normalizeApiResponse ? window.normalizeApiResponse(jsonData) : jsonData;
+              
+              // 새로운 Response 객체 생성
+              return new Response(JSON.stringify(normalizedData), {
+                status: response.status,
+                statusText: response.statusText,
+                headers: response.headers,
+              });
+            } catch (e) {
+              // JSON 파싱 실패 시 원본 응답 반환
+              return response;
+            }
+          }
+          return response;
+        });
       };
     })();
+    
+    // === r2.dev URL 차단 및 정규화 함수 ===
+    window.normalizeAssetUrl = function(url) {
+      if (!url) return url;
+      // r2.dev URL을 강제로 img.arcanaverse.ai로 치환
+      if (url.includes('r2.dev') || url.includes('cloudflarestorage.com')) {
+        console.error('🚨 r2.dev image URL blocked and normalized:', url);
+        // r2.dev URL을 img.arcanaverse.ai로 치환
+        const assetBase = window.ASSET_BASE_URL || ASSET_BASE_URL || 'https://img.arcanaverse.ai';
+        // URL에서 경로 부분만 추출
+        const urlObj = new URL(url);
+        return assetBase + urlObj.pathname + urlObj.search;
+      }
+      return url;
+    };
     
     // === Asset URL 빌더 유틸 함수 ===
     window.buildAssetUrl = function(path) {
       if (!path) return '';
-      // 이미 전체 URL이면 그대로 반환
+      // 이미 전체 URL이면 r2.dev 차단 후 반환
       if (path.startsWith('http://') || path.startsWith('https://')) {
-        return path;
+        return window.normalizeAssetUrl(path);
       }
       // path 정규화: 앞뒤 슬래시 처리
-      const base = window.ASSET_BASE_URL || ASSET_BASE_URL;
+      const base = window.ASSET_BASE_URL || ASSET_BASE_URL || 'https://img.arcanaverse.ai';
       const normalizedPath = path.startsWith('/') ? path : '/' + path;
       return base + normalizedPath;
+    };
+    
+    // === API 응답에서 이미지 URL 필터링 함수 ===
+    window.normalizeApiResponse = function(obj) {
+      if (!obj || typeof obj !== 'object') return obj;
+      if (Array.isArray(obj)) {
+        return obj.map(item => window.normalizeApiResponse(item));
+      }
+      const normalized = {};
+      for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+          const value = obj[key];
+          // image_url, thumbnail, background_image 등의 필드 정규화
+          if ((key.includes('image') || key.includes('thumbnail') || key.includes('background')) && 
+              typeof value === 'string' && value.includes('r2.dev')) {
+            normalized[key] = window.normalizeAssetUrl(value);
+          } else if (typeof value === 'object' && value !== null) {
+            normalized[key] = window.normalizeApiResponse(value);
+          } else {
+            normalized[key] = value;
+          }
+        }
+      }
+      return normalized;
     };
     
     // === apiFetch도 동일 헤더 보장 (이중 안전망) ===
