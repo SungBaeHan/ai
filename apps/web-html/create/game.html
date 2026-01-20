@@ -1384,11 +1384,12 @@ create/game.html - 게임 생성 화면
       }
     }
 
-    // 캐릭터 API 로더 (컨트롤러 규격: pageIndex -> offset 변환)
+    // 캐릭터 API 로더 (컨트롤러 규격: pageIndex -> skip 변환)
+    // 주의: characters API는 offset이 아니라 skip 파라미터를 사용함
     async function loadCharactersPage(pageIndex, limit, query = '') {
-      const offset = pageIndex * limit;
+      const skip = pageIndex * limit;
       const params = new URLSearchParams();
-      params.set('offset', String(offset));
+      params.set('skip', String(skip));  // offset → skip으로 변경
       params.set('limit', String(limit));
       if (query && query.trim().length > 0) {
         params.set('q', query.trim());
@@ -1408,9 +1409,9 @@ create/game.html - 게임 생성 화면
       const raw = data;
       const items = raw.items || raw.characters || raw.data || raw || [];
       
-      // 디버그 로그: offset=20 응답 직후 상세 확인
-      console.log('[modal] offset=', offset, 'raw_len=', items.length);
-      console.log('[modal] first_id=', (items[0]?.id || items[0]?._id), 'last_id=', (items.at(-1)?.id || items.at(-1)?._id));
+      // 디버그 로그: skip=20 응답 직후 상세 확인
+      console.log('[modal] req=', { skip, limit, q: query });
+      console.log('[modal] resp_len=', items.length, 'first_id=', (items[0]?.id ?? items[0]?._id), 'last_id=', (items.at(-1)?.id ?? items.at(-1)?._id));
       
       return items;
     }
