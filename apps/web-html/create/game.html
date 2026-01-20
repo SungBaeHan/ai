@@ -597,6 +597,57 @@ create/game.html - 게임 생성 화면
       gap:12px;
     }
 
+    /* 모달 내부 스크롤바 스타일 (반투명) */
+    #character-modal-list {
+      /* Firefox */
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+    }
+
+    /* Chrome / Edge / Safari */
+    #character-modal-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    #character-modal-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #character-modal-list::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.25);
+      border-radius: 8px;
+      transition: background-color 0.2s ease;
+    }
+
+    /* hover 시만 조금 선명 */
+    #character-modal-list:hover::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.45);
+    }
+
+    /* 세계관 모달 스크롤바도 동일하게 적용 */
+    #world-modal-list {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+    }
+
+    #world-modal-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    #world-modal-list::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #world-modal-list::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.25);
+      border-radius: 8px;
+      transition: background-color 0.2s ease;
+    }
+
+    #world-modal-list:hover::-webkit-scrollbar-thumb {
+      background-color: rgba(255, 255, 255, 0.45);
+    }
+
     /* Skeleton UI */
     .skeleton-card { background:#111827; border-radius:8px; overflow:hidden; border:1px solid #1f2937; box-shadow:0 6px 18px rgba(0,0,0,.25); animation: skeleton-pulse 1.5s ease-in-out infinite; }
     .skeleton-thumb { width:100%; aspect-ratio: 1; background:#0f172a; display:block; }
@@ -1246,6 +1297,10 @@ create/game.html - 게임 생성 화면
       if (modal) {
         modal.style.display = 'flex';
       }
+      
+      // 배경 스크롤 차단
+      document.body.style.overflow = 'hidden';
+      
       worldSearchText = '';
       const searchInput = document.getElementById('world-search-input');
       if (searchInput) {
@@ -1297,6 +1352,9 @@ create/game.html - 게임 생성 화면
       if (modal) {
         modal.style.display = 'none';
       }
+      
+      // 배경 스크롤 복원
+      document.body.style.overflow = '';
       
       // 컨트롤러 cleanup
       if (worldModalController) {
@@ -1489,6 +1547,10 @@ create/game.html - 게임 생성 화면
       if (modal) {
         modal.style.display = 'flex';
       }
+      
+      // 배경 스크롤 차단
+      document.body.style.overflow = 'hidden';
+      
       characterSearchText = '';
       const searchInput = document.getElementById('character-search-input');
       if (searchInput) {
@@ -1534,6 +1596,9 @@ create/game.html - 게임 생성 화면
       if (modal) {
         modal.style.display = 'none';
       }
+      
+      // 배경 스크롤 복원
+      document.body.style.overflow = '';
       
       // 컨트롤러 cleanup
       if (characterModalController) {
