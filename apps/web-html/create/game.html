@@ -13,6 +13,7 @@ create/game.html - 게임 생성 화면
   <script src="/js/config.js"></script>
   <script src="/js/assets.js"></script>
   <script src="/static/js/session.js"></script>
+  <script src="/static/js/infinite-scroll.js"></script>
   <script>
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
     window.API_BASE = 'https://api.arcanaverse.ai';
@@ -596,6 +597,17 @@ create/game.html - 게임 생성 화면
       gap:12px;
     }
 
+    /* Skeleton UI */
+    .skeleton-card { background:#111827; border-radius:8px; overflow:hidden; border:1px solid #1f2937; box-shadow:0 6px 18px rgba(0,0,0,.25); animation: skeleton-pulse 1.5s ease-in-out infinite; }
+    .skeleton-thumb { width:100%; aspect-ratio: 1; background:#0f172a; display:block; }
+    .skeleton-body { padding:12px; }
+    .skeleton-name { width:70%; height:16px; background:#1f2937; border-radius:4px; margin-bottom:8px; }
+    .skeleton-meta { width:90%; height:12px; background:#1f2937; border-radius:4px; }
+    @keyframes skeleton-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
     .char-modal .char-card {
       background:#111827;
       border:1px solid #1f2937;
@@ -884,7 +896,10 @@ create/game.html - 게임 생성 화면
         <input id="world-search-input" type="text" placeholder="세계관 이름/태그 검색" style="flex:1;" />
         <button type="button" id="world-search-btn" style="padding:8px 16px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer;">검색</button>
       </div>
-      <div id="world-modal-list" class="modal-body world-list"></div>
+      <div id="world-modal-list" class="modal-body world-list">
+        <div id="world-modal-sentinel" style="height:1px;"></div>
+      </div>
+      <div id="world-modal-status"></div>
       <div class="modal-footer">
         <button type="button" id="btn-close-world-modal-footer">닫기</button>
       </div>
@@ -902,7 +917,10 @@ create/game.html - 게임 생성 화면
         <input id="character-search-input" type="text" placeholder="캐릭터 이름/태그 검색" style="flex:1;" />
         <button type="button" id="character-search-btn" style="padding:8px 16px; background:#3b82f6; color:#fff; border:none; border-radius:6px; cursor:pointer;">검색</button>
       </div>
-      <div id="character-modal-list" class="modal-body char-list"></div>
+      <div id="character-modal-list" class="modal-body char-list">
+        <div id="character-modal-sentinel" style="height:1px;"></div>
+      </div>
+      <div id="character-modal-status"></div>
       <div class="modal-footer">
         <span id="character-selected-count">선택: 0 / 5</span>
         <button type="button" id="btn-apply-character-selection">선택 완료</button>
@@ -968,6 +986,13 @@ create/game.html - 게임 생성 화면
     let worldSearchText = '';
     let characterSearchText = '';
     let tempSelectedCharIds = [];
+    
+    // 페이지당 아이템 수 통일
+    const LIMIT = 20;
+    
+    // 모달 무한 스크롤 컨트롤러
+    let worldModalController = null;
+    let characterModalController = null;
 
     // 속성 정의
     const attributes = [
@@ -1042,7 +1067,31 @@ create/game.html - 게임 생성 화면
       });
     }
 
-    // 세계관 목록 로드 및 카드 렌더링
+    // 세계관 API 로더 (컨트롤러 규격: pageIndex -> offset 변환)
+    async function loadWorldsPage(pageIndex, limit, query = '') {
+      const offset = pageIndex * limit;
+      const params = new URLSearchParams();
+      params.set('offset', String(offset));
+      params.set('limit', String(limit));
+      if (query && query.trim().length > 0) {
+        params.set('q', query.trim());
+      }
+
+      const response = await fetch(`${API_BASE_URL}/v1/worlds?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        throw new Error('세계관 목록 로드 실패');
+      }
+
+      const data = await response.json();
+      return data.items || [];
+    }
+    
+    // 기존 호환성 유지용 (제거 예정)
     async function loadWorlds() {
       try {
         const response = await fetch(`${API_BASE_URL}/v1/worlds?offset=0&limit=200`, {
@@ -1075,7 +1124,27 @@ create/game.html - 게임 생성 화면
       return [];
     }
 
-    // 세계관 모달 카드 리스트 렌더링
+    // 세계관 모달 카드 DOM 생성 (공통 컨트롤러용)
+    function renderWorldModalCard(item) {
+      const card = document.createElement('div');
+      card.className = 'world-card';
+      card.addEventListener('click', () => selectWorldFromModal(item));
+      
+      const imageUrl = resolvePath(item.image || item.image_path || '/assets/img/placeholder.jpg');
+      const tags = safeTags(item.tags);
+      card.innerHTML = `
+        <img src="${imageUrl}" alt="${item.name}" style="width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:6px; margin-bottom:8px;" />
+        <div style="font-weight:600; color:#f3f4f6; margin-bottom:4px; font-size:14px;">${item.name || '이름 없음'}</div>
+        <div style="font-size:11px; color:#94a3b8; margin-bottom:8px; display:flex; flex-wrap:wrap; gap:4px;">
+          ${tags.slice(0, 3).map(tag => `<span style="padding:2px 6px; background:#0b1220; border-radius:4px;">${tag}</span>`).join('')}
+        </div>
+        <div style="font-size:12px; color:#64748b; line-height:1.4; height:32px; overflow:hidden;">${(item.summary || '').substring(0, 50)}${(item.summary || '').length > 50 ? '...' : ''}</div>
+      `;
+      
+      return card;
+    }
+    
+    // 세계관 모달 카드 리스트 렌더링 (기존 호환성 유지용, 제거 예정)
     function renderWorldModalList() {
       const container = document.getElementById('world-modal-list');
       if (!container) {
@@ -1096,21 +1165,7 @@ create/game.html - 게임 생성 화면
       });
       
       filtered.forEach(world => {
-        const card = document.createElement('div');
-        card.className = 'world-card';
-        card.addEventListener('click', () => selectWorldFromModal(world));
-        
-        const imageUrl = resolvePath(world.image || world.image_path || '/assets/img/placeholder.jpg');
-        const tags = safeTags(world.tags);
-        card.innerHTML = `
-          <img src="${imageUrl}" alt="${world.name}" style="width:100%; aspect-ratio:16/10; object-fit:cover; border-radius:6px; margin-bottom:8px;" />
-          <div style="font-weight:600; color:#f3f4f6; margin-bottom:4px; font-size:14px;">${world.name || '이름 없음'}</div>
-          <div style="font-size:11px; color:#94a3b8; margin-bottom:8px; display:flex; flex-wrap:wrap; gap:4px;">
-            ${tags.slice(0, 3).map(tag => `<span style="padding:2px 6px; background:#0b1220; border-radius:4px;">${tag}</span>`).join('')}
-          </div>
-          <div style="font-size:12px; color:#64748b; line-height:1.4; height:32px; overflow:hidden;">${(world.summary || '').substring(0, 50)}${(world.summary || '').length > 50 ? '...' : ''}</div>
-        `;
-        
+        const card = renderWorldModalCard(world);
         container.appendChild(card);
       });
     }
@@ -1154,6 +1209,35 @@ create/game.html - 게임 생성 화면
       }
     }
 
+    // 세계관 모달 컨트롤러 초기화
+    function initWorldModalController() {
+      const listEl = document.getElementById('world-modal-list');
+      const sentinelEl = document.getElementById('world-modal-sentinel');
+      const rootEl = listEl; // 모달 내부 스크롤 컨테이너
+      
+      if (!listEl || !sentinelEl) {
+        console.error('[game-create] World modal elements not found');
+        return null;
+      }
+
+      const controller = createInfiniteScrollController({
+        container: listEl,
+        loadPage: loadWorldsPage,
+        renderCard: renderWorldModalCard,
+        renderSkeleton: createSkeletonCard,
+        limit: LIMIT,
+        sentinelId: 'world-modal-sentinel',
+        rootMargin: '300px',
+        root: rootEl, // 모달 내부 스크롤
+        onError: (error) => {
+          console.error('[game-create] World modal load error:', error);
+        }
+      });
+
+      worldModalController = controller;
+      return controller;
+    }
+    
     // 세계관 모달 열기
     function openWorldModal() {
       showWorldModal = true;
@@ -1167,11 +1251,15 @@ create/game.html - 게임 생성 화면
         searchInput.value = '';
       }
       
-      // 검색 없이 전체 목록 표시
-      if (worldsList.length === 0) {
-        loadWorlds();
-      } else {
-        renderWorldModalList();
+      // 컨트롤러가 없으면 초기화
+      if (!worldModalController) {
+        initWorldModalController();
+      }
+      
+      // 컨트롤러 리셋 후 초기화
+      if (worldModalController) {
+        worldModalController.reset('');
+        worldModalController.init('');
       }
     }
     
@@ -1180,7 +1268,12 @@ create/game.html - 게임 생성 화면
       const searchInput = document.getElementById('world-search-input');
       if (searchInput) {
         worldSearchText = searchInput.value.trim();
-        renderWorldModalList();
+        
+        // 컨트롤러 리셋 후 검색
+        if (worldModalController) {
+          worldModalController.reset(worldSearchText);
+          worldModalController.init(worldSearchText);
+        }
       }
     }
     
@@ -1202,6 +1295,11 @@ create/game.html - 게임 생성 화면
       const modal = document.getElementById('world-modal');
       if (modal) {
         modal.style.display = 'none';
+      }
+      
+      // 컨트롤러 cleanup
+      if (worldModalController) {
+        worldModalController.cleanup();
       }
     }
 
@@ -1285,7 +1383,31 @@ create/game.html - 게임 생성 화면
       }
     }
 
-    // 캐릭터 목록 로드
+    // 캐릭터 API 로더 (컨트롤러 규격: pageIndex -> offset 변환)
+    async function loadCharactersPage(pageIndex, limit, query = '') {
+      const offset = pageIndex * limit;
+      const params = new URLSearchParams();
+      params.set('offset', String(offset));
+      params.set('limit', String(limit));
+      if (query && query.trim().length > 0) {
+        params.set('q', query.trim());
+      }
+
+      const response = await fetch(`${API_BASE_URL}/v1/characters?${params.toString()}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      if (!response.ok) {
+        throw new Error('캐릭터 목록 로드 실패');
+      }
+
+      const data = await response.json();
+      return data.items || [];
+    }
+    
+    // 기존 호환성 유지용 (제거 예정)
     async function loadCharacters() {
       try {
         const response = await fetch(`${API_BASE_URL}/v1/characters?offset=0&limit=200`, {
@@ -1316,6 +1438,35 @@ create/game.html - 게임 생성 화면
       });
     }
 
+    // 캐릭터 모달 컨트롤러 초기화
+    function initCharacterModalController() {
+      const listEl = document.getElementById('character-modal-list');
+      const sentinelEl = document.getElementById('character-modal-sentinel');
+      const rootEl = listEl; // 모달 내부 스크롤 컨테이너
+      
+      if (!listEl || !sentinelEl) {
+        console.error('[game-create] Character modal elements not found');
+        return null;
+      }
+
+      const controller = createInfiniteScrollController({
+        container: listEl,
+        loadPage: loadCharactersPage,
+        renderCard: renderCharacterModalCard,
+        renderSkeleton: createSkeletonCard,
+        limit: LIMIT,
+        sentinelId: 'character-modal-sentinel',
+        rootMargin: '300px',
+        root: rootEl, // 모달 내부 스크롤
+        onError: (error) => {
+          console.error('[game-create] Character modal load error:', error);
+        }
+      });
+
+      characterModalController = controller;
+      return controller;
+    }
+    
     // 캐릭터 모달 열기
     function openCharacterModal() {
       showCharacterModal = true;
@@ -1333,10 +1484,15 @@ create/game.html - 게임 생성 화면
       tempSelectedCharIds = selectedCharacters.map(c => c.char_ref_id);
       updateTempSelectedCount();
       
-      if (charactersList.length === 0) {
-        loadCharacters();
-      } else {
-        renderCharacterModalList();
+      // 컨트롤러가 없으면 초기화
+      if (!characterModalController) {
+        initCharacterModalController();
+      }
+      
+      // 컨트롤러 리셋 후 초기화
+      if (characterModalController) {
+        characterModalController.reset('');
+        characterModalController.init('');
       }
     }
 
@@ -1345,7 +1501,12 @@ create/game.html - 게임 생성 화면
       const searchInput = document.getElementById('character-search-input');
       if (searchInput) {
         characterSearchText = searchInput.value.trim();
-        renderCharacterModalList();
+        
+        // 컨트롤러 리셋 후 검색
+        if (characterModalController) {
+          characterModalController.reset(characterSearchText);
+          characterModalController.init(characterSearchText);
+        }
       }
     }
     
@@ -1356,9 +1517,47 @@ create/game.html - 게임 생성 화면
       if (modal) {
         modal.style.display = 'none';
       }
+      
+      // 컨트롤러 cleanup
+      if (characterModalController) {
+        characterModalController.cleanup();
+      }
     }
 
-    // 캐릭터 모달 카드 리스트 렌더링
+    // 캐릭터 모달 카드 DOM 생성 (공통 컨트롤러용, 선택 상태 반영)
+    function renderCharacterModalCard(item) {
+      const charId = item.id || item.pk || item.slug;
+      const numId = parseInt(charId) || charId;
+      const strId = String(charId);
+      const isSelected = tempSelectedCharIds.includes(numId) || tempSelectedCharIds.includes(strId);
+      
+      const card = document.createElement('div');
+      card.className = 'char-card';
+      if (isSelected) {
+        card.classList.add('selected');
+      }
+      card.addEventListener('click', () => {
+        toggleTempCharacter(charId);
+        // 클릭한 카드만 UI 업데이트
+        card.classList.toggle('selected');
+        updateTempSelectedCount();
+      });
+      
+      const imageUrl = resolvePath(item.image || item.cover || '/assets/img/placeholder.jpg');
+      const tags = safeTags(item.tags);
+      card.innerHTML = `
+        <img src="${imageUrl}" alt="${item.name || '캐릭터'}" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:6px; margin-bottom:8px;" />
+        <div style="font-weight:600; color:#f3f4f6; margin-bottom:4px; font-size:14px;">${item.name || '이름 없음'}</div>
+        <div style="font-size:11px; color:#94a3b8; margin-bottom:4px; display:flex; flex-wrap:wrap; gap:4px;">
+          ${tags.slice(0, 2).map(tag => `<span style="padding:2px 6px; background:#0b1220; border-radius:4px;">${tag}</span>`).join('')}
+        </div>
+        <div style="font-size:11px; color:#64748b; line-height:1.3; height:28px; overflow:hidden;">${(item.summary || '').substring(0, 40)}${(item.summary || '').length > 40 ? '...' : ''}</div>
+      `;
+      
+      return card;
+    }
+    
+    // 캐릭터 모달 카드 리스트 렌더링 (기존 호환성 유지용, 제거 예정)
     function renderCharacterModalList() {
       const container = document.getElementById('character-modal-list');
       if (!container) return;
@@ -1376,32 +1575,12 @@ create/game.html - 게임 생성 화면
       });
       
       filtered.forEach(char => {
-        const charId = char.id || char.pk || char.slug;
-        const isSelected = tempSelectedCharIds.includes(parseInt(charId)) || tempSelectedCharIds.includes(String(charId));
-        
-        const card = document.createElement('div');
-        card.className = 'char-card';
-        if (isSelected) {
-          card.classList.add('selected');
-        }
-        card.addEventListener('click', () => toggleTempCharacter(charId));
-        
-        const imageUrl = resolvePath(char.image || char.cover || '/assets/img/placeholder.jpg');
-        const tags = safeTags(char.tags);
-        card.innerHTML = `
-          <img src="${imageUrl}" alt="${char.name || '캐릭터'}" style="width:100%; aspect-ratio:1; object-fit:cover; border-radius:6px; margin-bottom:8px;" />
-          <div style="font-weight:600; color:#f3f4f6; margin-bottom:4px; font-size:14px;">${char.name || '이름 없음'}</div>
-          <div style="font-size:11px; color:#94a3b8; margin-bottom:4px; display:flex; flex-wrap:wrap; gap:4px;">
-            ${tags.slice(0, 2).map(tag => `<span style="padding:2px 6px; background:#0b1220; border-radius:4px;">${tag}</span>`).join('')}
-          </div>
-          <div style="font-size:11px; color:#64748b; line-height:1.3; height:28px; overflow:hidden;">${(char.summary || '').substring(0, 40)}${(char.summary || '').length > 40 ? '...' : ''}</div>
-        `;
-        
+        const card = renderCharacterModalCard(char);
         container.appendChild(card);
       });
     }
 
-    // 임시 선택된 캐릭터 토글
+    // 임시 선택된 캐릭터 토글 (선택 상태만 업데이트, 전체 재렌더 없음)
     function toggleTempCharacter(charId) {
       const numId = parseInt(charId) || charId;
       const strId = String(charId);
@@ -1420,14 +1599,14 @@ create/game.html - 게임 생성 화면
       }
       
       updateTempSelectedCount();
-      renderCharacterModalList();
+      // 전체 재렌더 제거 - 클릭한 카드만 업데이트 (renderCharacterModalCard에서 처리)
     }
 
     // 임시 선택 개수 업데이트
     function updateTempSelectedCount() {
-      const countEl = document.getElementById('temp-selected-count');
+      const countEl = document.getElementById('character-selected-count');
       if (countEl) {
-        countEl.textContent = tempSelectedCharIds.length;
+        countEl.textContent = `선택: ${tempSelectedCharIds.length} / 5`;
       }
     }
 

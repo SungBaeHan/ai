@@ -11,6 +11,7 @@
   <title>검색 - Arcanaverse</title>
   <script src="/js/config.js"></script>
   <script src="/js/assets.js"></script>
+  <script src="/static/js/infinite-scroll.js"></script>
   <script>
     // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
@@ -66,6 +67,17 @@
     .name { font-size:16px; font-weight:700; color:#f3f4f6; }
     .meta { margin-top:6px; font-size:12px; color:#94a3b8; line-height:1.4; display:block; height:32px; overflow:hidden; }
 
+    /* Skeleton UI */
+    .skeleton-card { background:#111827; border-radius:14px; overflow:hidden; border:1px solid #1f2937; box-shadow:0 6px 18px rgba(0,0,0,.25); animation: skeleton-pulse 1.5s ease-in-out infinite; }
+    .skeleton-thumb { width:100%; aspect-ratio: 16/10; background:#0f172a; display:block; }
+    .skeleton-body { padding:12px 14px 16px; }
+    .skeleton-name { width:70%; height:20px; background:#1f2937; border-radius:4px; margin-bottom:8px; }
+    .skeleton-meta { width:90%; height:16px; background:#1f2937; border-radius:4px; }
+    @keyframes skeleton-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
     /* 토스트 */
     .toast { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .18s ease; z-index:50; }
     .toast.show { opacity:1; }
@@ -108,7 +120,20 @@
       <button class="category-tab" data-category="worlds">세계관 선택</button>
       <button class="category-tab" data-category="games">게임 선택</button>
     </div>
-    <div id="grid" class="grid"></div>
+    <!-- 캐릭터 리스트 (공통 컨트롤러 사용) -->
+    <div id="charactersList" class="grid"></div>
+    <div id="charactersStatus"></div>
+    <div id="charactersSentinel" style="height:1px;"></div>
+    <!-- 세계관 리스트 (공통 컨트롤러 사용) -->
+    <div id="worldsList" class="grid" style="display:none;"></div>
+    <div id="worldsStatus"></div>
+    <div id="worldsSentinel" style="height:1px;"></div>
+    <!-- 게임 리스트 (공통 컨트롤러 사용) -->
+    <div id="gamesList" class="grid" style="display:none;"></div>
+    <div id="gamesStatus"></div>
+    <div id="gamesSentinel" style="height:1px;"></div>
+    <!-- 기존 grid (호환성 유지용, 숨김) -->
+    <div id="grid" class="grid" style="display:none;"></div>
   </div>
 
   <!-- Toast Layer -->
@@ -132,9 +157,39 @@
     let qInput = '';                           // 입력창 값
     let qApplied = '';                         // 실제 검색에 사용된 값
     let searchApplied = false;                 // 검색 실행 여부
+    
+    // 페이지당 아이템 수 통일
+    const LIMIT = 20;
+    
+    // Search 무한 스크롤 컨트롤러 (각 탭별)
+    let searchControllers = {
+      characters: null,
+      worlds: null,
+      games: null,
+    };
 
-    // 서버 API에서 캐릭터 목록 로드
-    async function loadFromApi({ q = '', skip = 0, limit = 60 } = {}) {
+    // 캐릭터 API 로더 (컨트롤러 규격: pageIndex -> skip 변환)
+    async function loadCharactersPage(pageIndex, limit, query = '') {
+      const skip = pageIndex * limit;
+      const params = new URLSearchParams();
+      params.set('skip', String(skip));
+      params.set('limit', String(limit));
+      if (query && query.trim().length > 0) {
+        params.set('q', query.trim());
+      }
+
+      const r = await fetch(`${API_BASE_URL}/v1/characters?${params.toString()}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      return j.items || [];
+    }
+    
+    // 기존 호환성 유지용 (제거 예정)
+    async function loadFromApi({ q = '', skip = 0, limit = LIMIT } = {}) {
       const params = new URLSearchParams();
       params.set('skip', String(skip));
       params.set('limit', String(limit));
@@ -152,8 +207,33 @@
       return j.items || [];
     }
     
-    // 서버 API에서 세계관 목록 로드
-    async function loadWorldsFromApi({ q = '', offset = 0, limit = 60 } = {}) {
+    // 세계관 API 로더 (컨트롤러 규격: pageIndex -> offset 변환)
+    async function loadWorldsPage(pageIndex, limit, query = '') {
+      const offset = pageIndex * limit;
+      const params = new URLSearchParams();
+      params.set('offset', String(offset));
+      params.set('limit', String(limit));
+      if (query && query.trim().length > 0) {
+        params.set('q', query.trim());
+      }
+
+      const r = await fetch(`${API_BASE_URL}/v1/worlds?${params.toString()}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!r.ok) {
+        const errorText = await r.text();
+        console.error('[loadWorldsPage] HTTP error:', r.status, errorText);
+        throw new Error('HTTP ' + r.status + ': ' + errorText);
+      }
+      const j = await r.json();
+      const items = j.items || [];
+      return items;
+    }
+    
+    // 기존 호환성 유지용 (제거 예정)
+    async function loadWorldsFromApi({ q = '', offset = 0, limit = LIMIT } = {}) {
       const params = new URLSearchParams();
       params.set('offset', String(offset));
       params.set('limit', String(limit));
@@ -178,8 +258,33 @@
       return items;
     }
     
-    // 서버 API에서 게임 목록 로드
-    async function loadGamesFromApi({ q = '', offset = 0, limit = 60 } = {}) {
+    // 게임 API 로더 (컨트롤러 규격: pageIndex -> offset 변환)
+    async function loadGamesPage(pageIndex, limit, query = '') {
+      const offset = pageIndex * limit;
+      const params = new URLSearchParams();
+      params.set('offset', String(offset));
+      params.set('limit', String(limit));
+      if (query && query.trim().length > 0) {
+        params.set('q', query.trim());
+      }
+
+      const r = await fetch(`${API_BASE_URL}/v1/games?${params.toString()}`, {
+        method: "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!r.ok) {
+        const errorText = await r.text();
+        console.error('[loadGamesPage] HTTP error:', r.status, errorText);
+        throw new Error('HTTP ' + r.status + ': ' + errorText);
+      }
+      const j = await r.json();
+      const items = j.items || [];
+      return items;
+    }
+    
+    // 기존 호환성 유지용 (제거 예정)
+    async function loadGamesFromApi({ q = '', offset = 0, limit = LIMIT } = {}) {
       const params = new URLSearchParams();
       params.set('offset', String(offset));
       params.set('limit', String(limit));
@@ -274,7 +379,22 @@
       return '/assets/img/' + p;
     }
     
-    // 카드 DOM 생성 (캐릭터)
+    // 캐릭터 카드 DOM 생성 (공통 컨트롤러용)
+    function renderCharacterCard(item) {
+      return card(item);
+    }
+    
+    // 세계관 카드 DOM 생성 (공통 컨트롤러용)
+    function renderWorldCard(item) {
+      return worldCard(item);
+    }
+    
+    // 게임 카드 DOM 생성 (공통 컨트롤러용)
+    function renderGameCard(item) {
+      return gameCard(item);
+    }
+    
+    // 카드 DOM 생성 (캐릭터) - 기존 호환성 유지
     function card(item) {
       const id = normalizeCharId(item.id || item.pk || item.slug || item.name || 'char_01');
       const a  = document.createElement('a');
@@ -395,64 +515,68 @@
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
     }
 
-    // 공통 그리드 렌더링
+    // Search 컨트롤러 초기화
+    function initSearchController(category) {
+      const listEl = document.getElementById(`${category}List`);
+      const sentinelEl = document.getElementById(`${category}Sentinel`);
+      
+      if (!listEl || !sentinelEl) {
+        console.error(`[search] ${category} list elements not found`);
+        return null;
+      }
+
+      let loadPage, renderCard;
+      if (category === 'characters') {
+        loadPage = loadCharactersPage;
+        renderCard = renderCharacterCard;
+      } else if (category === 'worlds') {
+        loadPage = loadWorldsPage;
+        renderCard = renderWorldCard;
+      } else if (category === 'games') {
+        loadPage = loadGamesPage;
+        renderCard = renderGameCard;
+      } else {
+        return null;
+      }
+
+      const controller = createInfiniteScrollController({
+        container: listEl,
+        loadPage: loadPage,
+        renderCard: renderCard,
+        renderSkeleton: createSkeletonCard,
+        limit: LIMIT,
+        sentinelId: `${category}Sentinel`,
+        rootMargin: '600px',
+        onError: (error) => {
+          console.error(`[search] ${category} load error:`, error);
+        }
+      });
+
+      searchControllers[category] = controller;
+      return controller;
+    }
+    
+    // 공통 그리드 렌더링 (공통 컨트롤러 사용)
     async function fetchAndRender(category, q) {
-      const grid = document.getElementById('grid');
-      if (!grid) return;
+      // 모든 리스트 숨김
+      document.getElementById('charactersList').style.display = 'none';
+      document.getElementById('worldsList').style.display = 'none';
+      document.getElementById('gamesList').style.display = 'none';
+      
+      // 현재 탭 리스트 표시
+      const currentListEl = document.getElementById(`${category}List`);
+      if (currentListEl) {
+        currentListEl.style.display = 'grid';
+      }
 
-      grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
+      // 컨트롤러가 없으면 초기화
+      if (!searchControllers[category]) {
+        initSearchController(category);
+      }
 
-      try {
-        let items = [];
-        const query = (q || '').trim();
-
-        if (category === 'characters') {
-          items = await loadCharacters(query);
-        } else if (category === 'worlds') {
-          items = await loadWorlds(query);
-        } else if (category === 'games') {
-          items = await loadGames(query);
-        }
-
-        console.log('[fetchAndRender] Category:', category, 'q:', query, 'Items:', items.length);
-
-        grid.innerHTML = '';
-
-        if (!items || items.length === 0) {
-          const label = category === 'characters' ? '캐릭터' : (category === 'worlds' ? '세계관' : '게임');
-          grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">검색 결과가 없습니다.' +
-                           (query ? `<br/><button id="reset-search" style="margin-top:12px;padding:8px 14px;background:#111827;border:1px solid #1f2937;border-radius:999px;color:#e5e7eb;cursor:pointer;font-size:13px;">검색어 초기화</button>` : '') +
-                           '</div>';
-
-          const resetBtn = document.getElementById('reset-search');
-          if (resetBtn) {
-            resetBtn.addEventListener('click', () => {
-              clearSearch(true);
-            });
-          }
-          return;
-        }
-
-        items.forEach((it, index) => {
-          try {
-            let cardElement;
-            if (category === 'characters') {
-              cardElement = card(it);
-            } else if (category === 'worlds') {
-              cardElement = worldCard(it);
-            } else if (category === 'games') {
-              cardElement = gameCard(it);
-            }
-            if (cardElement) {
-              grid.appendChild(cardElement);
-            }
-          } catch (err) {
-            console.error('[fetchAndRender] Error creating card for item', index, ':', err, it);
-          }
-        });
-      } catch (error) {
-        console.error('[fetchAndRender] Failed to load items:', error);
-        grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">검색에 실패했습니다. 잠시 후 다시 시도하세요.</div>';
+      const controller = searchControllers[category];
+      if (controller) {
+        await controller.init(q);
       }
     }
 
@@ -461,6 +585,11 @@
       qInput = '';
       qApplied = '';
       searchApplied = false;
+
+      // 현재 탭 컨트롤러 리셋
+      if (searchControllers[currentCategory]) {
+        searchControllers[currentCategory].reset('');
+      }
 
       const inputEl = document.getElementById('search-input');
       if (inputEl) inputEl.value = '';
@@ -478,7 +607,13 @@
       qApplied = (qInput || '').trim();
       searchApplied = qApplied.length > 0;
 
-      fetchAndRender(currentCategory, qApplied);
+      // 현재 탭 컨트롤러 리셋 후 검색
+      if (searchControllers[currentCategory]) {
+        searchControllers[currentCategory].reset(qApplied);
+        searchControllers[currentCategory].init(qApplied);
+      } else {
+        fetchAndRender(currentCategory, qApplied);
+      }
     }
 
     // 검색바 이벤트 설정
@@ -510,6 +645,11 @@
         tab.addEventListener('click', async function() {
           const category = this.getAttribute('data-category');
           if (category === currentCategory) return;
+          
+          // 이전 탭 컨트롤러 cleanup
+          if (searchControllers[currentCategory]) {
+            searchControllers[currentCategory].cleanup();
+          }
           
           document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
           this.classList.add('active');

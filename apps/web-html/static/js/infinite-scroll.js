@@ -40,6 +40,7 @@ function createInfiniteScrollController(options) {
     limit = 20,         // 페이지당 아이템 수
     sentinelId,         // Sentinel 요소 ID
     rootMargin = '600px', // IntersectionObserver rootMargin
+    root = null,         // IntersectionObserver root (null=window, 요소=해당 요소 스크롤)
     onError = null,     // 에러 핸들러: (error) => void
   } = options;
 
@@ -293,7 +294,12 @@ function createInfiniteScrollController(options) {
         state.sentinel = document.createElement('div');
         state.sentinel.id = sentinelId;
         state.sentinel.style.cssText = 'height:1px; min-height:1px;';
-        container.after(state.sentinel);
+        // root가 있으면(모달) container 내부에, 없으면(전체 스크롤) container 뒤에
+        if (root) {
+          container.appendChild(state.sentinel);
+        } else {
+          container.after(state.sentinel);
+        }
       }
     }
 
@@ -306,7 +312,7 @@ function createInfiniteScrollController(options) {
           }
         }
       },
-      { root: null, rootMargin: rootMargin, threshold: 0 }
+      { root: root, rootMargin: rootMargin, threshold: 0 }
     );
 
     state.observer.observe(state.sentinel);
