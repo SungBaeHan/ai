@@ -55,6 +55,7 @@ function createInfiniteScrollController(options) {
     seenIds: new Set(), // 중복 방지용 Set
     observer: null,     // IntersectionObserver 인스턴스
     sentinel: null,     // Sentinel 요소
+    sentinelId: sentinelId, // Sentinel ID 저장 (컨테이너 비우기 시 보존용)
   };
 
   /**
@@ -175,6 +176,12 @@ function createInfiniteScrollController(options) {
       }
     });
     container.appendChild(fragment);
+    
+    // 중요: 카드가 추가된 뒤 sentinel을 항상 맨 아래로 이동
+    // appendChild는 이미 자식인 노드를 맨 뒤로 이동시켜줌
+    if (state.sentinel && container.contains(state.sentinel)) {
+      container.appendChild(state.sentinel);
+    }
     
     // 디버그 로그: append 후 childCount 확인
     const afterCount = container?.children?.length || 0;
@@ -324,8 +331,11 @@ function createInfiniteScrollController(options) {
       
       // 4. sentinel을 올바른 위치에 재부착 (root 여부에 따라)
       if (root) {
-        // 모달 내부 스크롤: container 내부에
+        // 모달 내부 스크롤: container 내부에, 무조건 맨 아래로 이동
         if (!container.contains(state.sentinel)) {
+          container.appendChild(state.sentinel);
+        } else {
+          // 이미 container 안에 있어도 맨 아래로 이동 (appendChild는 자식 노드를 맨 뒤로 이동시킴)
           container.appendChild(state.sentinel);
         }
       } else {
@@ -360,14 +370,33 @@ function createInfiniteScrollController(options) {
   }
 
   /**
+   * 컨테이너 비우기 (sentinel 보존)
+   */
+  function clearContainerKeepSentinel() {
+    const sentinel = state.sentinelId ? document.getElementById(state.sentinelId) : null;
+    
+    // container 내 child를 전부 제거하되, sentinel만 남긴다
+    Array.from(container.children).forEach(ch => {
+      if (!sentinel || ch !== sentinel) {
+        container.removeChild(ch);
+      }
+    });
+    
+    // sentinel이 있으면 맨 아래로 이동(=마지막 보장)
+    if (sentinel) {
+      container.appendChild(sentinel);
+    }
+  }
+
+  /**
    * 초기화 (첫 페이지 로드)
    */
   async function init(query = '') {
     reset(query);
     
     // 기존 카드/Skeleton 제거 (reset 후에만 수행)
-    // reset()에서는 DOM을 건드리지 않으므로 여기서 정리
-    container.innerHTML = '';
+    // sentinel은 보존하여 DOM 생명주기를 끊지 않음
+    clearContainerKeepSentinel();
     
     // 초기 Skeleton 표시
     renderInitialSkeletons();
