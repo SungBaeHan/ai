@@ -10,6 +10,7 @@
   <title>캐릭터 선택</title>
   <script src="/js/config.js"></script>
   <script src="/js/assets.js"></script>
+  <script src="/static/js/infinite-scroll.js"></script>
   <script>
     // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
@@ -64,6 +65,17 @@
     .name { font-size:16px; font-weight:700; color:#f3f4f6; }
     .meta { margin-top:6px; font-size:12px; color:#94a3b8; line-height:1.4; display:block; height:32px; overflow:hidden; }
 
+    /* Skeleton UI */
+    .skeleton-card { background:#111827; border-radius:14px; overflow:hidden; border:1px solid #1f2937; box-shadow:0 6px 18px rgba(0,0,0,.25); animation: skeleton-pulse 1.5s ease-in-out infinite; }
+    .skeleton-thumb { width:100%; aspect-ratio: 16/10; background:#0f172a; display:block; }
+    .skeleton-body { padding:12px 14px 16px; }
+    .skeleton-name { width:70%; height:20px; background:#1f2937; border-radius:4px; margin-bottom:8px; }
+    .skeleton-meta { width:90%; height:16px; background:#1f2937; border-radius:4px; }
+    @keyframes skeleton-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
     /* toast layer */
     .toast { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .18s ease; z-index:50; }
     .toast.show { opacity:1; }
@@ -90,7 +102,12 @@
       <button class="category-tab" data-category="worlds">세계관 선택</button>
       <button class="category-tab" data-category="games">게임 선택</button>
     </div>
-    <div id="grid" class="grid"></div>
+    <!-- 캐릭터 리스트 (공통 컨트롤러 사용) -->
+    <div id="charactersList" class="grid"></div>
+    <div id="charactersStatus"></div>
+    <div id="charactersSentinel" style="height:1px;"></div>
+    <!-- 세계관/게임 리스트 (기존 방식) -->
+    <div id="grid" class="grid" style="display:none;"></div>
   </div>
 
   <!-- Toast Layer -->
@@ -115,22 +132,27 @@
     let qApplied = '';                         // 실제 검색에 사용된 값
     let searchApplied = false;                 // 검색 실행 여부
     
-    // 무한 스크롤 상태 (characters 전용) - 누적 상태 방식
-    let allCharacters = [];  // 누적 배열
-    let skip = 0;
-    const limit = 60;
-    let isLoading = false;
-    let hasMore = true;
-    let initialized = false;  // 초기화 여부
-    const seenIds = new Set();  // 중복 방지 (id 기준)
+    // 무한 스크롤 컨트롤러 (각 카테고리별)
+    let infiniteControllers = {
+      characters: null,
+      worlds: null,
+      games: null,
+    };
+    
+    // 페이지당 아이템 수 통일
+    const LIMIT = 20;
+    
+    // 캐릭터 전용 offset (skip과 혼용 방지를 위해 분리)
+    let characterOffset = 0;
 
-        // 서버 API에서 캐릭터 목록 로드
-    async function loadFromApi({ q = '', skip = 0, limit = 60 } = {}) {
+    // 캐릭터 API 로더 (컨트롤러 규격: pageIndex -> offset 변환)
+    async function loadCharactersPage(pageIndex, limit, query = '') {
+      const offset = pageIndex * limit;
       const params = new URLSearchParams();
-      params.set('skip', String(skip));
+      params.set('skip', String(offset)); // API는 skip 사용
       params.set('limit', String(limit));
-      if (q && q.trim().length > 0) {
-        params.set('q', q.trim());
+      if (query && query.trim().length > 0) {
+        params.set('q', query.trim());
       }
 
       const r = await fetch(`${API_BASE_URL}/v1/characters?${params.toString()}`, {
@@ -144,7 +166,7 @@
     }
     
     // 서버 API에서 세계관 목록 로드
-    async function loadWorldsFromApi({ q = '', offset = 0, limit = 60 } = {}) {
+    async function loadWorldsFromApi({ q = '', offset = 0, limit = 20 } = {}) {
       const params = new URLSearchParams();
       params.set('offset', String(offset));
       params.set('limit', String(limit));
@@ -171,7 +193,7 @@
     }
     
     // 서버 API에서 게임 목록 로드
-    async function loadGamesFromApi({ q = '', offset = 0, limit = 60 } = {}) {
+    async function loadGamesFromApi({ q = '', offset = 0, limit = 20 } = {}) {
       const params = new URLSearchParams();
       params.set('offset', String(offset));
       params.set('limit', String(limit));
@@ -345,10 +367,10 @@
       </a>`;
     }
     
-    // 카드 DOM을 생성하여 그리드에 추가 (캐릭터용, null 반환 금지) - 기존 호환성 유지
-    function card(item) {
+    // 캐릭터 카드 DOM 생성 (공통 컨트롤러용)
+    function renderCharacterCard(item) {
       if (!item) {
-        console.warn('[home] card() called with null item');
+        console.warn('[home] renderCharacterCard() called with null item');
         return null;
       }
       
@@ -363,7 +385,6 @@
       img.className = 'thumb';
       img.alt = item.name || id;
       img.loading = 'lazy';
-      // getCharacterImageUrl()은 항상 유효한 URL을 반환 (placeholder 포함)
       img.src = getCharacterImageUrl(item);
 
       const body = document.createElement('div'); body.className='body';
@@ -372,7 +393,6 @@
       meta.textContent = (item.shortBio || item.oneLiner || item.greeting || item.summary || '').toString();
 
       body.appendChild(name); body.appendChild(meta);
-      // <!-- .meta 밑에 한 줄 추가 -->
       const chips = document.createElement('div');
       chips.style.marginTop='6px';
       chips.style.display='flex';
@@ -381,6 +401,30 @@
       body.appendChild(chips);      
       a.appendChild(img); a.appendChild(body);
       return a;
+    }
+
+    // 캐릭터 카드 append 전용 (공통 컨트롤러용)
+    function appendCharacters(items) {
+      const listEl = document.getElementById('charactersList');
+      if (!listEl) return;
+      
+      const fragment = document.createDocumentFragment();
+      items.forEach(item => {
+        try {
+          const card = renderCharacterCard(item);
+          if (card) {
+            fragment.appendChild(card);
+          }
+        } catch (err) {
+          console.error('[appendCharacters] Error rendering card:', err, item);
+        }
+      });
+      listEl.appendChild(fragment);
+    }
+    
+    // 기존 호환성 유지용 (worlds/games용)
+    function card(item) {
+      return renderCharacterCard(item);
     }
     
     // 세계관 카드 DOM 생성
@@ -548,177 +592,78 @@
       });
     }
     
-    // 캐릭터 페이지 fetch 함수 (응답 파싱 확정)
-    async function fetchCharactersPage(skip, limit, q = '') {
-      try {
-        const items = await loadFromApi({ q, skip, limit });
-        // 응답 구조가 {items:[]} 인지, []인지, {data:{items:[]}} 인지 확정
-        const parsed = Array.isArray(items) ? items
-          : Array.isArray(items?.items) ? items.items
-          : Array.isArray(items?.data?.items) ? items.data.items
-          : [];
-        return parsed;
-      } catch (error) {
-        console.error('[fetchCharactersPage] Error:', error);
-        throw error;
-      }
-    }
-    
-    // 전체 재렌더 함수 (핵심)
-    function renderAllCharacters() {
-      const grid = getGridElement();
-      if (!grid) {
-        console.warn('[home] renderAllCharacters: grid not found');
-        return;
+    // 캐릭터 공통 컨트롤러 초기화
+    function initCharactersController() {
+      const listEl = document.getElementById('charactersList');
+      const sentinelEl = document.getElementById('charactersSentinel');
+      const statusEl = document.getElementById('charactersStatus');
+      
+      if (!listEl || !sentinelEl) {
+        console.error('[home] Characters list elements not found');
+        return null;
       }
 
-      const html = allCharacters.map(renderCard).join('');
-      grid.innerHTML = html;
-      
-      // 클릭 이벤트 재등록 (innerHTML로 인해 이벤트가 사라지므로)
-      grid.querySelectorAll('.card').forEach(cardEl => {
-        cardEl.addEventListener('click', function() {
-          const charId = this.getAttribute('data-character-id');
-          if (charId) {
-            try { sessionStorage.setItem('lastChar', charId); } catch(_){ }
-          }
-        });
+      // 공통 컨트롤러 생성
+      const controller = createInfiniteScrollController({
+        container: listEl,
+        loadPage: loadCharactersPage,
+        renderCard: renderCharacterCard,
+        renderSkeleton: createSkeletonCard,
+        limit: LIMIT,
+        sentinelId: 'charactersSentinel',
+        rootMargin: '600px',
+        onError: (error) => {
+          console.error('[home] Characters load error:', error);
+        }
       });
 
-      console.log('[home] renderAllCharacters', { total: allCharacters.length });
-    }
-    
-    // 초기 로딩 함수 (누적 상태 + 전체 재렌더)
-    async function loadInitial() {
-      if (initialized || currentCategory !== 'characters') return;
-      initialized = true;
-
-      isLoading = true;
-      skip = 0;
-      allCharacters = [];
-      seenIds.clear();
-
-      const grid = getGridElement();
-      if (grid) {
-        grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
-      }
-
-      try {
-        const items = await fetchCharactersPage(skip, limit, qApplied);
-
-        // 누적/중복 제거
-        for (const it of items) {
-          const id = it.id ?? it._id ?? it.pk ?? it.slug ?? JSON.stringify(it);
-          if (seenIds.has(id)) continue;
-          seenIds.add(id);
-          allCharacters.push(it);
-        }
-
-        hasMore = items.length === limit;
-        renderAllCharacters();
-
-        // preload는 첫 페이지 상위 16개만
-        preloadTopImages(allCharacters.slice(0, 16), 16);
-
-        // sentinel 추가
-        if (grid && !document.getElementById('home-sentinel')) {
-          const sentinel = document.createElement('div');
-          sentinel.id = 'home-sentinel';
-          sentinel.style.minHeight = '20px';
-          grid.appendChild(sentinel);
-        }
-      } catch (error) {
-        console.error('[loadInitial] Failed to load:', error);
-        if (grid) {
-          grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">로드에 실패했습니다. 잠시 후 다시 시도하세요.</div>';
-        }
-      } finally {
-        isLoading = false;
-      }
-    }
-    
-    // 다음 페이지 로드 함수 (누적 상태 + 전체 재렌더)
-    async function loadNext() {
-      if (!hasMore || isLoading || currentCategory !== 'characters') return;
-      
-      isLoading = true;
-      const nextSkip = skip + limit;
-      
-      // sentinel에 로딩 표시
-      const sentinel = document.getElementById('home-sentinel');
-      if (sentinel) {
-        sentinel.innerHTML = '<div style="opacity:.7;text-align:center;padding:20px;">로딩 중...</div>';
-      }
-      
-      try {
-        const items = await fetchCharactersPage(nextSkip, limit, qApplied);
-        
-        if (!items.length) {
-          hasMore = false;
-          if (sentinel) {
-            sentinel.innerHTML = '';
-          }
-          isLoading = false;
-          return;
-        }
-
-        // 누적/중복 제거
-        for (const it of items) {
-          const id = it.id ?? it._id ?? it.pk ?? it.slug ?? JSON.stringify(it);
-          if (seenIds.has(id)) continue;
-          seenIds.add(id);
-          allCharacters.push(it);
-        }
-
-        skip = nextSkip;
-        if (items.length < limit) {
-          hasMore = false;
-        }
-
-        // append 대신 전체 재렌더
-        renderAllCharacters();
-
-        // sentinel 정리
-        if (sentinel) {
-          sentinel.innerHTML = '';
-        }
-      } catch (error) {
-        console.error('[loadNext] Failed to load next page:', error);
-        hasMore = false;
-        if (sentinel) {
-          sentinel.innerHTML = '<div style="opacity:.7;text-align:center;padding:20px;color:#ef4444;">로드 실패<br/><button id="retry-load" style="margin-top:8px;padding:6px 12px;background:#111827;border:1px solid #1f2937;border-radius:6px;color:#e5e7eb;cursor:pointer;font-size:12px;">다시 시도</button></div>';
-          const retryBtn = document.getElementById('retry-load');
-          if (retryBtn) {
-            retryBtn.addEventListener('click', () => {
-              skip = nextSkip - limit;  // 롤백
-              hasMore = true;
-              loadNext();
-            });
-          }
-        }
-      } finally {
-        isLoading = false;
-      }
+      infiniteControllers.characters = controller;
+      return controller;
     }
     
     // 공통 그리드 렌더링 헬퍼
     async function fetchAndRender(category, q, { append = false } = {}) {
-      const grid = document.getElementById('grid');
-      if (!grid) return;
-
-      // 캐릭터는 loadInitial 사용 (누적 상태 + 전체 재렌더)
+      // 캐릭터는 공통 컨트롤러 사용
       if (category === 'characters') {
-        // 무한 스크롤 상태 초기화
-        if (!append) {
-          initialized = false;
-          allCharacters = [];
-          seenIds.clear();
-          skip = 0;
-          isLoading = false;
-          hasMore = true;
+        const charactersListEl = document.getElementById('charactersList');
+        const gridEl = document.getElementById('grid');
+        
+        // 캐릭터 리스트 표시, 기존 grid 숨김
+        if (charactersListEl) {
+          charactersListEl.style.display = 'grid';
         }
-        await loadInitial();
+        if (gridEl) {
+          gridEl.style.display = 'none';
+        }
+
+        // 컨트롤러가 없으면 초기화
+        if (!infiniteControllers.characters) {
+          initCharactersController();
+        }
+
+        const controller = infiniteControllers.characters;
+        if (controller) {
+          // init() 내부에서 reset()을 호출하므로 reset()을 별도로 호출하지 않음
+          if (!append) {
+            await controller.init(q);
+          }
+        }
         return;
+      }
+
+      // 캐릭터 리스트 숨김, 기존 grid 표시
+      const charactersListEl = document.getElementById('charactersList');
+      const gridEl = document.getElementById('grid');
+      if (charactersListEl) {
+        charactersListEl.style.display = 'none';
+      }
+      if (gridEl) {
+        gridEl.style.display = 'grid';
+      }
+
+      // worlds, games는 기존 방식 유지
+      if (!append) {
+        gridEl.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
       }
 
       // worlds, games는 기존 방식 유지
@@ -769,64 +714,15 @@
       }
     }
 
-    // 무한 스크롤 설정 (IntersectionObserver) - 명시적 정의
-    function setupInfiniteScroll() {
-      const grid = getGridElement();
-      if (!grid) {
-        console.error('[home] grid not found, cannot setup infinite scroll');
-        return;
-      }
-
-      // 기존 observer 정리
-      if (window.homeScrollObserver) {
-        window.homeScrollObserver.disconnect();
-        window.homeScrollObserver = null;
-      }
-
-      let sentinel = document.getElementById('home-sentinel');
-      if (!sentinel) {
-        sentinel = document.createElement('div');
-        sentinel.id = 'home-sentinel';
-        sentinel.style.height = '1px';
-        sentinel.style.minHeight = '1px';
-        // grid 바로 뒤에 붙여야 스크롤 타이밍이 정확함
-        grid.after(sentinel);
-      }
-
-      const io = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            // loadNext()는 누적 상태 + 전체 재렌더 방식으로 동작
-            if (typeof loadNext === 'function' && hasMore && !isLoading && currentCategory === 'characters') {
-              loadNext();
-            } else {
-              if (typeof loadNext !== 'function') {
-                console.warn('[home] loadNext not defined');
-              }
-            }
-          }
-        }
-      }, { root: null, rootMargin: '800px 0px', threshold: 0 });
-
-      io.observe(sentinel);
-      window.homeScrollObserver = io;
-      console.log('[home] infinite scroll observer attached');
-    }
-
     // 검색 상태 초기화
     function clearSearch(shouldRefetch = false) {
       qInput = '';
       qApplied = '';
       searchApplied = false;
       
-      // 무한 스크롤 상태도 초기화
-      if (currentCategory === 'characters') {
-        initialized = false;
-        allCharacters = [];
-        seenIds.clear();
-        skip = 0;
-        isLoading = false;
-        hasMore = true;
+      // 캐릭터 컨트롤러 리셋
+      if (currentCategory === 'characters' && infiniteControllers.characters) {
+        infiniteControllers.characters.reset('');
       }
 
       const inputEl = document.getElementById('search-input');
@@ -886,10 +782,9 @@
           const category = this.getAttribute('data-category');
           if (category === currentCategory) return;
           
-          // 기존 observer 정리
-          if (window.homeScrollObserver) {
-            window.homeScrollObserver.disconnect();
-            window.homeScrollObserver = null;
+          // 캐릭터 컨트롤러 cleanup (탭 전환 시)
+          if (currentCategory === 'characters' && infiniteControllers.characters) {
+            infiniteControllers.characters.cleanup();
           }
           
           // 탭 활성화 상태 변경
@@ -897,12 +792,6 @@
           this.classList.add('active');
           
           currentCategory = category;
-          
-          // 무한 스크롤 상태 초기화
-          skip = 0;
-          isLoading = false;
-          hasMore = true;
-          isFirstLoad = true;
           
           // 제목 변경
           const h1 = document.querySelector('h1');
@@ -919,26 +808,6 @@
           // - 아직 searchApplied=false 라면 기본 리스트만 로드
           const query = searchApplied ? qApplied : '';
           await fetchAndRender(currentCategory, query);
-          
-          // characters 탭일 때만 observer 재설정
-          if (category === 'characters') {
-            // 무한 스크롤 상태 초기화 (누적 상태 방식)
-            initialized = false;
-            allCharacters = [];
-            seenIds.clear();
-            skip = 0;
-            isLoading = false;
-            hasMore = true;
-            
-            setTimeout(() => {
-              // setupInfiniteScroll이 반드시 정의된 다음 호출되게 가드 추가
-              if (typeof setupInfiniteScroll === 'function') {
-                setupInfiniteScroll();
-              } else {
-                console.warn('[home] setupInfiniteScroll not defined, infinite scroll disabled');
-              }
-            }, 100);
-          }
         });
       });
     }
@@ -984,22 +853,8 @@
       setupSearchBar();
       setupCategoryTabs();
 
-      const grid = document.getElementById('grid');
-
-      // 초기 상태: 검색어 없이 캐릭터 기본 리스트
+      // 초기 상태: 검색어 없이 캐릭터 기본 리스트 (공통 컨트롤러로 로드)
       await fetchAndRender(currentCategory, '');
-      
-      // 무한 스크롤: IntersectionObserver 설정 (characters 전용)
-      if (currentCategory === 'characters') {
-        setTimeout(() => {
-          // setupInfiniteScroll이 반드시 정의된 다음 호출되게 가드 추가
-          if (typeof setupInfiniteScroll === 'function') {
-            setupInfiniteScroll();
-          } else {
-            console.warn('[home] setupInfiniteScroll not defined, infinite scroll disabled');
-          }
-        }, 100);
-      }
      })();
    </script>
   <div id="gallery" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;"></div>
