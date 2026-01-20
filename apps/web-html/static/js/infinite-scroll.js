@@ -183,9 +183,9 @@ function createInfiniteScrollController(options) {
       container.appendChild(state.sentinel);
     }
     
-    // 디버그 로그: append 후 childCount 확인
+    // 디버그 로그: append 후 실제 DOM 증가 확인
     const afterCount = container?.children?.length || 0;
-    console.log('[DBG infinite-scroll] appendCards: after append childCount=', afterCount, 'appended=', appendedCount, 'expected=', newItems.length);
+    console.log('[inf] after append childCount=', afterCount, 'sentinelAtEnd=', container.lastElementChild?.id);
   }
 
   /**
@@ -230,6 +230,9 @@ function createInfiniteScrollController(options) {
         return;
       }
 
+      // 중복 제거 전 로그
+      console.log('[inf] pageIndex=', state.pageIndex, 'incoming=', items.length);
+      
       // 중복 제거
       const newItems = [];
       for (const item of items) {
@@ -239,6 +242,12 @@ function createInfiniteScrollController(options) {
           newItems.push(item);
           state.items.push(item);
         }
+      }
+
+      // 중복 제거 후 로그
+      console.log('[inf] deduped=', newItems.length);
+      if (items.length && newItems.length === 0) {
+        console.log('[inf] DUP_ALL sample ids=', items.slice(0, 5).map(x => x.id || x._id || x.pk || x.slug || 'undefined'));
       }
 
       // 카드 append

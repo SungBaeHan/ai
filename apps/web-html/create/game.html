@@ -1405,11 +1405,12 @@ create/game.html - 게임 생성 화면
       }
 
       const data = await response.json();
-      const items = data.items || [];
+      const raw = data;
+      const items = raw.items || raw.characters || raw.data || raw || [];
       
-      // 디버그 로그: API 응답 확인
-      console.log('[DBG modal] loadCharactersPage: offset=', offset, 'limit=', limit, 'items.len=', items?.length);
-      console.log('[DBG modal] loadCharactersPage: response data keys=', Object.keys(data || {}), 'first item keys=', items[0] ? Object.keys(items[0]) : 'N/A');
+      // 디버그 로그: offset=20 응답 직후 상세 확인
+      console.log('[modal] offset=', offset, 'raw_len=', items.length);
+      console.log('[modal] first_id=', (items[0]?.id || items[0]?._id), 'last_id=', (items.at(-1)?.id || items.at(-1)?._id));
       
       return items;
     }
