@@ -155,18 +155,30 @@ function createInfiniteScrollController(options) {
    * 카드 append 렌더링
    */
   function appendCards(newItems) {
+    // 디버그 로그: append 전후 childCount 확인
+    const beforeCount = container?.children?.length || 0;
+    console.log('[DBG infinite-scroll] appendCards: before append childCount=', beforeCount, 'newItems.len=', newItems?.length);
+    
     const fragment = document.createDocumentFragment();
+    let appendedCount = 0;
     newItems.forEach(item => {
       try {
         const card = renderCard(item);
         if (card) {
           fragment.appendChild(card);
+          appendedCount++;
+        } else {
+          console.warn('[DBG infinite-scroll] appendCards: renderCard returned null/undefined for item:', item);
         }
       } catch (err) {
-        console.error('[appendCards] Error rendering card:', err, item);
+        console.error('[DBG infinite-scroll] appendCards: Error rendering card:', err, item);
       }
     });
     container.appendChild(fragment);
+    
+    // 디버그 로그: append 후 childCount 확인
+    const afterCount = container?.children?.length || 0;
+    console.log('[DBG infinite-scroll] appendCards: after append childCount=', afterCount, 'appended=', appendedCount, 'expected=', newItems.length);
   }
 
   /**
@@ -190,6 +202,9 @@ function createInfiniteScrollController(options) {
 
       // API 호출
       const items = await loadPage(state.pageIndex, limit, state.currentQuery);
+      
+      // 디버그 로그
+      console.log('[DBG infinite-scroll] loadPageInternal items.len=', items?.length, 'pageIndex=', state.pageIndex);
       
       // Skeleton 제거
       removeSkeletons();
@@ -221,7 +236,10 @@ function createInfiniteScrollController(options) {
 
       // 카드 append
       if (newItems.length > 0) {
+        console.log('[DBG infinite-scroll] loadPageInternal: calling appendCards with', newItems.length, 'items, pageIndex=', state.pageIndex, 'hasMore=', state.hasMore);
         appendCards(newItems);
+      } else {
+        console.warn('[DBG infinite-scroll] loadPageInternal: No new items after deduplication, items.len=', items.length, 'seenIds.size=', state.seenIds.size);
       }
 
       // hasMore 판단: 응답 items 길이 < limit 이면 hasMore=false
@@ -287,20 +305,43 @@ function createInfiniteScrollController(options) {
       state.observer = null;
     }
 
-    // Sentinel 요소 확인/생성
+    // Sentinel 요소 확인/생성/재부착 (반드시 보장)
     if (!state.sentinel) {
+      // 1. 먼저 DOM에서 전역으로 찾기
       state.sentinel = document.getElementById(sentinelId);
+      
+      // 2. 없으면 container 내부에서 찾기
+      if (!state.sentinel && container) {
+        state.sentinel = container.querySelector(`#${sentinelId}`);
+      }
+      
+      // 3. 그래도 없으면 새로 생성
       if (!state.sentinel) {
         state.sentinel = document.createElement('div');
         state.sentinel.id = sentinelId;
         state.sentinel.style.cssText = 'height:1px; min-height:1px;';
-        // root가 있으면(모달) container 내부에, 없으면(전체 스크롤) container 뒤에
-        if (root) {
+      }
+      
+      // 4. sentinel을 올바른 위치에 재부착 (root 여부에 따라)
+      if (root) {
+        // 모달 내부 스크롤: container 내부에
+        if (!container.contains(state.sentinel)) {
           container.appendChild(state.sentinel);
-        } else {
+        }
+      } else {
+        // 전체 스크롤: container 뒤에
+        if (state.sentinel.parentNode !== container.parentNode || 
+            state.sentinel.previousSibling !== container) {
           container.after(state.sentinel);
         }
       }
+      
+      // 디버그 로그
+      console.log('[DBG infinite-scroll] setupObserver sentinel:', {
+        exists: !!state.sentinel,
+        inContainer: container.contains(state.sentinel),
+        sentinelId: sentinelId
+      });
     }
 
     // IntersectionObserver 생성
@@ -324,18 +365,23 @@ function createInfiniteScrollController(options) {
   async function init(query = '') {
     reset(query);
     
+    // 기존 카드/Skeleton 제거 (reset 후에만 수행)
+    // reset()에서는 DOM을 건드리지 않으므로 여기서 정리
+    container.innerHTML = '';
+    
     // 초기 Skeleton 표시
     renderInitialSkeletons();
     
     // 첫 페이지 로드
     await loadPageInternal();
     
-    // Observer 설정
+    // Observer 설정 (sentinel 재탐색/재생성/재부착 보장)
     setupObserver();
   }
 
   /**
    * 리셋 (검색어 변경, 탭 전환 등)
+   * DOM을 직접 조작하지 않고 상태만 초기화 (sentinel 보존)
    */
   function reset(query = '') {
     // 상태 초기화
@@ -353,13 +399,13 @@ function createInfiniteScrollController(options) {
       state.observer = null;
     }
 
-    // Sentinel 정리 (제거하지 않고 내용만 비움)
-    if (state.sentinel) {
-      state.sentinel.innerHTML = '';
-    }
+    // Sentinel 참조 초기화 (다음 setupObserver에서 다시 찾음)
+    // DOM에서 제거하지 않음 - setupObserver()에서 재탐색/재부착 보장
+    state.sentinel = null;
 
-    // 컨테이너 비우기
-    container.innerHTML = '';
+    // 중요: container.innerHTML = '' 같은 DOM 직접 삭제는 하지 않음
+    // 필요시 init() 내부의 renderInitialSkeletons() 전에 기존 카드들을 제거하거나,
+    // onReset 콜백에서 처리하도록 함
   }
 
   /**

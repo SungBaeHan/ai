@@ -1404,7 +1404,13 @@ create/game.html - 게임 생성 화면
       }
 
       const data = await response.json();
-      return data.items || [];
+      const items = data.items || [];
+      
+      // 디버그 로그: API 응답 확인
+      console.log('[DBG modal] loadCharactersPage: offset=', offset, 'limit=', limit, 'items.len=', items?.length);
+      console.log('[DBG modal] loadCharactersPage: response data keys=', Object.keys(data || {}), 'first item keys=', items[0] ? Object.keys(items[0]) : 'N/A');
+      
+      return items;
     }
     
     // 기존 호환성 유지용 (제거 예정)
@@ -1442,7 +1448,13 @@ create/game.html - 게임 생성 화면
     function initCharacterModalController() {
       const listEl = document.getElementById('character-modal-list');
       const sentinelEl = document.getElementById('character-modal-sentinel');
+      const statusEl = document.getElementById('character-modal-status');
       const rootEl = listEl; // 모달 내부 스크롤 컨테이너
+      
+      // 디버그 로그
+      console.log('[DBG modal] listEl=', listEl);
+      console.log('[DBG modal] statusEl=', statusEl);
+      console.log('[DBG modal] sentinelEl=', sentinelEl);
       
       if (!listEl || !sentinelEl) {
         console.error('[game-create] Character modal elements not found');
@@ -1489,9 +1501,10 @@ create/game.html - 게임 생성 화면
         initCharacterModalController();
       }
       
-      // 컨트롤러 리셋 후 초기화
+      // 컨트롤러 초기화
+      // init() 내부에서 reset()을 호출하므로 중복 reset 호출 제거
       if (characterModalController) {
-        characterModalController.reset('');
+        console.log('[DBG modal] openCharacterModal: calling init()');
         characterModalController.init('');
       }
     }
@@ -1502,9 +1515,10 @@ create/game.html - 게임 생성 화면
       if (searchInput) {
         characterSearchText = searchInput.value.trim();
         
-        // 컨트롤러 리셋 후 검색
+        // 컨트롤러 초기화 (검색)
+        // init() 내부에서 reset()을 호출하므로 중복 reset 호출 제거
         if (characterModalController) {
-          characterModalController.reset(characterSearchText);
+          console.log('[DBG modal] executeCharacterSearch: calling init() with query:', characterSearchText);
           characterModalController.init(characterSearchText);
         }
       }
@@ -1553,6 +1567,12 @@ create/game.html - 게임 생성 화면
         </div>
         <div style="font-size:11px; color:#64748b; line-height:1.3; height:28px; overflow:hidden;">${(item.summary || '').substring(0, 40)}${(item.summary || '').length > 40 ? '...' : ''}</div>
       `;
+      
+      // 디버그 로그: 카드 생성 확인 (첫 번째 카드만)
+      if (!window._renderCardLogged) {
+        console.log('[DBG modal] renderCharacterModalCard: nodeType=', card?.nodeType, 'is HTMLElement=', card instanceof HTMLElement, 'card=', card);
+        window._renderCardLogged = true;
+      }
       
       return card;
     }
