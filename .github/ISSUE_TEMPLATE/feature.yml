@@ -1,0 +1,28 @@
+name: Feature
+description: 게임 기능 / 시스템 추가
+title: "[Feature] "
+labels: ["feature"]
+projects: ["Arcanaverse Eternal Island"]
+
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 🎯 목적
+      description: 왜 이 기능이 필요한가?
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: 🧩 구현 내용
+      description: 시스템 / 로직 / UI 기준 설명
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: ✅ 완료 조건
+      description: Done 정의

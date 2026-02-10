@@ -11,6 +11,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Game Chat • TRPG</title>
+  <script>
+    // ASSET_BASE_URL 강제 설정 (r2.dev 차단)
+    window.__ASSET_BASE_URL__ = 'https://img.arcanaverse.ai';
+  </script>
   <script src="/js/config.js"></script>
   <script src="/js/assets.js"></script>
   <script>
@@ -693,25 +697,38 @@
     }
 
     // 이미지 경로 보정 → 상대 경로를 풀 URL로 변환
-    // R2 Public URL (배경 이미지와 동일한 방식)
-    const R2_PUBLIC_URL = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
-    const ASSET_BASE_URL = window.location.origin; // => https://www.arcanaverse.ai
+    // ASSET_BASE_URL 사용 (config.js에서 설정됨)
+    const ASSET_BASE_URL = window.ASSET_BASE_URL || window.IMAGE_BASE?.replace('/assets', '') || 'https://img.arcanaverse.ai';
     
     function resolveAssetUrl(path) {
       if (!path) return "";
-      // 이미 풀 URL이면 그대로 반환 (R2 URL 포함)
+      // r2.dev URL 차단 및 정규화
+      if (path.includes('r2.dev') || path.includes('cloudflarestorage.com')) {
+        console.error('🚨 r2.dev image URL blocked:', path);
+        if (typeof window.normalizeAssetUrl === 'function') {
+          path = window.normalizeAssetUrl(path);
+        } else {
+          try {
+            const urlObj = new URL(path);
+            path = ASSET_BASE_URL + urlObj.pathname + urlObj.search;
+          } catch (e) {
+            const pathMatch = path.match(/\/assets\/[^?]+/);
+            path = ASSET_BASE_URL + (pathMatch ? pathMatch[0] : '/assets/img/placeholder.jpg');
+          }
+        }
+      }
+      // 이미 풀 URL이면 그대로 반환 (이미 정규화됨)
       if (path.startsWith("http://") || path.startsWith("https://")) return path;
       
-      // 상대 경로(/assets/...)를 R2 Public URL로 변환 (배경 이미지와 동일)
-      // 배경 이미지처럼 R2_PUBLIC_URL을 직접 사용
+      // 상대 경로(/assets/...)를 Asset Base URL로 변환
       if (path.startsWith("/")) {
-        return `${R2_PUBLIC_URL}${path}`;
+        return `${ASSET_BASE_URL}${path}`;
       }
       // 상대 경로가 /로 시작하지 않으면 /assets/char/ 또는 /assets/img/ 경로로 가정
       if (path.includes('/char/') || path.includes('char_')) {
-        return `${R2_PUBLIC_URL}/assets/char/${path.replace(/^.*\/(char\/|char_)/, '').replace(/^.*\//, '')}`;
+        return `${ASSET_BASE_URL}/assets/char/${path.replace(/^.*\/(char\/|char_)/, '').replace(/^.*\//, '')}`;
       }
-      return `${R2_PUBLIC_URL}/assets/img/${path}`;
+      return `${ASSET_BASE_URL}/assets/img/${path}`;
     }
     
     function resolvePath(p){
@@ -959,13 +976,30 @@
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
     }
 
-    // 페르조나 이미지 URL 정규화 함수
-    const R2_BASE = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
+    // 페르조나 이미지 URL 정규화 함수 (r2.dev 차단 포함)
     function resolvePersonaUrl(u) {
       if (!u) return "";
+      // r2.dev URL 차단 및 정규화
+      if (typeof window.normalizeAssetUrl === 'function') {
+        u = window.normalizeAssetUrl(u);
+      } else if (u.includes('r2.dev') || u.includes('cloudflarestorage.com')) {
+        console.error('🚨 r2.dev image URL blocked:', u);
+        const assetBase = window.ASSET_BASE_URL || 'https://img.arcanaverse.ai';
+        try {
+          const urlObj = new URL(u);
+          u = assetBase + urlObj.pathname + urlObj.search;
+        } catch (e) {
+          const pathMatch = u.match(/\/assets\/[^?]+/);
+          u = assetBase + (pathMatch ? pathMatch[0] : '/assets/persona/placeholder.png');
+        }
+      }
       if (u.startsWith("http://") || u.startsWith("https://")) return u;
-      if (u.startsWith("/")) return `${R2_BASE}${u}`;
-      return `${R2_BASE}/assets/persona/${u}`;
+      // buildAssetUrl 사용 (ASSET_BASE_URL 기반)
+      const assetBase = window.ASSET_BASE_URL || window.IMAGE_BASE?.replace('/assets', '') || 'https://img.arcanaverse.ai';
+      if (u.startsWith("/")) {
+        return assetBase + u;
+      }
+      return assetBase + "/assets/persona/" + u;
     }
     
     // 게임 세션의 활성 persona 반환 (persona_ref_id로 복구 지원)
@@ -1512,6 +1546,21 @@
         headers['Authorization'] = `Bearer ${token}`;
       }
       
+      // chat_send 이벤트 로깅 (채팅 원문은 저장하지 않음)
+      if (window.logEvent && isGamePage && GAME_ID) {
+        window.logEvent(
+          window.EVENT.CHAT_SEND,
+          'game',
+          {
+            chat_type: 'game',
+            message_len: message ? message.length : 0,
+          },
+          {
+            entity_id: String(GAME_ID),
+          }
+        );
+      }
+      
       // 게임 페이지면 /v1/games/{id}/turn, 아니면 /v1/chat/
       const API_URL = isGamePage && GAME_ID
         ? `${API_BASE_URL}/v1/games/${GAME_ID}/turn`
@@ -1540,7 +1589,7 @@
         console.log('[askLLM] isGamePage:', isGamePage, 'GAME_ID:', GAME_ID);
         console.log('[askLLM] Payload:', payload);
         
-        const r = await fetch(API_URL, {
+        const r = await (window.apiFetch || fetch)(API_URL, {
           method: "POST",
           credentials: "include",
           headers: headers,

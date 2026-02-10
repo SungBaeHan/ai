@@ -71,6 +71,37 @@ def init_mongo_indexes() -> Optional[dict]:
         import logging
         logging.warning(f"Failed to create world chat indexes: {e}")
     
+    # 로그 컬렉션 인덱스
+    try:
+        # access_logs 인덱스
+        access_logs_col = db.access_logs
+        access_logs_col.create_index([("ts", -1)], name="access_logs_idx_ts")
+        access_logs_col.create_index([("anon_id", 1), ("ts", -1)], name="access_logs_idx_anon_ts")
+        access_logs_col.create_index([("user_id", 1), ("ts", -1)], name="access_logs_idx_user_ts", sparse=True)
+        logger.info("Created indexes for access_logs collection")
+    except Exception as e:
+        logger.warning(f"Failed to create access_logs indexes (may already exist): {e}")
+    
+    try:
+        # event_logs 인덱스
+        event_logs_col = db.event_logs
+        event_logs_col.create_index([("name", 1), ("ts", -1)], name="event_logs_idx_name_ts")
+        event_logs_col.create_index([("anon_id", 1), ("ts", -1)], name="event_logs_idx_anon_ts")
+        event_logs_col.create_index([("user_id", 1), ("ts", -1)], name="event_logs_idx_user_ts", sparse=True)
+        logger.info("Created indexes for event_logs collection")
+    except Exception as e:
+        logger.warning(f"Failed to create event_logs indexes (may already exist): {e}")
+    
+    try:
+        # error_logs 인덱스
+        error_logs_col = db.error_logs
+        error_logs_col.create_index([("kind", 1), ("ts", -1)], name="error_logs_idx_kind_ts")
+        error_logs_col.create_index([("anon_id", 1), ("ts", -1)], name="error_logs_idx_anon_ts")
+        error_logs_col.create_index([("user_id", 1), ("ts", -1)], name="error_logs_idx_user_ts", sparse=True)
+        logger.info("Created indexes for error_logs collection")
+    except Exception as e:
+        logger.warning(f"Failed to create error_logs indexes (may already exist): {e}")
+    
     return {"ok": True, "created": True}
 
 

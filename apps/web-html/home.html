@@ -10,6 +10,7 @@
   <title>캐릭터 선택</title>
   <script src="/js/config.js"></script>
   <script src="/js/assets.js"></script>
+  <script src="/static/js/infinite-scroll.js"></script>
   <script>
     // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
     window.API_BASE_URL = 'https://api.arcanaverse.ai';
@@ -64,6 +65,17 @@
     .name { font-size:16px; font-weight:700; color:#f3f4f6; }
     .meta { margin-top:6px; font-size:12px; color:#94a3b8; line-height:1.4; display:block; height:32px; overflow:hidden; }
 
+    /* Skeleton UI */
+    .skeleton-card { background:#111827; border-radius:14px; overflow:hidden; border:1px solid #1f2937; box-shadow:0 6px 18px rgba(0,0,0,.25); animation: skeleton-pulse 1.5s ease-in-out infinite; }
+    .skeleton-thumb { width:100%; aspect-ratio: 16/10; background:#0f172a; display:block; }
+    .skeleton-body { padding:12px 14px 16px; }
+    .skeleton-name { width:70%; height:20px; background:#1f2937; border-radius:4px; margin-bottom:8px; }
+    .skeleton-meta { width:90%; height:16px; background:#1f2937; border-radius:4px; }
+    @keyframes skeleton-pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
     /* toast layer */
     .toast { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .18s ease; z-index:50; }
     .toast.show { opacity:1; }
@@ -90,7 +102,12 @@
       <button class="category-tab" data-category="worlds">세계관 선택</button>
       <button class="category-tab" data-category="games">게임 선택</button>
     </div>
-    <div id="grid" class="grid"></div>
+    <!-- 캐릭터 리스트 (공통 컨트롤러 사용) -->
+    <div id="charactersList" class="grid"></div>
+    <div id="charactersStatus"></div>
+    <div id="charactersSentinel" style="height:1px;"></div>
+    <!-- 세계관/게임 리스트 (기존 방식) -->
+    <div id="grid" class="grid" style="display:none;"></div>
   </div>
 
   <!-- Toast Layer -->
@@ -114,14 +131,28 @@
     let qInput = '';                           // 입력창 값
     let qApplied = '';                         // 실제 검색에 사용된 값
     let searchApplied = false;                 // 검색 실행 여부
+    
+    // 무한 스크롤 컨트롤러 (각 카테고리별)
+    let infiniteControllers = {
+      characters: null,
+      worlds: null,
+      games: null,
+    };
+    
+    // 페이지당 아이템 수 통일
+    const LIMIT = 20;
+    
+    // 캐릭터 전용 offset (skip과 혼용 방지를 위해 분리)
+    let characterOffset = 0;
 
-        // 서버 API에서 캐릭터 목록 로드
-    async function loadFromApi({ q = '', skip = 0, limit = 60 } = {}) {
+    // 캐릭터 API 로더 (컨트롤러 규격: pageIndex -> offset 변환)
+    async function loadCharactersPage(pageIndex, limit, query = '') {
+      const offset = pageIndex * limit;
       const params = new URLSearchParams();
-      params.set('skip', String(skip));
+      params.set('skip', String(offset)); // API는 skip 사용
       params.set('limit', String(limit));
-      if (q && q.trim().length > 0) {
-        params.set('q', q.trim());
+      if (query && query.trim().length > 0) {
+        params.set('q', query.trim());
       }
 
       const r = await fetch(`${API_BASE_URL}/v1/characters?${params.toString()}`, {
@@ -135,7 +166,7 @@
     }
     
     // 서버 API에서 세계관 목록 로드
-    async function loadWorldsFromApi({ q = '', offset = 0, limit = 60 } = {}) {
+    async function loadWorldsFromApi({ q = '', offset = 0, limit = 20 } = {}) {
       const params = new URLSearchParams();
       params.set('offset', String(offset));
       params.set('limit', String(limit));
@@ -162,7 +193,7 @@
     }
     
     // 서버 API에서 게임 목록 로드
-    async function loadGamesFromApi({ q = '', offset = 0, limit = 60 } = {}) {
+    async function loadGamesFromApi({ q = '', offset = 0, limit = 20 } = {}) {
       const params = new URLSearchParams();
       params.set('offset', String(offset));
       params.set('limit', String(limit));
@@ -258,18 +289,103 @@
       return '/assets/img/' + p;
     }
     
-        // 카드 DOM을 생성하여 그리드에 추가 (캐릭터용)
-    function card(item) {
+    // 그리드 컨테이너 확실히 잡는 함수
+    function getGridElement() {
+      // 1) 기존에 쓰던 selector가 있다면 먼저 시도
+      const byId = document.getElementById('grid');
+      if (byId) return byId;
+
+      // 2) 카드 하나를 기준으로 부모를 찾는다 (가장 안정적)
+      const firstCard = document.querySelector('.card');
+      if (firstCard && firstCard.parentElement) return firstCard.parentElement;
+
+      console.error('[home] grid element not found');
+      return null;
+    }
+    
+    // 캐릭터 대표 이미지 URL 추출 함수 (안전한 fallback 보장)
+    function getCharacterImageUrl(item) {
+      const candidates = [
+        item.image_url,
+        item.thumbnail_url,
+        item.portrait_url,
+        item.cover_url,
+        item.image,
+        item.thumbnail,
+        item.portrait,
+        item.cover,
+      ];
+
+      const raw = candidates.find(Boolean);
+
+      if (!raw) {
+        console.warn('[home] character has no image, using placeholder', item.id || item.name);
+        return '/assets/img/placeholder.jpg'; // 반드시 존재하는 기본 이미지
+      }
+
+      // 이미 전체 URL이면 정규화 후 반환
+      if (typeof raw === 'string' && (raw.startsWith('http://') || raw.startsWith('https://'))) {
+        // r2.dev 차단 및 정규화
+        if (typeof window.normalizeAssetUrl === 'function') {
+          return window.normalizeAssetUrl(raw);
+        }
+        return raw;
+      }
+
+      // path면 buildAssetUrl 사용
+      const path = resolvePath(raw);
+      if (typeof window.buildAssetUrl === 'function') {
+        return window.buildAssetUrl(path);
+      }
+      // fallback: ASSET_BASE_URL 직접 사용
+      const assetBase = window.ASSET_BASE_URL || 'https://img.arcanaverse.ai';
+      return assetBase + (path.startsWith('/') ? path : '/' + path);
+    }
+    
+    // 카드 HTML 문자열 생성 함수 (전체 재렌더용)
+    function renderCard(item) {
+      if (!item) {
+        console.warn('[home] renderCard() called with null item');
+        return '';
+      }
+      
+      const id = normalizeCharId(item.id || item.pk || item.slug || item.name || 'char_01');
+      const imageUrl = getCharacterImageUrl(item);
+      const name = (item.name || id).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const metaText = (item.shortBio || item.oneLiner || item.greeting || item.summary || '').toString().replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const chips = [item.genre, item.style, item.world].filter(Boolean).map(v => 
+        `<span style="font-size:11px;padding:2px 8px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#a5b4fc">${String(v).replace(/"/g, '&quot;')}</span>`
+      ).join('');
+      
+      return `<a class="card" href="/chat?character=${id}" data-character-id="${id}">
+        <img class="thumb" src="${imageUrl}" alt="${name}" loading="lazy" />
+        <div class="body">
+          <div class="name">${name}</div>
+          <span class="meta">${metaText}</span>
+          ${chips ? `<div style="margin-top:6px;display:flex;gap:6px;">${chips}</div>` : ''}
+        </div>
+      </a>`;
+    }
+    
+    // 캐릭터 카드 DOM 생성 (공통 컨트롤러용)
+    function renderCharacterCard(item) {
+      if (!item) {
+        console.warn('[home] renderCharacterCard() called with null item');
+        return null;
+      }
+      
       const id = normalizeCharId(item.id || item.pk || item.slug || item.name || 'char_01');
       const a  = document.createElement('a');
       a.className = 'card';
       a.href = `/chat?character=${id}`;
+      a.setAttribute('data-character-id', id);
       a.addEventListener('click', () => { try { sessionStorage.setItem('lastChar', id); } catch(_){ } });
 
       const img = document.createElement('img');
       img.className = 'thumb';
       img.alt = item.name || id;
-      img.src = resolvePath(item.image || item.cover || '/assets/img/placeholder.jpg');
+      img.loading = 'lazy';
+      img.src = getCharacterImageUrl(item);
 
       const body = document.createElement('div'); body.className='body';
       const name = document.createElement('div'); name.className='name'; name.textContent = item.name || id;
@@ -277,7 +393,6 @@
       meta.textContent = (item.shortBio || item.oneLiner || item.greeting || item.summary || '').toString();
 
       body.appendChild(name); body.appendChild(meta);
-      // <!-- .meta 밑에 한 줄 추가 -->
       const chips = document.createElement('div');
       chips.style.marginTop='6px';
       chips.style.display='flex';
@@ -286,6 +401,30 @@
       body.appendChild(chips);      
       a.appendChild(img); a.appendChild(body);
       return a;
+    }
+
+    // 캐릭터 카드 append 전용 (공통 컨트롤러용)
+    function appendCharacters(items) {
+      const listEl = document.getElementById('charactersList');
+      if (!listEl) return;
+      
+      const fragment = document.createDocumentFragment();
+      items.forEach(item => {
+        try {
+          const card = renderCharacterCard(item);
+          if (card) {
+            fragment.appendChild(card);
+          }
+        } catch (err) {
+          console.error('[appendCharacters] Error rendering card:', err, item);
+        }
+      });
+      listEl.appendChild(fragment);
+    }
+    
+    // 기존 호환성 유지용 (worlds/games용)
+    function card(item) {
+      return renderCharacterCard(item);
     }
     
     // 세계관 카드 DOM 생성
@@ -401,65 +540,177 @@
 
     // 현재 선택된 카테고리 (위에서 선언됨)
 
-    // 공통 그리드 렌더링 헬퍼
-    async function fetchAndRender(category, q) {
+    // 첫 16개 이미지 preload 함수
+    function preloadTopImages(items, count = 16) {
+      if (!items || items.length === 0) return;
+      
+      const preloadedUrls = new Set();
+      const topItems = items.slice(0, count);
+      
+      topItems.forEach(item => {
+        const imageUrl = getCharacterImageUrl(item);
+        if (!imageUrl || preloadedUrls.has(imageUrl)) return;
+        
+        preloadedUrls.add(imageUrl);
+        
+        // <link rel="preload"> 태그 생성
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = imageUrl;
+        document.head.appendChild(link);
+      });
+      
+      console.log(`[preloadTopImages] Preloaded ${preloadedUrls.size} images`);
+    }
+    
+    // 카드 렌더링 함수 (append 모드 지원)
+    function renderCharacterCards(items, { append = false } = {}) {
       const grid = document.getElementById('grid');
       if (!grid) return;
+      
+      if (!append) {
+        grid.innerHTML = '';
+      }
+      
+      items.forEach((it, index) => {
+        try {
+          let cardElement;
+          if (currentCategory === 'characters') {
+            cardElement = card(it);
+          } else if (currentCategory === 'worlds') {
+            cardElement = worldCard(it);
+          } else if (currentCategory === 'games') {
+            cardElement = gameCard(it);
+          }
+          if (cardElement) {
+            grid.appendChild(cardElement);
+          }
+        } catch (err) {
+          console.error('[renderCharacterCards] Error creating card for item', index, ':', err, it);
+        }
+      });
+    }
+    
+    // 캐릭터 공통 컨트롤러 초기화
+    function initCharactersController() {
+      const listEl = document.getElementById('charactersList');
+      const sentinelEl = document.getElementById('charactersSentinel');
+      const statusEl = document.getElementById('charactersStatus');
+      
+      if (!listEl || !sentinelEl) {
+        console.error('[home] Characters list elements not found');
+        return null;
+      }
 
-      grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
+      // 공통 컨트롤러 생성
+      const controller = createInfiniteScrollController({
+        container: listEl,
+        loadPage: loadCharactersPage,
+        renderCard: renderCharacterCard,
+        renderSkeleton: createSkeletonCard,
+        limit: LIMIT,
+        sentinelId: 'charactersSentinel',
+        rootMargin: '600px',
+        onError: (error) => {
+          console.error('[home] Characters load error:', error);
+        }
+      });
+
+      infiniteControllers.characters = controller;
+      return controller;
+    }
+    
+    // 공통 그리드 렌더링 헬퍼
+    async function fetchAndRender(category, q, { append = false } = {}) {
+      // 캐릭터는 공통 컨트롤러 사용
+      if (category === 'characters') {
+        const charactersListEl = document.getElementById('charactersList');
+        const gridEl = document.getElementById('grid');
+        
+        // 캐릭터 리스트 표시, 기존 grid 숨김
+        if (charactersListEl) {
+          charactersListEl.style.display = 'grid';
+        }
+        if (gridEl) {
+          gridEl.style.display = 'none';
+        }
+
+        // 컨트롤러가 없으면 초기화
+        if (!infiniteControllers.characters) {
+          initCharactersController();
+        }
+
+        const controller = infiniteControllers.characters;
+        if (controller) {
+          // init() 내부에서 reset()을 호출하므로 reset()을 별도로 호출하지 않음
+          if (!append) {
+            await controller.init(q);
+          }
+        }
+        return;
+      }
+
+      // 캐릭터 리스트 숨김, 기존 grid 표시
+      const charactersListEl = document.getElementById('charactersList');
+      const gridEl = document.getElementById('grid');
+      if (charactersListEl) {
+        charactersListEl.style.display = 'none';
+      }
+      if (gridEl) {
+        gridEl.style.display = 'grid';
+      }
+
+      // worlds, games는 기존 방식 유지
+      if (!append) {
+        gridEl.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
+      }
+
+      // worlds, games는 기존 방식 유지
+      if (!append) {
+        grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
+      }
 
       try {
         let items = [];
         const query = (q || '').trim();
 
-        if (category === 'characters') {
-          items = await loadCharacters(query);
-        } else if (category === 'worlds') {
+        if (category === 'worlds') {
           items = await loadWorlds(query);
         } else if (category === 'games') {
           items = await loadGames(query);
         }
 
-        console.log('[fetchAndRender] Category:', category, 'q:', query, 'Items:', items.length);
+        console.log('[fetchAndRender] Category:', category, 'q:', query, 'Items:', items.length, 'append:', append);
 
-        grid.innerHTML = '';
+        if (!append) {
+          grid.innerHTML = '';
+        }
 
         if (!items || items.length === 0) {
-          const label = category === 'characters' ? '캐릭터' : (category === 'worlds' ? '세계관' : '게임');
-          const extra = query ? ` 검색어 "${query}" 에 대한 결과가 없습니다.` : ` 표시할 ${label}가 없습니다.`;
-          grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">검색 결과가 없습니다.' +
-                           (query ? `<br/><button id="reset-search" style="margin-top:12px;padding:8px 14px;background:#111827;border:1px solid #1f2937;border-radius:999px;color:#e5e7eb;cursor:pointer;font-size:13px;">검색어 초기화</button>` : '') +
-                           '</div>';
+          if (!append) {
+            const label = category === 'characters' ? '캐릭터' : (category === 'worlds' ? '세계관' : '게임');
+            const extra = query ? ` 검색어 "${query}" 에 대한 결과가 없습니다.` : ` 표시할 ${label}가 없습니다.`;
+            grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;">검색 결과가 없습니다.' +
+                             (query ? `<br/><button id="reset-search" style="margin-top:12px;padding:8px 14px;background:#111827;border:1px solid #1f2937;border-radius:999px;color:#e5e7eb;cursor:pointer;font-size:13px;">검색어 초기화</button>` : '') +
+                             '</div>';
 
-          const resetBtn = document.getElementById('reset-search');
-          if (resetBtn) {
-            resetBtn.addEventListener('click', () => {
-              clearSearch(true);
-            });
+            const resetBtn = document.getElementById('reset-search');
+            if (resetBtn) {
+              resetBtn.addEventListener('click', () => {
+                clearSearch(true);
+              });
+            }
           }
           return;
         }
 
-        items.forEach((it, index) => {
-          try {
-            let cardElement;
-            if (category === 'characters') {
-              cardElement = card(it);
-            } else if (category === 'worlds') {
-              cardElement = worldCard(it);
-            } else if (category === 'games') {
-              cardElement = gameCard(it);
-            }
-            if (cardElement) {
-              grid.appendChild(cardElement);
-            }
-          } catch (err) {
-            console.error('[fetchAndRender] Error creating card for item', index, ':', err, it);
-          }
-        });
+        renderCharacterCards(items, { append });
       } catch (error) {
         console.error('[fetchAndRender] Failed to load items:', error);
-        grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">검색에 실패했습니다. 잠시 후 다시 시도하세요.</div>';
+        if (!append) {
+          grid.innerHTML = '<div style="opacity:.7;text-align:center;padding:40px;color:#ef4444;">검색에 실패했습니다. 잠시 후 다시 시도하세요.</div>';
+        }
       }
     }
 
@@ -468,6 +719,11 @@
       qInput = '';
       qApplied = '';
       searchApplied = false;
+      
+      // 캐릭터 컨트롤러 리셋
+      if (currentCategory === 'characters' && infiniteControllers.characters) {
+        infiniteControllers.characters.reset('');
+      }
 
       const inputEl = document.getElementById('search-input');
       if (inputEl) inputEl.value = '';
@@ -526,6 +782,11 @@
           const category = this.getAttribute('data-category');
           if (category === currentCategory) return;
           
+          // 캐릭터 컨트롤러 cleanup (탭 전환 시)
+          if (currentCategory === 'characters' && infiniteControllers.characters) {
+            infiniteControllers.characters.cleanup();
+          }
+          
           // 탭 활성화 상태 변경
           document.querySelectorAll('.category-tab').forEach(t => t.classList.remove('active'));
           this.classList.add('active');
@@ -546,7 +807,7 @@
           // - 이미 검색이 적용된 상태면 같은 qApplied 로 해당 탭을 즉시 검색
           // - 아직 searchApplied=false 라면 기본 리스트만 로드
           const query = searchApplied ? qApplied : '';
-          fetchAndRender(currentCategory, query);
+          await fetchAndRender(currentCategory, query);
         });
       });
     }
@@ -592,9 +853,7 @@
       setupSearchBar();
       setupCategoryTabs();
 
-      const grid = document.getElementById('grid');
-
-      // 초기 상태: 검색어 없이 캐릭터 기본 리스트
+      // 초기 상태: 검색어 없이 캐릭터 기본 리스트 (공통 컨트롤러로 로드)
       await fetchAndRender(currentCategory, '');
      })();
    </script>

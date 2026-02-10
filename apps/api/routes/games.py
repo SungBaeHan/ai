@@ -56,7 +56,7 @@ def normalize_image_path(image_url: Optional[str]) -> str:
     """
     R2 공개 URL을 내부 저장 경로('/assets/...')로 변환한다.
     
-    - 예: 'https://pub-xxxx.r2.dev/assets/game/abcd.png'
+    - 예: 'https://img.arcanaverse.ai/assets/game/abcd.png'
       → '/assets/game/abcd.png'
     - 이미 '/assets/...' 형태면 그대로 반환
     """

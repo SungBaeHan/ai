@@ -44,7 +44,9 @@ class R2Storage:
             aws_secret_access_key=secret_key,
             config=cfg,
         )
-        self.public_base_url = os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
+        # ASSET_BASE_URL 우선, 하위 호환을 위해 R2_PUBLIC_BASE_URL도 지원
+        from apps.api.config import settings
+        self.public_base_url = settings.ASSET_BASE_URL or os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
 
     def upload_image(
         self,

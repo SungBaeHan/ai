@@ -33,6 +33,11 @@ class Settings:
     AUTH_USER_INFO_V2_SECRET: str = os.getenv("AUTH_USER_INFO_V2_SECRET", "arcanaverse.ai.secret.v2")
     AUTH_USER_INFO_V2_EXPIRE_MINUTES: int = int(os.getenv("AUTH_USER_INFO_V2_EXPIRE_MINUTES", "4320"))  # 3일
     
+    # Asset Base URL (이미지 CDN)
+    # 기본값: https://img.arcanaverse.ai
+    # 환경변수: ASSET_BASE_URL 또는 R2_PUBLIC_BASE_URL (하위 호환)
+    ASSET_BASE_URL: str = os.getenv("ASSET_BASE_URL") or os.getenv("R2_PUBLIC_BASE_URL", "https://img.arcanaverse.ai").rstrip("/")
+    
     @property
     def is_mongo(self) -> bool:
         """MongoDB를 사용하는지 확인"""

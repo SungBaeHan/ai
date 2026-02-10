@@ -53,12 +53,104 @@ app.add_middleware(
         "X-Access-Token",
         "X-Authorization",
         "X-User-Info-Token",
+        "X-Anon-Id",  # anon_id 헤더 추가
         "Content-Type",
         "*",  # 모든 헤더 허용 (하위 호환)
     ],
     expose_headers=["*"],
     max_age=3600,
 )
+
+# === Access Log 미들웨어 ===
+from datetime import datetime, timezone
+from apps.api.services.logging_service import (
+    get_anon_id,
+    get_user_id,
+    get_ip_ua_ref,
+    insert_access_log,
+)
+from apps.api.utils.trace import make_trace_id
+import time
+
+@app.middleware("http")
+async def access_log_middleware(request: Request, call_next):
+    """
+    모든 API 요청/응답을 access_logs에 기록합니다.
+    정적 파일 및 health 체크는 제외합니다.
+    """
+    # 제외할 경로 확인
+    path = request.url.path
+    excluded_paths = ["/assets", "/json", "/js", "/static", "/health"]
+    excluded_extensions = [".css", ".js", ".png", ".jpg", ".jpeg", ".webp", ".ico", ".svg", ".gif"]
+    
+    # 제외 경로 체크
+    should_log = True
+    if any(path.startswith(excluded) for excluded in excluded_paths):
+        should_log = False
+    elif any(path.lower().endswith(ext) for ext in excluded_extensions):
+        should_log = False
+    
+    if not should_log:
+        return await call_next(request)
+    
+    # 요청 시작 시간
+    start_time = time.time()
+    
+    # Trace ID 생성 (요청마다 고유)
+    trace_id = make_trace_id()
+    request.state.trace_id = trace_id
+    
+    # 요청 정보 수집
+    anon_id = get_anon_id(request)
+    user_id = get_user_id(request)
+    ip_ua_ref = get_ip_ua_ref(request)
+    
+    # Query 파라미터 (민감정보 제외)
+    query_dict = {}
+    try:
+        for key, value in request.query_params.items():
+            # password, token, secret 등 민감 키는 제외
+            if any(sensitive in key.lower() for sensitive in ["password", "token", "secret", "key"]):
+                query_dict[key] = "[REDACTED]"
+            else:
+                query_dict[key] = value
+    except Exception:
+        query_dict = {}
+    
+    # 응답 처리
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    except Exception as e:
+        status_code = 500
+        raise
+    finally:
+        # 응답 시간 계산
+        duration_ms = int((time.time() - start_time) * 1000)
+        
+        # Access log 문서 생성
+        doc = {
+            "ts": datetime.now(timezone.utc),
+            "method": request.method,
+            "path": path,
+            "status_code": status_code,
+            "duration_ms": duration_ms,
+            "anon_id": anon_id,
+            "user_id": user_id,
+            "ip": ip_ua_ref["ip"],
+            "user_agent": ip_ua_ref["user_agent"],
+            "referer": ip_ua_ref["referer"],
+            "query": query_dict if query_dict else None,
+            "trace_id": trace_id,
+        }
+        
+        # 비동기로 저장 (응답 지연 최소화)
+        try:
+            insert_access_log(doc)
+        except Exception as e:
+            logger.warning(f"Failed to insert access log: {e}")
+    
+    return response
 
 app.include_router(health.router)
 app.include_router(debug.router, prefix="/v1")
@@ -108,6 +200,7 @@ from apps.api.routes import personas
 from apps.api.routes import chat_v2
 from apps.api.routes import character_sessions
 from apps.api.routes import world_sessions
+from apps.api.routes import logs
 
 app.include_router(characters.router, prefix="/v1/characters", tags=["characters"])
 app.include_router(character_sessions.router, prefix="/v1/character-sessions", tags=["character-sessions"])
@@ -122,6 +215,7 @@ app.include_router(auth_google.router,   prefix="/v1/auth",        tags=["auth"]
 app.include_router(user_router, prefix="/v1")
 app.include_router(personas.router, prefix="/v1")
 app.include_router(chat_v2.router, prefix="/chat/v2", tags=["chat_v2"])
+app.include_router(logs.router, prefix="/v1/logs", tags=["logs"])
 app.include_router(debug_db.router)
 app.include_router(migrate.router)
 
@@ -130,8 +224,43 @@ from adapters.persistence.mongo.factory import create_character_repository
 repo = create_character_repository()
 
 # === 예외 핸들러 ===
+from apps.api.services.logging_service import insert_error_log
+from datetime import datetime, timezone
+import traceback
+
 @app.exception_handler(FastAPIHTTPException)
 async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
+    # Error log 기록
+    try:
+        anon_id = get_anon_id(request)
+        user_id = get_user_id(request)
+        ip_ua_ref = get_ip_ua_ref(request)
+        trace_id = getattr(request.state, "trace_id", None)
+        
+        stack = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        if len(stack.encode("utf-8")) > 16384:
+            stack = stack[:16384] + "... [truncated]"
+        
+        error_doc = {
+            "ts": datetime.now(timezone.utc),
+            "kind": "server",
+            "error_type": "FastAPIHTTPException",
+            "message": str(exc.detail)[:1000],
+            "stack": stack,
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": exc.status_code,
+            "anon_id": anon_id,
+            "user_id": user_id,
+            "ip": ip_ua_ref["ip"],
+            "user_agent": ip_ua_ref["user_agent"],
+            "referer": ip_ua_ref["referer"],
+            "trace_id": trace_id,
+        }
+        insert_error_log(error_doc)
+    except Exception as e:
+        logger.warning(f"Failed to log error in exception handler: {e}")
+    
     response = JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail}
@@ -140,6 +269,37 @@ async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
 
 @app.exception_handler(StarletteHTTPException)
 async def starlette_exception_handler(request: Request, exc: StarletteHTTPException):
+    # Error log 기록
+    try:
+        anon_id = get_anon_id(request)
+        user_id = get_user_id(request)
+        ip_ua_ref = get_ip_ua_ref(request)
+        trace_id = getattr(request.state, "trace_id", None)
+        
+        stack = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        if len(stack.encode("utf-8")) > 16384:
+            stack = stack[:16384] + "... [truncated]"
+        
+        error_doc = {
+            "ts": datetime.now(timezone.utc),
+            "kind": "server",
+            "error_type": "StarletteHTTPException",
+            "message": str(exc.detail)[:1000],
+            "stack": stack,
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": exc.status_code,
+            "anon_id": anon_id,
+            "user_id": user_id,
+            "ip": ip_ua_ref["ip"],
+            "user_agent": ip_ua_ref["user_agent"],
+            "referer": ip_ua_ref["referer"],
+            "trace_id": trace_id,
+        }
+        insert_error_log(error_doc)
+    except Exception as e:
+        logger.warning(f"Failed to log error in exception handler: {e}")
+    
     response = JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail}
@@ -149,6 +309,38 @@ async def starlette_exception_handler(request: Request, exc: StarletteHTTPExcept
 @app.exception_handler(Exception)
 async def general_exception_handler(request: Request, exc: Exception):
     logger.exception(f"Unhandled exception: {exc}")
+    
+    # Error log 기록
+    try:
+        anon_id = get_anon_id(request)
+        user_id = get_user_id(request)
+        ip_ua_ref = get_ip_ua_ref(request)
+        trace_id = getattr(request.state, "trace_id", None)
+        
+        stack = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+        if len(stack.encode("utf-8")) > 16384:
+            stack = stack[:16384] + "... [truncated]"
+        
+        error_doc = {
+            "ts": datetime.now(timezone.utc),
+            "kind": "server",
+            "error_type": type(exc).__name__,
+            "message": str(exc)[:1000],
+            "stack": stack,
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": 500,
+            "anon_id": anon_id,
+            "user_id": user_id,
+            "ip": ip_ua_ref["ip"],
+            "user_agent": ip_ua_ref["user_agent"],
+            "referer": ip_ua_ref["referer"],
+            "trace_id": trace_id,
+        }
+        insert_error_log(error_doc)
+    except Exception as e:
+        logger.warning(f"Failed to log error in exception handler: {e}")
+    
     response = JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"}

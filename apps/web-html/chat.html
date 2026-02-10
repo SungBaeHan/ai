@@ -10,6 +10,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chat • TRPG</title>
+  <script>
+    // ASSET_BASE_URL 강제 설정 (r2.dev 차단)
+    window.__ASSET_BASE_URL__ = 'https://img.arcanaverse.ai';
+  </script>
   <script src="/js/config.js"></script>
   <script>
     // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
@@ -33,9 +37,9 @@
     .header-persona-avatar { width:24px; height:24px; border-radius:50%; object-fit:cover; box-shadow:0 0 4px rgba(0,0,0,.3); }
     .header-persona-name { font-size:13px; color:#e5e7eb; }
     .chat-page-content { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
-    .chat-top-section { flex-shrink:0; }
-    .hero { position:relative; margin:18px auto; max-width:980px; }
-    .hero img { width:100%; border-radius:14px; border:1px solid #1f2937; box-shadow:0 10px 28px rgba(0,0,0,.35); display:block; }
+    .chat-top-section { flex-shrink:0; padding-top:12px; }
+    .hero { position:relative; margin:18px auto; max-width:980px; height:220px; min-height:220px; overflow:hidden; }
+    .hero img { width:100%; height:100%; object-fit:cover; border-radius:14px; border:1px solid #1f2937; box-shadow:0 10px 28px rgba(0,0,0,.35); display:block; }
     .panel { max-width:980px; margin:10px auto 18px; background:#0f172a; border:1px solid #1e293b; border-radius:12px; padding:12px 14px; }
     .chips { margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; }
     .chip { padding:3px 8px; font-size:11px; border-radius:999px; border:1px solid #334155; color:#a5b4fc; background:#0b1220; }
@@ -447,16 +451,33 @@
       showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
     }
 
-    // 페르조나 이미지 URL 정규화 함수 (personas.html에서 가져옴)
-    const R2_BASE = "https://pub-09b0f3cad63f4891868948d43f19febf.r2.dev";
+    // 페르조나 이미지 URL 정규화 함수 (r2.dev 차단 포함)
     function resolvePersonaUrl(u) {
       if (!u) return "";
-      // 이미 절대 URL이면 그대로 반환
+      // r2.dev URL 차단 및 정규화
+      if (typeof window.normalizeAssetUrl === 'function') {
+        u = window.normalizeAssetUrl(u);
+      } else if (u.includes('r2.dev') || u.includes('cloudflarestorage.com')) {
+        console.error('🚨 r2.dev image URL blocked:', u);
+        const assetBase = window.ASSET_BASE_URL || 'https://img.arcanaverse.ai';
+        try {
+          const urlObj = new URL(u);
+          u = assetBase + urlObj.pathname + urlObj.search;
+        } catch (e) {
+          // URL 파싱 실패 시 경로만 추출
+          const pathMatch = u.match(/\/assets\/[^?]+/);
+          u = assetBase + (pathMatch ? pathMatch[0] : '/assets/persona/placeholder.png');
+        }
+      }
+      // 이미 절대 URL이면 그대로 반환 (이미 정규화됨)
       if (u.startsWith("http://") || u.startsWith("https://")) return u;
-      // 상대 경로(/assets/...)를 R2 절대 URL로 변환
-      if (u.startsWith("/")) return `${R2_BASE}${u}`;
+      // buildAssetUrl 사용 (ASSET_BASE_URL 기반)
+      const assetBase = window.ASSET_BASE_URL || window.IMAGE_BASE?.replace('/assets', '') || 'https://img.arcanaverse.ai';
+      if (u.startsWith("/")) {
+        return assetBase + u;
+      }
       // /로 시작하지 않으면 /assets/persona/를 prefix로 추가
-      return `${R2_BASE}/assets/persona/${u}`;
+      return assetBase + "/assets/persona/" + u;
     }
     
     // 활성 persona 반환 (세션 우선, 없으면 default persona)
@@ -753,6 +774,21 @@
     // 백엔드 LLM 호출
     async function askLLM(message, mode='trpg', choices=0){
       try {
+      // chat_send 이벤트 로깅 (채팅 원문은 저장하지 않음)
+      if (window.logEvent) {
+        window.logEvent(
+          window.EVENT.CHAT_SEND,
+          'character',
+          {
+            chat_type: 'character',
+            message_len: message ? message.length : 0,
+          },
+          {
+            entity_id: CURRENT_CHAR?.id ? String(CURRENT_CHAR.id) : null,
+          }
+        );
+      }
+      
       const token = getToken();
       const headers = { 'Content-Type': 'application/json' };
       
@@ -778,7 +814,7 @@
         console.log('[askLLM] API_BASE_URL:', API_BASE_URL);
         console.log('[askLLM] Payload:', payload);
         
-        const r = await fetch(url, {
+        const r = await (window.apiFetch || fetch)(url, {
           method: "POST",
           credentials: "include",
           headers: headers,
