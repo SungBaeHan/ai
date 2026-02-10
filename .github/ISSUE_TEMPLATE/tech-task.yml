@@ -1,0 +1,22 @@
+name: Tech Task
+description: 리팩토링 / 구조 개선 / 실험
+title: "[Tech] "
+labels: ["tech"]
+
+body:
+  - type: textarea
+    attributes:
+      label: 🧠 배경
+      description: 왜 이 작업을 하는가?
+
+  - type: textarea
+    attributes:
+      label: 🔧 작업 내용
+
+  - type: checkboxes
+    attributes:
+      label: 🧪 영향 범위
+      options:
+        - label: 세이브 데이터
+        - label: 전투 시스템
+        - label: 월드 상태
