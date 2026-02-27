@@ -46,19 +46,9 @@ logger.info("CORS ALLOWED_ORIGINS: %s", ALLOWED_ORIGINS)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,          # 쿠키/인증정보 허용
-    allow_methods=["*"],             # 모든 메서드 허용
-    allow_headers=[
-        "Authorization",
-        "X-Access-Token",
-        "X-Authorization",
-        "X-User-Info-Token",
-        "X-Anon-Id",  # anon_id 헤더 추가
-        "Content-Type",
-        "*",  # 모든 헤더 허용 (하위 호환)
-    ],
-    expose_headers=["*"],
-    max_age=3600,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # === Access Log 미들웨어 ===
