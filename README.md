@@ -53,6 +53,137 @@ docker-compose down -v
 
 자세한 내용은 [docs/README.md](docs/README.md)를 참고하세요.
 
+---
+
+## 🌐 Domain Routing (MVP)
+
+도메인별 트래픽 흐름은 다음과 같다.
+
+| 도메인 | 경로 |
+|--------|------|
+| **nlp-api.arcanaverse.ai** | Cloudflare DNS(A) → VM Reverse Proxy → HF Space |
+
+- **클라이언트** → **Cloudflare** (HTTPS) → **Oracle VM Nginx(80/443)** → **Hugging Face Space**: `https://sungbae74-traffic-accident-legal-rag.hf.space`
+- **프론트엔드(Vercel)** 는 별도 배포이며, **HF Space** 는 RAG/법률 NLP API를 제공하는 백엔드 역할만 한다.
+
+Hugging Face Spaces Free 플랜은 Custom Domain을 지원하지 않아, `nlp-api.arcanaverse.ai` 를 HF에 직접 연결하면 404가 난다. 따라서 VM에 Reverse Proxy를 두고, Nginx가 HF Space로 프록시하는 방식으로 커스텀 도메인을 제공한다.
+
+---
+
+## 🔁 Reverse Proxy (Nginx in Docker)
+
+- **reverse-proxy** 컨테이너가 호스트의 **80/443** 을 점유한다.
+- Nginx 설정 디렉터리:
+  - **Host**: `/home/ubuntu/ai/infra/nginx/conf.d`
+  - **Container**: `/etc/nginx/conf.d` (read-only 마운트)
+- 인증서 디렉터리:
+  - **Host**: `/etc/nginx/certs`
+  - **Container**: `/etc/nginx/certs` (read-only 마운트)
+
+`nlp-api.arcanaverse.ai` 를 HF Space로 프록시하는 설정 예시는 아래와 같다.  
+업스트림이 HTTPS이므로 `proxy_set_header Host` 로 HF 호스트를 고정하고, `proxy_ssl_server_name on` 으로 SNI를 지정한다.
+
+```nginx
+server {
+    listen 80;
+    server_name nlp-api.arcanaverse.ai;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name nlp-api.arcanaverse.ai;
+
+    ssl_certificate     /etc/nginx/certs/nlp-api.fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/nlp-api.privkey.pem;
+
+    location / {
+        proxy_pass https://sungbae74-traffic-accident-legal-rag.hf.space;
+        proxy_set_header Host sungbae74-traffic-accident-legal-rag.hf.space;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_ssl_server_name on;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+설정 파일 경로: `infra/nginx/conf.d/nlp-api.arcanaverse.ai.conf` (호스트 기준).
+
+---
+
+## 🔐 TLS (Let's Encrypt via Cloudflare DNS-01)
+
+Cloudflare Origin Cert 대신 **Let's Encrypt** 인증서를 사용하면, curl 등 클라이언트의 issuer 검증이 통과한다. **certbot** 의 **dns-cloudflare** 플러그인으로 DNS-01 발급을 한다.
+
+- **플러그인**: `dns-cloudflare`
+- **Cloudflare API Token 권한**:
+  - Zone: DNS:Edit
+  - Zone: Zone:Read
+  - Scope: `arcanaverse.ai`
+- **Credential 파일**: `/root/.secrets/certbot/cloudflare.ini`
+  - 내용 예: `dns_cloudflare_api_token = <API_TOKEN>`
+  - 권한: `chmod 600`
+
+발급 명령(한 줄):
+
+```bash
+sudo certbot certonly --dns-cloudflare --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini -d nlp-api.arcanaverse.ai
+```
+
+발급 후 인증서 위치:
+
+- `/etc/letsencrypt/live/nlp-api.arcanaverse.ai/fullchain.pem`
+- `/etc/letsencrypt/live/nlp-api.arcanaverse.ai/privkey.pem`
+
+Nginx는 `/etc/nginx/certs` 를 참조하므로, 아래처럼 복사한 뒤 권한을 맞춘다.
+
+```bash
+sudo cp /etc/letsencrypt/live/nlp-api.arcanaverse.ai/fullchain.pem /etc/nginx/certs/nlp-api.fullchain.pem
+sudo cp /etc/letsencrypt/live/nlp-api.arcanaverse.ai/privkey.pem   /etc/nginx/certs/nlp-api.privkey.pem
+sudo chmod 644 /etc/nginx/certs/nlp-api.fullchain.pem
+sudo chmod 600 /etc/nginx/certs/nlp-api.privkey.pem
+```
+
+이후 Nginx 리로드: `docker exec reverse-proxy nginx -s reload`
+
+---
+
+## ♻️ Certificate Sync (Renewal)
+
+Let's Encrypt 갱신 후에도 Nginx가 쓰는 `/etc/nginx/certs` 의 복사본을 갱신해야 한다. 갱신 시마다 위의 `cp` 와 `chmod` 를 실행하고, `docker exec reverse-proxy nginx -s reload` 로 Nginx를 리로드한다.
+
+가장 단순한 방법은 **cron** 으로 매일 새벽에 certbot 갱신 + 복사 + 리로드까지 한 번에 실행하는 것이다. 예시:
+
+```bash
+# 예: 매일 03:00에 갱신 시도 후 복사 및 nginx 리로드
+0 3 * * * certbot renew --quiet --deploy-hook "cp /etc/letsencrypt/live/nlp-api.arcanaverse.ai/fullchain.pem /etc/nginx/certs/nlp-api.fullchain.pem && cp /etc/letsencrypt/live/nlp-api.arcanaverse.ai/privkey.pem /etc/nginx/certs/nlp-api.privkey.pem && chmod 644 /etc/nginx/certs/nlp-api.fullchain.pem && chmod 600 /etc/nginx/certs/nlp-api.privkey.pem && docker exec reverse-proxy nginx -s reload"
+```
+
+(갱신·복사·리로드를 스크립트로 묶어서 deploy-hook에서 호출하는 방식으로 정리해 두면 유지보수가 쉽다.)  
+systemd timer를 이용한 갱신/동기화는 추후로 남긴다.
+
+---
+
+## ✅ Verification
+
+아래 명령으로 도메인·TLS·프록시 동작을 확인한다.
+
+```bash
+# HTTP 응답 확인 (200 기대)
+curl -I https://nlp-api.arcanaverse.ai/openapi.json
+curl -I https://nlp-api.arcanaverse.ai/docs
+
+# Issuer가 Let's Encrypt 계열인지 확인
+echo | openssl s_client -connect nlp-api.arcanaverse.ai:443 -servername nlp-api.arcanaverse.ai 2>/dev/null | openssl x509 -noout -issuer
+```
+
+- **기대 결과**: HTTP 200, Issuer에 `Let's Encrypt` 포함.
+
+---
+
 ## 📅 작업 로그 (요약)
 
 > 상세한 일자별 작업 내역은 `docs/logs/` 아래 md 파일들에 기록한다.
@@ -153,7 +284,3 @@ docker-compose down -v
 ## 라이선스
 
 (라이선스 정보 추가)
-
-
-
-
