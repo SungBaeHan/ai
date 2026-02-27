@@ -1,0 +1,21 @@
+# ~/ai/infra/docker-compose.reverse-proxy.yml
+# Nginx reverse proxy: 80/443 수신 → trpg-api:8000 (Swagger/OpenAPI만 공개)
+# 사전 조건: docker network create app-net
+# 인증서: /etc/nginx/certs/origin.pem, /etc/nginx/certs/origin.key (Cloudflare Origin Certificate)
+services:
+  reverse-proxy:
+    image: nginx:1.27-alpine
+    container_name: reverse-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/nginx/certs:/etc/nginx/certs:ro
+    restart: unless-stopped
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    external: true
