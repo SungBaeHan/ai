@@ -1,38 +1,93 @@
 name: Bug
-description: 버그 수정
+description: 버그 수정 (TRPG)
 title: "[Bug] "
-labels: ["bug"]
+labels:
+  - "type:bug"
 
 body:
   - type: dropdown
+    id: severity
     attributes:
-      label: 🚨 Severity
+      label: 🚨 Severity (라벨도 같이 지정)
+      description: 이슈 생성 후 오른쪽 Labels에서 동일한 severity:* 라벨을 꼭 추가해주세요.
       options:
-        - P1 - 서비스 중단
-        - P2 - 주요 기능 오류
-        - P3 - 경미한 오류
+        - "severity:critical (서비스 중단/데이터 손실)"
+        - "severity:major (주요 기능 오류)"
+        - "severity:minor (경미/표시/문구)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: 🧱 Layer (라벨도 같이 지정)
+      description: 이슈 생성 후 오른쪽 Labels에서 동일한 layer:* 라벨을 꼭 추가해주세요.
+      options:
+        - "layer:presentation (UI/입출력/뷰)"
+        - "layer:service (유스케이스/오케스트레이션)"
+        - "layer:domain (도메인 규칙/엔티티)"
+        - "layer:policy (권한/쿼터/접근제어)"
+        - "layer:adapter (외부연동/DB/LLM/Stripe)"
+        - "layer:infra (배포/CI/CD/환경)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: 🏁 Milestone (생성 후 Milestone도 지정)
+      description: 이슈 생성 후 오른쪽 Milestone에서 선택해주세요.
+      options:
+        - "MS-01_Stabilization"
+        - "MS-02_Scope_Lock"
+        - "MS-03_Next_Features"
     validations:
       required: true
 
   - type: textarea
+    id: summary
     attributes:
       label: 🐞 버그 설명
+      description: 무엇이, 어떤 상황에서, 어떻게 잘못되는지 한 문단으로.
+      placeholder: "예) 이미지 URL 도메인이 레거시로 바뀌어 잘못된 CDN을 참조함"
+    validations:
       required: true
 
   - type: textarea
+    id: repro
     attributes:
       label: 🔁 재현 방법
-      description: 단계별로 작성
+      description: 단계별로 작성 (최소 3 step 권장)
+      placeholder: |
+        1) ...
+        2) ...
+        3) ...
 
   - type: textarea
-    attributes:
-      label: 🖥️ 환경
-      description: dev / main / browser / device 등
-
-  - type: textarea
-    attributes:
-      label: 📎 로그 / 스크린샷
-
-  - type: textarea
+    id: expected
     attributes:
       label: 🎯 기대 결과
+      placeholder: "정상 동작/정상 URL/정상 UI 등 기대값"
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 💥 실제 결과
+      placeholder: "실제 발생 결과/에러/잘못된 출력"
+
+  - type: textarea
+    id: env
+    attributes:
+      label: 🖥️ 환경
+      description: dev/main, OS, 브라우저, 디바이스, 배포 환경(HF/VM) 등
+      placeholder: |
+        - env: dev
+        - os: Windows 11
+        - browser: Chrome 145
+        - device: Desktop
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 📎 로그 / 스크린샷 / 링크
+      description: 가능한 한 붙여주세요 (URL/콘솔 로그/서버 로그/스크린샷)
