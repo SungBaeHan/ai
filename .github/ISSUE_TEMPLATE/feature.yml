@@ -1,42 +1,89 @@
 name: Feature
-description: 게임 기능 / 시스템 추가
+description: 게임 기능 / 시스템 추가 (TRPG)
 title: "[Feature] "
-labels: ["feature"]
+labels:
+  - "type:feature"
 
 body:
-  - type: input
+  - type: dropdown
+    id: milestone
     attributes:
-      label: 🚀 Release Version
-      placeholder: PRD_v10, v11 등
+      label: 🏁 Milestone (생성 후 Milestone도 지정)
+      description: 이슈 생성 후 오른쪽 Milestone에서 선택해주세요.
+      options:
+        - "MS-03_Next_Features"
+        - "MS-02_Scope_Lock"
+        - "MS-01_Stabilization"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: layer
+    attributes:
+      label: 🧱 Layer (라벨도 같이 지정)
+      description: 이슈 생성 후 오른쪽 Labels에서 동일한 layer:* 라벨을 꼭 추가해주세요.
+      options:
+        - "layer:presentation (UI/입출력/뷰)"
+        - "layer:service (유스케이스/오케스트레이션)"
+        - "layer:domain (도메인 규칙/엔티티)"
+        - "layer:policy (권한/쿼터/접근제어)"
+        - "layer:adapter (외부연동/DB/LLM/Stripe)"
+        - "layer:infra (배포/CI/CD/환경)"
     validations:
       required: true
 
   - type: textarea
+    id: goal
     attributes:
       label: 🎯 목적
-      description: 왜 이 기능이 필요한가?
+      description: 왜 이 기능이 필요한가? (유저 가치/운영 가치/수익 가치)
+      placeholder: "예) MyList로 유저 리텐션을 확보하고, 이후 결제/토큰과 연결하기 위함"
     validations:
       required: true
 
   - type: textarea
+    id: spec
     attributes:
       label: 🧩 구현 내용
-      description: 시스템 / 로직 / UI 기준 설명
+      description: 동작 흐름/화면/데이터/예외처리까지 구체화
+      placeholder: |
+        - API:
+        - 화면:
+        - 권한/정책:
+        - 예외:
     validations:
       required: true
 
   - type: textarea
+    id: scope
     attributes:
-      label: 📌 Scope
-      description: 포함 / 제외 명확히 작성
+      label: 📌 Scope (포함/제외)
+      placeholder: |
+        포함:
+        - ...
+        제외:
+        - ...
 
   - type: textarea
+    id: impact
     attributes:
       label: 🗄️ 영향 범위
-      description: DB / 세션 / 토큰 / 정책 등
+      description: DB/세션/토큰/정책/캐시/로그/모니터링 등
+      placeholder: |
+        - DB:
+        - Session:
+        - Token:
+        - Policy:
 
   - type: textarea
+    id: done
     attributes:
-      label: ✅ 완료 조건
-      description: Done 정의
+      label: ✅ 완료 조건 (Definition of Done)
+      description: 테스트/로그/롤백/문서 포함
+      placeholder: |
+        - [ ] 유닛/통합 테스트 추가
+        - [ ] 주요 로깅/메트릭 확인
+        - [ ] 문서/SSOT 영향점 반영
+        - [ ] 수동 QA 시나리오 통과
+    validations:
       required: true
