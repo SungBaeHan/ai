@@ -1,35 +1,20 @@
 ---
-name: Dev Task
-about: Implementation task for Isekai Island project
-title: "[A+] "
-labels: []
-assignees: []
+name: Task
+about: Feature / Tech 하위 구현 작업
+title: "[Task] "
+labels: ["task"]
 ---
 
 ## 🎯 Goal
-이 티켓에서 달성해야 할 목표를 한 줄로 작성
+구현 목표 한 줄
 
-## 📌 Scope
-- 포함:
-- 제외:
+## 📦 Parent Issue
+- 상위 Feature / Tech 링크
 
-## 🧩 Related System
-- Manager:
-- System:
-- Data:
+## 🔧 작업 내용
+- 
 
-## ✅ Definition of Done (DoD)
-- [ ] 기능이 동작한다
-- [ ] SDD / Unity SDD와 충돌 없음
-- [ ] 플레이 테스트 1회 이상
-- [ ] 크래시 / 데이터 유실 없음
-
-## 🗂️ Expected Files
-- `Assets/_Game/...`
-
-## 🧪 Test / Check
-- 수동 테스트 항목:
-  - 
-
-## 📝 Notes
-- 설계 메모 / 주의사항
+## ✅ DoD
+- [ ] 코드 반영
+- [ ] 테스트 통과
+- [ ] main 병합 가능

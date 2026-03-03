@@ -2,11 +2,16 @@ name: Feature
 description: 게임 기능 / 시스템 추가
 title: "[Feature] "
 labels: ["feature"]
-projects: ["Arcanaverse Eternal Island"]
 
 body:
+  - type: input
+    attributes:
+      label: 🚀 Release Version
+      placeholder: PRD_v10, v11 등
+    validations:
+      required: true
+
   - type: textarea
-    id: summary
     attributes:
       label: 🎯 목적
       description: 왜 이 기능이 필요한가?
@@ -14,7 +19,6 @@ body:
       required: true
 
   - type: textarea
-    id: detail
     attributes:
       label: 🧩 구현 내용
       description: 시스템 / 로직 / UI 기준 설명
@@ -22,7 +26,17 @@ body:
       required: true
 
   - type: textarea
-    id: acceptance
+    attributes:
+      label: 📌 Scope
+      description: 포함 / 제외 명확히 작성
+
+  - type: textarea
+    attributes:
+      label: 🗄️ 영향 범위
+      description: DB / 세션 / 토큰 / 정책 등
+
+  - type: textarea
     attributes:
       label: ✅ 완료 조건
       description: Done 정의
+      required: true

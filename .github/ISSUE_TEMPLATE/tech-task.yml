@@ -8,10 +8,18 @@ body:
     attributes:
       label: 🧠 배경
       description: 왜 이 작업을 하는가?
+    validations:
+      required: true
 
   - type: textarea
     attributes:
       label: 🔧 작업 내용
+      required: true
+
+  - type: textarea
+    attributes:
+      label: ⚠ 리스크
+      description: 성능 / 세이브 데이터 / 호환성 영향
 
   - type: checkboxes
     attributes:
@@ -20,3 +28,9 @@ body:
         - label: 세이브 데이터
         - label: 전투 시스템
         - label: 월드 상태
+        - label: 인증/결제
+        - label: 토큰 회계
+
+  - type: textarea
+    attributes:
+      label: ✅ 완료 조건
