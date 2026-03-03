@@ -27,6 +27,7 @@
 ## 2. 최우선 엔트리포인트/연결 기준
 
 ### 2.1 API (FastAPI)
+
 - 엔트리포인트: `apps/api/main.py`
 - 부트스트랩/설정: `apps/api/bootstrap.py`, `apps/api/config.py`, `apps/api/startup.py`
 - 라우팅: `apps/api/routes/`
@@ -34,6 +35,7 @@
   - `render.yaml`이 `healthCheckPath: /health` 사용
 
 ### 2.2 정적 HTML 프론트
+
 - 위치: `apps/web-html/`
 - 구조:
   - `index.html` (home.html 리다이렉트)
@@ -42,12 +44,14 @@
   - `js/` 및 `static/js/` 존재
 
 ### 2.3 데이터/정적 리소스
+
 - 데이터 JSON: `data/json/` (예: `characters.json`, `home.json`)
 - API에서 참조 경로:
   - `apps/api/main.py` 기준 `JSON_DIR = ROOT / "data" / "json"`
   - `ASSETS_DIR` 등 정적 파일 참조는 API에서 수행
 
 ### 2.4 어댑터/영속성
+
 - 외부/LLM/임베딩: `adapters/external/`
 - 스토리지(R2): `adapters/file_storage/r2_storage.py`
 - 영속성:
@@ -56,6 +60,7 @@
   - 선택/생성: `adapters/persistence/factory.py`
 
 ### 2.5 컨테이너/배포
+
 - 로컬/서비스 구성:
   - `infra/docker-compose.yml` (qdrant, api 서비스 정의)
 - Docker 빌드 파일:
@@ -88,90 +93,177 @@
 
 ## 4. 변경 규칙 (이 레포에서 “같이 바뀌어야 하는 것”)
 
-아래는 “동시 변경”이 필요할 수 있는 대표 연결점이다. (존재하는 파일 기준)
-
 1) **헬스체크 변경**
-- `/health` 경로(또는 health 라우트 동작)를 바꾸면:
+- `/health` 경로 변경 시:
   - `render.yaml`의 `healthCheckPath` 영향 가능
 
 2) **Docker/Compose 빌드 경로 변경**
-- `docker/api.Dockerfile` 또는 컨텍스트 변경 시:
-  - `infra/docker-compose.yml` 참조를 함께 점검
+- `docker/api.Dockerfile` 변경 시:
+  - `infra/docker-compose.yml` 참조 점검
 
 3) **정적 HTML 서빙 경로 변경**
-- `apps/web-html/` 경로/마운트 방식 변경 시:
-  - `apps/api/main.py`의 StaticFiles 설정/라우팅 영향 가능
-  - `apps/web-html/js/config.js`의 API Base URL 영향 가능
+- `apps/web-html/` 변경 시:
+  - `apps/api/main.py` StaticFiles 설정 영향 가능
+  - `apps/web-html/js/config.js` 영향 가능
 
 4) **DB/영속성 레이어 변경**
 - `adapters/persistence/*` 변경 시:
-  - `apps/api/startup.py` 및 라우트/서비스에서의 사용부 영향 가능
-  - 관련 `scripts/migrate_*.py` 영향 가능
+  - `apps/api/startup.py` 영향 가능
+  - `scripts/migrate_*.py` 영향 가능
 
 5) **정적 데이터 스키마 변경**
-- `data/json/*.json` 구조 변경 시:
-  - 이를 읽는 API 코드(주로 `apps/api/`) 영향 가능
+- `data/json/*.json` 변경 시:
+  - 관련 API 코드 영향 가능
 
 ---
 
 ## 5. 환경변수/시크릿 취급 규칙
 
-- 시크릿 값(API 키/DB URI/토큰)은 **문서/코드에 하드코딩 금지**
-- `.env` / 배포 플랫폼(Render/CI Secrets 등)로 주입한다.
-- 로그(`docs/logs/`, 앱 로그)에는 민감정보 출력 금지
-
-> 구체 변수명/값은 이 SSOT에서 **나열하지 않는다**. (레포 내 실제 config에서만 관리)
+- 시크릿 값(API 키/DB URI/토큰)은 하드코딩 금지
+- `.env` 또는 배포 플랫폼에서 주입
+- 로그에 민감정보 출력 금지
 
 ---
 
 ## 6. Fail-fast 규칙 (운영 안정성)
 
-다음 상황에서는 “조용히 넘어가지 말고” 오류를 빠르게 노출한다.
-
-- 부팅 시 필수 설정 누락: 즉시 에러 반환(기동 실패 또는 명시적 5xx)
-- 헬스체크(`/health`)는 “정상/비정상”을 명확히 구분해 반환
-- DB 연결/인덱스 초기화가 필수 전제라면:
-  - `apps/api/startup.py`에서 실패 시 명확한 예외/로그를 남긴다
-- 마이그레이션/일회성 스크립트(`scripts/migrate_*.py`)는:
-  - 실패 시 즉시 non-zero exit / 원인 로그 출력
+- 필수 설정 누락 시 즉시 에러
+- `/health`는 정상/비정상 명확 구분
+- DB 초기화 실패 시 명확한 예외/로그
+- 마이그레이션 실패 시 non-zero exit
 
 ---
 
-## 7. 미정/암묵적(⚠️) — 이 레포에서 아직 “기준이 문서화되지 않은 것”
+## 7. 미정/암묵적(⚠️)
 
-아래 항목은 현재 구조상 존재하지만, 기준이 명확히 고정되어 있지 않다.  
-**임의로 결정하지 말고**, 작업 시 “현행 코드/기존 동작”을 우선 확인한다.
+- `apps/api/`: dependencies vs deps 역할
+- `docs/scratch/`: 분류 정책
+- `html/app/web/`: 빌드/배포 관계
+- `packages/db`, `packages/rag`: import 관계
+- `tests/`: 구조/컨벤션
+- 루트 기타 스크립트 유지 여부
 
-- `apps/api/`: `dependencies/` vs `deps/` 역할·구분
-- `docs/scratch/`: 명명·분류·보관 정책
-- `html/app/web/`: 빌드 결과물 경로, API 프록시, 배포 대상과의 관계
-- `packages/db`, `packages/rag`: API·다른 앱과의 실제 import/사용 관계
-- `tests/`: 테스트 구조·실행 방식·컨벤션(단위/통합 등)
-- 루트의 `structure.txt`, `str`, `infra_fix_qdrant.sh`: 유지 여부·용도
+### ⚠️ 티켓 정의 위치 기준
+- GitHub Issue vs docs/tickets 기준은 섹션 9에서 정의
+
+### ⚠️ Billing / Token / BO / Moderation 데이터 기준
+- 스키마/흐름/정합성 전략은 섹션 10~11 참고
+
+### ⚠️ 관측 / 레이트리밋 / 백업 기준
+- 최소 기준은 섹션 12 참고
 
 ---
 
-## 8. AI 도구(Codex/Cursor/Atlas) 작업 지침 (필수)
+## 8. AI 도구 작업 지침 (필수)
 
 ### 8.1 작업 순서
-1) 변경 요청을 SSOT 기준으로 해석
-2) 영향 경로(섹션 4 “변경 규칙”) 확인
-3) 변경 파일 목록을 먼저 고정한 뒤 수정
-4) 로컬/컨테이너 기준 실행 가능 여부를 확인(가능한 범위에서)
-5) 커밋 메시지는 “무엇을/왜”가 드러나게 작성
+1) SSOT 기준 해석
+2) 영향 경로 확인
+3) 변경 파일 목록 고정 후 수정
+4) 실행 가능 여부 확인
+5) 커밋 메시지 명확화
 
 ### 8.2 금지 사항
-- 존재하지 않는 파일/폴더를 “있다고 가정”하고 생성하지 말 것
-- SSOT와 충돌하는 새로운 규칙을 임의로 추가하지 말 것
-- 시크릿/토큰/키를 코드/문서에 삽입하지 말 것
-- `docs/scratch/`를 “정식 문서”처럼 참조 기준으로 승격하지 말 것
+- 존재하지 않는 구조 가정 금지
+- SSOT와 충돌 규칙 추가 금지
+- 시크릿 삽입 금지
+- scratch를 기준 문서로 승격 금지
 
 ### 8.3 커밋 단위 규칙
-- 커밋은 “하나의 의도”만 담는다
-- 문서 변경과 코드 변경이 함께 필요하면:
-  - 원칙: 같은 커밋에 포함 가능(단, 목적이 하나일 때)
-- 자동 생성/대량 변경은:
-  - 반드시 변경 이유와 영향 범위를 커밋 메시지에 명시
+- 하나의 의도만 포함
+- 대량 변경 시 영향 범위 명시
+
+### 8.4 티켓 기반 개발 원칙
+
+- 작업 시작 시 티켓 텍스트를 요구사항의 단일 진실로 간주
+- 티켓에 없는 기능/스키마/엔드포인트 추가 금지
+- 위험 변경은 SSOT 기준 없으면 중단 후 갱신 요청
+- 핫픽스와 기능 개발은 반드시 분리
+
+---
+
+## 9. 티켓 소스 및 실행 스펙 기준
+
+### 9.1 단일 진실
+- GitHub Issue 본문이 단일 진실
+
+### 9.2 docs/tickets 사용 시
+
+파일명:
+T-XXX_설명.md
+
+포함 항목:
+- 목적
+- 범위
+- 금지 사항
+- 완료 조건 (AC)
+- 테스트 기준
+
+### 9.3 우선순위
+- 티켓 우선
+- 단, SSOT 충돌 시 SSOT 우선
+
+---
+
+## 10. Billing & Token 기준 (최소)
+
+### 10.1 Stripe 정기결제
+- Webhook 이벤트 기준 동기화
+- UI 완료만으로 확정하지 않음
+
+### 10.2 token_ledger 최소 필드
+- credit / debit
+- source
+- ref_id
+- before
+- after
+- created_at
+
+### 10.3 멱등성 전략
+- idempotency key 사용
+- 구현은 티켓에서 정의
+
+### 10.4 원자적 업데이트
+- 동시성에서 음수/중복 차감 방지
+- 구현은 티켓에서 정의
+
+---
+
+## 11. Policy / Moderation / BO 기준 (최소)
+
+### 11.1 차단 최소 필드
+- reason_code
+- detail
+- blocked_at
+- blocked_by
+
+### 11.2 audit_log
+- 누가
+- 언제
+- 무엇을
+- 왜
+
+### 11.3 role 최소 기준
+- admin
+- operator
+
+---
+
+## 12. 운영 안정성 기준 (최소)
+
+### 12.1 관측
+- 요청 비용
+- 토큰 사용량
+- 오류율
+- 응답시간
+
+### 12.2 Rate Limit
+- 폭주 방지 기준 존재
+- 수치는 티켓에서 정의
+
+### 12.3 백업/복구
+- 일 1회 스냅샷
+- 복구 절차 문서화
 
 ---
 
