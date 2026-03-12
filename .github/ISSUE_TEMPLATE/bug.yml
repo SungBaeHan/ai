@@ -1,93 +1,125 @@
-name: Bug
-description: 버그 수정 (TRPG)
+name: 🐞 Bug Report
+description: 버그 리포트
 title: "[Bug] "
-labels:
-  - "type:bug"
+labels: ["type:bug"]
 
 body:
+
   - type: dropdown
     id: severity
     attributes:
-      label: 🚨 Severity (라벨도 같이 지정)
-      description: 이슈 생성 후 오른쪽 Labels에서 동일한 severity:* 라벨을 꼭 추가해주세요.
+      label: 🚨 Severity
+      description: 영향도
       options:
-        - "severity:critical (서비스 중단/데이터 손실)"
-        - "severity:major (주요 기능 오류)"
-        - "severity:minor (경미/표시/문구)"
+        - severity:critical
+        - severity:major
+        - severity:minor
     validations:
       required: true
 
   - type: dropdown
     id: layer
     attributes:
-      label: 🧱 Layer (라벨도 같이 지정)
-      description: 이슈 생성 후 오른쪽 Labels에서 동일한 layer:* 라벨을 꼭 추가해주세요.
+      label: 🧱 Layer
+      description: 문제 발생 레이어
       options:
-        - "layer:presentation (UI/입출력/뷰)"
-        - "layer:service (유스케이스/오케스트레이션)"
-        - "layer:domain (도메인 규칙/엔티티)"
-        - "layer:policy (권한/쿼터/접근제어)"
-        - "layer:adapter (외부연동/DB/LLM/Stripe)"
-        - "layer:infra (배포/CI/CD/환경)"
+        - layer:api
+        - layer:domain
+        - layer:adapter
+        - layer:frontend
+        - layer:infra
     validations:
       required: true
 
-  - type: dropdown
+  - type: input
     id: milestone
     attributes:
-      label: 🏁 Milestone (생성 후 Milestone도 지정)
-      description: 이슈 생성 후 오른쪽 Milestone에서 선택해주세요.
-      options:
-        - "MS-01_Stabilization"
-        - "MS-02_Scope_Lock"
-        - "MS-03_Next_Features"
-    validations:
-      required: true
+      label: 🏁 Milestone
+      placeholder: MS-01_Stabilization
 
   - type: textarea
-    id: summary
+    id: description
     attributes:
       label: 🐞 버그 설명
-      description: 무엇이, 어떤 상황에서, 어떻게 잘못되는지 한 문단으로.
-      placeholder: "예) 이미지 URL 도메인이 레거시로 바뀌어 잘못된 CDN을 참조함"
-    validations:
-      required: true
+      description: 어떤 문제가 발생했는지 설명
 
   - type: textarea
-    id: repro
+    id: reproduce
     attributes:
       label: 🔁 재현 방법
-      description: 단계별로 작성 (최소 3 step 권장)
       placeholder: |
-        1) ...
-        2) ...
-        3) ...
+        1. 홈 화면 이동
+        2. 캐릭터 선택
+        3. 네트워크 탭 확인
 
   - type: textarea
     id: expected
     attributes:
       label: 🎯 기대 결과
-      placeholder: "정상 동작/정상 URL/정상 UI 등 기대값"
 
   - type: textarea
     id: actual
     attributes:
       label: 💥 실제 결과
-      placeholder: "실제 발생 결과/에러/잘못된 출력"
 
   - type: textarea
-    id: env
+    id: environment
     attributes:
-      label: 🖥️ 환경
-      description: dev/main, OS, 브라우저, 디바이스, 배포 환경(HF/VM) 등
+      label: 🖥 환경
       placeholder: |
-        - env: dev
-        - os: Windows 11
-        - browser: Chrome 145
-        - device: Desktop
+        env: dev
+        browser: Chrome
+        device: Desktop
 
   - type: textarea
-    id: evidence
+    id: logs
     attributes:
       label: 📎 로그 / 스크린샷 / 링크
-      description: 가능한 한 붙여주세요 (URL/콘솔 로그/서버 로그/스크린샷)
+
+  # -----------------------------
+  # AI 개발용 섹션
+  # -----------------------------
+
+  - type: textarea
+    id: technical_context
+    attributes:
+      label: 🧠 Technical Context (AI 개발 참고)
+      description: 관련 코드 흐름 / 데이터 구조
+      placeholder: |
+        예)
+
+        이미지 URL 생성 위치
+        character_meta.image_url
+
+        가능 위치
+        apps/api/*
+        src/usecases/*
+        adapters/storage/*
+
+  - type: textarea
+    id: fix_strategy
+    attributes:
+      label: 🛠 Fix Strategy
+      description: 수정 방향
+      placeholder: |
+        예)
+
+        R2 public URL 사용 금지
+
+        CDN URL 사용
+
+        https://img.arcanaverse.ai/assets/char/{id}.png
+
+        주의
+        - DB 데이터 변경 금지
+        - URL 변환은 API layer에서 처리
+
+  - type: textarea
+    id: code_hint
+    attributes:
+      label: 📂 Code Location Hint
+      description: 코드 위치 힌트
+      placeholder: |
+        apps/api/
+        src/usecases/
+        adapters/storage/
