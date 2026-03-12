@@ -1498,11 +1498,22 @@ create/game.html - 게임 생성 화면
     }
 
     // 캐릭터 찾기 헬퍼 함수
+    // BUG-002: 모달이 무한스크롤 컨트롤러를 쓰면 로드된 항목은 controller.state.items에만 있음.
+    // charactersList는 legacy loadCharacters()에서만 채워지므로, 컨트롤러 items도 함께 검사.
     function findCharacter(charRefId) {
-      return charactersList.find(c => {
-        const cid = c.id || c.pk || c.slug;
-        return String(cid) == String(charRefId);
-      });
+      const cidStr = String(charRefId);
+      const match = (c) => {
+        const id = c.id ?? c.pk ?? c.slug;
+        return id != null && String(id) === cidStr;
+      };
+      let c = charactersList.find(match);
+      if (c) return c;
+      if (characterModalController) {
+        const state = characterModalController.getState();
+        const items = state.items || [];
+        c = items.find(match);
+      }
+      return c || undefined;
     }
 
     // 캐릭터 모달 컨트롤러 초기화
