@@ -1965,10 +1965,7 @@ create/game.html - 게임 생성 화면
         };
 
         // 캐릭터 배열 (char_ref_id와 role만, snapshot은 백엔드에서 생성)
-        // 주의: 백엔드에서 snapshot을 생성하므로 프론트엔드에서는 char_ref_id와 role만 전송
-        // 만약 향후 프론트엔드에서 snapshot을 직접 보내는 경우, normalizeAssetPath()를 사용하여
-        // image_url을 정규화하고, attributes_base는 값이 있을 때만 포함해야 함
-        const characters = selectedCharacters.map(char => ({
+        const characters = (selectedCharacters || []).map(char => ({
           char_ref_id: parseInt(char.char_ref_id) || char.char_ref_id,
           role: char.role || 'random',
         }));
@@ -2075,11 +2072,14 @@ create/game.html - 게임 생성 화면
       btnCloseWorldModalFooter.addEventListener('click', closeWorldModal);
     }
     
+    // BUG-002: X 버튼으로 닫을 때도 선택 적용 (선택 완료와 동일하게 커밋 후 닫기)
     const btnCloseCharacterModal = document.getElementById('btn-close-character-modal');
     if (btnCloseCharacterModal) {
-      btnCloseCharacterModal.addEventListener('click', closeCharacterModal);
+      btnCloseCharacterModal.addEventListener('click', function() {
+        applyCharacterSelection();
+      });
     }
-    
+    // 취소 버튼: 선택 적용 없이 닫기만
     const btnCloseCharacterModalFooter = document.getElementById('btn-close-character-modal-footer');
     if (btnCloseCharacterModalFooter) {
       btnCloseCharacterModalFooter.addEventListener('click', closeCharacterModal);
@@ -2131,11 +2131,12 @@ create/game.html - 게임 생성 화면
       });
     }
     
+    // BUG-002: 백드롭 클릭 시 선택 적용 후 닫기 (선택한 캐릭터가 payload에 반영되도록)
     const characterModal = document.getElementById('character-modal');
     if (characterModal) {
       characterModal.addEventListener('click', function(e) {
         if (e.target === this) {
-          closeCharacterModal();
+          applyCharacterSelection();
         }
       });
     }
