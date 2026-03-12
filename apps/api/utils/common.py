@@ -5,6 +5,8 @@
 import os
 import re
 from typing import Optional
+from urllib.parse import urlparse
+
 from apps.api.config import settings
 
 
@@ -45,12 +47,24 @@ def build_public_image_url(src_file: Optional[str], prefix: str = "char") -> Opt
     if not src_file:
         return None
     
-    # 이미 전체 URL인 경우 그대로 반환
+    # 이미 전체 URL인 경우: r2.dev 등 비-CDN 도메인이면 CDN으로 정규화 (API 응답에서 R2 도메인 미노출)
     if src_file.startswith("http://") or src_file.startswith("https://"):
+        if "r2.dev" in src_file:
+            # path 추출 (예: https://pub-xxx.r2.dev/assets/char/x.png → /assets/char/x.png)
+            try:
+                parsed = urlparse(src_file)
+                path = parsed.path or ""
+                if path.startswith("/"):
+                    asset_base = settings.ASSET_BASE_URL
+                    if asset_base:
+                        return f"{asset_base.rstrip('/')}{path}"
+                return src_file
+            except Exception:
+                return src_file
         return src_file
     
-    # Asset base URL 가져오기 (ASSET_BASE_URL 우선, 하위 호환을 위해 R2_PUBLIC_BASE_URL도 지원)
-    asset_base = settings.ASSET_BASE_URL or os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
+    # Asset base URL (CDN 기본값)
+    asset_base = settings.ASSET_BASE_URL
     if not asset_base:
         return None
     
@@ -81,16 +95,16 @@ def build_public_image_url_from_path(path: Optional[str]) -> Optional[str]:
     if not path:
         return None
     
-    # 이미 전체 URL인 경우 그대로 반환
+    # 이미 전체 URL인 경우: r2.dev 이면 CDN으로 정규화 (build_public_image_url과 동일)
     if path.startswith("http://") or path.startswith("https://"):
-        return path
-    
+        return build_public_image_url(path)
+
     # /assets/로 시작하지 않으면 build_public_image_url 사용 (기존 로직)
     if not path.startswith("/assets/"):
         return build_public_image_url(path)
     
-    # Asset base URL 가져오기 (ASSET_BASE_URL 우선, 하위 호환을 위해 R2_PUBLIC_BASE_URL도 지원)
-    asset_base = settings.ASSET_BASE_URL or os.getenv("R2_PUBLIC_BASE_URL", "").rstrip("/")
+    # Asset base URL (CDN 기본값)
+    asset_base = settings.ASSET_BASE_URL
     if not asset_base:
         return None
     

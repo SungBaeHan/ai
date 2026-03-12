@@ -33,10 +33,10 @@ class Settings:
     AUTH_USER_INFO_V2_SECRET: str = os.getenv("AUTH_USER_INFO_V2_SECRET", "arcanaverse.ai.secret.v2")
     AUTH_USER_INFO_V2_EXPIRE_MINUTES: int = int(os.getenv("AUTH_USER_INFO_V2_EXPIRE_MINUTES", "4320"))  # 3일
     
-    # Asset Base URL (이미지 CDN)
-    # 기본값: https://img.arcanaverse.ai
-    # 환경변수: ASSET_BASE_URL 또는 R2_PUBLIC_BASE_URL (하위 호환)
-    ASSET_BASE_URL: str = os.getenv("ASSET_BASE_URL") or os.getenv("R2_PUBLIC_BASE_URL", "https://img.arcanaverse.ai").rstrip("/")
+    # Asset Base URL (이미지 CDN) — API 응답에 사용되는 이미지 URL 베이스
+    # 기본값: https://img.arcanaverse.ai (CDN). R2 public URL이 API 응답에 노출되지 않도록 함.
+    # 환경변수: ASSET_BASE_URL (설정 시 해당 값 사용, 미설정 시 CDN 기본값)
+    ASSET_BASE_URL: str = (os.getenv("ASSET_BASE_URL") or "https://img.arcanaverse.ai").rstrip("/")
     
     @property
     def is_mongo(self) -> bool:
