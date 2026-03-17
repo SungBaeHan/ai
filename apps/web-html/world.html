@@ -926,16 +926,13 @@
           refreshAllUserMessageBadges();
           refreshHeaderPersonaBadge();
         } else {
-          // 메시지가 없어도 세션이 있으면 헤더 badge 표시
-          if (session) {
-            // 페르조나 목록 로드 (fallback용)
-            try {
-              PERSONAS_LIST = await fetchPersonas();
-            } catch (e) {
-              console.warn('[WORLD][BOOTSTRAP] Failed to load personas:', e);
-            }
-            refreshHeaderPersonaBadge();
+          // 새 세션(메시지 0건)이어도 페르조나 목록 로드 후 헤더 badge 표시 (세션 유무와 무관)
+          try {
+            PERSONAS_LIST = await fetchPersonas();
+          } catch (e) {
+            console.warn('[WORLD][BOOTSTRAP] Failed to load personas:', e);
           }
+          refreshHeaderPersonaBadge();
         }
       } catch (e) {
         console.error('[CHAT][BOOTSTRAP] Error loading messages:', e);

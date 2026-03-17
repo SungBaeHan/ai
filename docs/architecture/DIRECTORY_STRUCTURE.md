@@ -1,5 +1,7 @@
 # 디렉토리 구조
 
+This document is reference/supplementary material. For canonical rules, see docs/SSOT.md and docs/ARCHITECTURE.md.
+
 생성일: 2025-01-27
 
 ## 루트 디렉토리

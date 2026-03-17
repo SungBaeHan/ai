@@ -59,7 +59,7 @@ Before changing code:
    Understand the goal, acceptance criteria, and any constraints. Treat the issue text as the single source of requirements for that ticket.
 
 2. **Identify modules**  
-   Determine which parts of the codebase are affected: routes, use cases, adapters, schemas, config. Use `docs/ARCHITECTURE.md` and `docs/scratch/ROUTES_DIRECT_MONGO_ACCESS.md` to find where logic and DB access live.
+   Determine which parts of the codebase are affected: routes, use cases, adapters, schemas, config. Use `docs/ARCHITECTURE.md` and `docs/architecture/ROUTES_DIRECT_MONGO_ACCESS.md` to find where logic and DB access live.
 
 3. **Create an implementation plan**  
    List concrete steps (e.g. "add use case X", "call use case from route Y", "extend adapter Z"). Prefer minimal changes and existing patterns. Do not refactor unrelated code.
@@ -111,7 +111,15 @@ New features and bug fixes must avoid this pattern and instead use the following
 
 Route → Usecase → Adapter
 
-Details: Direct DB access is documented in `docs/scratch/ROUTES_DIRECT_MONGO_ACCESS.md` and in the "Known Architecture Issues" section of `docs/ARCHITECTURE.md`. When modifying legacy routes without refactoring, do not add new direct DB access. When the issue explicitly asks to move a route to use cases, follow `docs/USECASE_REFACTOR_ROADMAP.md`.
+Details: Direct DB access is documented in `docs/architecture/ROUTES_DIRECT_MONGO_ACCESS.md` and in the "Known Architecture Issues" section of `docs/ARCHITECTURE.md`. When modifying legacy routes without refactoring, do not add new direct DB access. When the issue explicitly asks to move a route to use cases, follow `docs/USECASE_REFACTOR_ROADMAP.md`.
+
+---
+
+# Ticket Workflow: Analysis vs Scratch
+
+- **Formal root-cause / implementation-plan documents** → **docs/analysis/** (ticket-linked; e.g. BUG-NNN_short_name_analysis.md).
+- **Temporary debug notes / experiments** → **docs/scratch/** (non-canonical; may be promoted later to docs/analysis/ or docs/architecture/ if they become long-term reference).
+- **Documentation structure changes** (new folders, moving canonical docs) are **out of scope** for normal ticket work. Do not change docs folder structure during ticket implementation. See docs/SSOT.md (Documentation Structure Lock).
 
 ---
 

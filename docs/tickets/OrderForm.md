@@ -1,3 +1,7 @@
+This is a helper prompt/order form, not a ticket file. Use it to point an AI agent at a ticket under docs/tickets/.
+
+---
+
 ### BUG
 Use the AI development prompt defined in docs/AI_DEV_PROMPT.md.
 

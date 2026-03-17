@@ -1,5 +1,7 @@
 # 리팩토링 작업 요약
 
+This document is reference/supplementary material (historical). For canonical rules, see docs/SSOT.md and docs/ARCHITECTURE.md.
+
 ## 완료된 작업
 
 ### 1. 기존 `packages/` 디렉토리 정리

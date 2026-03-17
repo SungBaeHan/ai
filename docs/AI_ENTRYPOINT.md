@@ -6,14 +6,17 @@ If you are an AI agent (Cursor, Codex, or similar), **read this document first**
 
 ---
 
-# Step 1 — Understand the Repository
+# Step 1 — Understand the Repository (Canonical Reading Order)
 
-Before performing any task, read the following documents **in order**:
+Before performing any task, read the following documents **in order** (this order is canonical; see docs/SSOT.md):
 
 1. docs/SSOT.md
 2. docs/ARCHITECTURE.md
 3. docs/AI_AGENT_RULES.md
 4. docs/DEVELOPMENT_GUIDE.md
+5. docs/AI_ENTRYPOINT.md
+6. Assigned ticket under docs/tickets/
+7. Related formal analysis under docs/analysis/ (if any)
 
 These documents define:
 
@@ -21,6 +24,8 @@ These documents define:
 - architecture rules
 - AI behavior rules
 - development workflow
+
+**Document structure rule:** During ticket work, do not propose or create new documentation systems or folder structures. Follow the existing docs layout (tickets, analysis, architecture, scratch) as defined in docs/SSOT.md.
 
 ---
 
