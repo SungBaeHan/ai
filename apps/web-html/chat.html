@@ -915,10 +915,13 @@
           const intro=[ch.scenario||"", ch.greeting||""].filter(Boolean).join("\n\n").trim();
           if(intro) addBot(intro);
           
-          // 메시지가 없어도 세션이 있으면 헤더 badge 표시
-          if (CURRENT_SESSION) {
-            refreshHeaderPersonaBadge();
+          // 새 세션(메시지 0건)에서도 페르조나 목록 로드 후 헤더/메시지용 활성 persona 표시
+          try {
+            PERSONAS_LIST = await fetchPersonas();
+          } catch (e) {
+            console.warn('[CHAT][BOOTSTRAP] Failed to load personas for new session:', e);
           }
+          refreshHeaderPersonaBadge();
         }
       } catch (e) {
         console.error('[CHAT][BOOTSTRAP] Error loading messages:', e);
