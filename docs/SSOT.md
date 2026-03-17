@@ -182,6 +182,43 @@
 
 ---
 
+## Canonical Documentation
+
+- **docs/SSOT.md** is the top-level source of truth.
+- **docs/ARCHITECTURE.md** is the canonical system architecture document.
+- **docs/AI_ENTRYPOINT.md** defines the canonical AI reading order.
+- **docs/AI_AGENT_RULES.md** defines agent behavior constraints.
+- **docs/DEVELOPMENT_GUIDE.md** defines the development workflow.
+- **docs/architecture/** is supporting/reference material, not the top-level canonical source.
+- **docs/scratch/** is temporary/non-canonical.
+
+---
+
+## AI Reading Order
+
+1. docs/SSOT.md
+2. docs/ARCHITECTURE.md
+3. docs/AI_AGENT_RULES.md
+4. docs/DEVELOPMENT_GUIDE.md
+5. docs/AI_ENTRYPOINT.md
+6. Assigned ticket under docs/tickets/
+7. Related formal analysis under docs/analysis/
+
+---
+
+## Documentation Structure Lock
+
+- **Allowed:**
+  - create/update ticket files under docs/tickets/
+  - create/update formal analysis under docs/analysis/
+  - create temporary notes under docs/scratch/
+- **Not allowed:**
+  - introducing new documentation systems/folders without explicit request
+  - changing docs folder structure during normal ticket work
+- Structural changes are allowed only in dedicated documentation/system sessions.
+
+---
+
 ## 9. 티켓 소스 및 실행 스펙 기준
 
 ### 9.1 단일 진실

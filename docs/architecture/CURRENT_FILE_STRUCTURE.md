@@ -1,5 +1,7 @@
 # 현재 파일 구조
 
+This document is reference/supplementary material. For canonical rules, see docs/SSOT.md and docs/ARCHITECTURE.md.
+
 ## 프로젝트 전체 구조
 
 ```

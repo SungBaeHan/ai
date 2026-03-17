@@ -126,7 +126,7 @@ Other references:
 # Known Architecture Issues
 
 - **API routes accessing MongoDB directly**  
-  Most routes use `get_db()` or `get_mongo_client()` and query/update collections (characters, games, game_session, users, worlds_session, worlds_message, characters_session, characters_message, images, etc.) without going through use cases. Only `chat_v2.py` uses use cases (OpenChatUseCase, SendMessageUseCase). Character get-one and count use the repository; list, create, “my characters”, and bootstrap use direct DB. See `docs/scratch/ROUTES_DIRECT_MONGO_ACCESS.md` for a full list. This is treated as **legacy**; new behavior should go through use cases.
+  Most routes use `get_db()` or `get_mongo_client()` and query/update collections (characters, games, game_session, users, worlds_session, worlds_message, characters_session, characters_message, images, etc.) without going through use cases. Only `chat_v2.py` uses use cases (OpenChatUseCase, SendMessageUseCase). Character get-one and count use the repository; list, create, “my characters”, and bootstrap use direct DB. See `docs/architecture/ROUTES_DIRECT_MONGO_ACCESS.md` for a full list. This is treated as **legacy**; new behavior should go through use cases.
 
 - **Sync/async mix**  
   MongoDB is used both via sync (pymongo) and async (motor) in different places, which complicates consistency and can cause blocking in async contexts.

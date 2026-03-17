@@ -31,15 +31,26 @@ Steps:
 
 ---
 
+# Ticket vs Analysis vs Scratch
+
+- **Ticket** (docs/tickets/) — Task definition: problem, scope, acceptance criteria, verification. One ticket = one branch = one PR.
+- **Analysis** (docs/analysis/) — Formal ticket-linked documents: root-cause analysis, implementation plan. Name e.g. `BUG-NNN_short_name_analysis.md`.
+- **Scratch** (docs/scratch/) — Temporary notes, debug context, experiments. Non-canonical; promote to docs/analysis/ or docs/architecture/ when they become long-term reference.
+
+---
+
 # Ticket Naming
 
 Ticket files should follow this naming format:
 
 TYPE-ID_short_description.md
 
+Use **underscores** for multi-word descriptions (no spaces in filenames).
+
 Examples:
 
 BUG-001_character_cdn.md
+BUG-003_persona_not_rendered_in_new_chat_sessions.md
 TASK-002_remove_deprecated_helpers.md
 FEAT-010_myfavorite_api.md
 

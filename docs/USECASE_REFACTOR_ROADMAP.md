@@ -1,6 +1,6 @@
 # Use Case Refactoring Roadmap
 
-This document defines where MongoDB access should be moved from API routes into use cases, and how to execute that refactor. It does not prescribe code changes; it is a planning and guideline document. See `docs/scratch/ROUTES_DIRECT_MONGO_ACCESS.md` for the detailed list of direct-access locations.
+This document defines where MongoDB access should be moved from API routes into use cases, and how to execute that refactor. It does not prescribe code changes; it is a planning and guideline document. See `docs/architecture/ROUTES_DIRECT_MONGO_ACCESS.md` for the detailed list of direct-access locations.
 
 ---
 
@@ -163,4 +163,4 @@ Use these rules when refactoring or adding features. No code is prescribed here;
    Logging service that writes to MongoDB can remain as-is during the first waves of refactor, or later be wrapped in a “write access/event/error log” use case if the team wants all DB writes to go through use cases.
 
 10. **Reference**  
-    Use `docs/ARCHITECTURE.md` for the overall rule (“API → Usecase → Adapter”) and `docs/scratch/ROUTES_DIRECT_MONGO_ACCESS.md` for the exact list of routes and collections to migrate. This roadmap defines the order and strategy; it does not replace the SSOT or the architecture doc.
+    Use `docs/ARCHITECTURE.md` for the overall rule (“API → Usecase → Adapter”) and `docs/architecture/ROUTES_DIRECT_MONGO_ACCESS.md` for the exact list of routes and collections to migrate. This roadmap defines the order and strategy; it does not replace the SSOT or the architecture doc.

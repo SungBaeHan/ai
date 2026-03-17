@@ -277,4 +277,14 @@ Bug fixes and small improvements are preferred over risky refactoring.
 
 ---
 
+# 16. Documentation Rules
+
+- During ticket work, **do not propose or create new documentation systems or folder structures** unless explicitly requested.
+- **Ticket-linked analysis** (root-cause analysis, implementation plan) must go to **docs/analysis/**.
+- **Temporary debugging notes** may go to **docs/scratch/**.
+- If a scratch document becomes long-term reference, **recommend** promotion to docs/analysis/ or docs/architecture/; **do not move it automatically** unless requested.
+- Structural changes to docs/ are allowed only in dedicated documentation/system sessions, not as part of normal ticket work. See docs/SSOT.md (Documentation Structure Lock).
+
+---
+
 End of Rules

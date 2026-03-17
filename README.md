@@ -1,3 +1,4 @@
+# TRPG AI 프로젝트 (MVP)
 # Arcanaverse
 
 AI-Native TRPG Platform
@@ -152,5 +153,31 @@ AI-assisted implementation
 ---
 
 # License
+
+## 프로젝트 구조 상세
+
+### Domain Layer (`src/domain/`)
+- 도메인 엔티티 정의 (Character 등)
+
+### Use Cases Layer (`src/usecases/`)
+- 비즈니스 로직 (GetCharacter, ListCharacters, AnswerQuestion 등)
+
+### Ports Layer (`src/ports/`)
+- 인터페이스 정의 (Repository, Service 등)
+
+### Adapters Layer (`adapters/`)
+- 인프라 구현체 (SQLite, MongoDB, OpenAI, R2 등)
+
+자세한 구조는 [docs/architecture/](docs/architecture/)를 참고하세요.
+
+## 라이선스
+
+This repository is shared for demonstration and learning purposes.
+Commercial use requires permission.
+
+이 저장소는 데모 및 학습 목적을 위해 공개되었습니다.
+상업적 사용을 위해서는 별도의 허가가 필요합니다.
+
+(라이선스 정보 추가)
 
 TBD
