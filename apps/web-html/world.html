@@ -186,6 +186,7 @@
     let CURRENT_WORLD_SESSION = null;  // 현재 세션
     let PERSONAS_LIST = [];  // 페르조나 목록
     let SELECTED_PERSONA_ID = null;  // 선택된 페르조나 ID
+    let PENDING_PERSONA_ID = null;   // 새 세션(session null)에서 선택한 페르조나 (API 적용 전까지 헤더/메시지 표시용)
     const FALLBACK_SVG = 'data:image/svg+xml;utf8,' + encodeURIComponent(
       `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675"><rect width="100%" height="100%" fill="#0e141c"/><text x="50%" y="50%" fill="#94a3b8" font-size="48" font-family="sans-serif" text-anchor="middle" dominant-baseline="middle">No Image</text></svg>`
     );
@@ -496,8 +497,21 @@
         return CURRENT_WORLD_SESSION.persona;
       }
       
-      // 2) fallback: PERSONAS_LIST에서 default persona
+      // 2) 새 세션에서 선택만 한 경우 (session null): PENDING_PERSONA_ID 반영
       const ps = PERSONAS_LIST || [];
+      if (PENDING_PERSONA_ID && ps.length > 0) {
+        const pending = ps.find(p => p.persona_id === PENDING_PERSONA_ID);
+        if (pending?.persona_id) {
+          return {
+            persona_id: pending.persona_id,
+            name: pending.name,
+            gender: pending.gender,
+            image_key: pending.image_key
+          };
+        }
+      }
+      
+      // 3) fallback: PERSONAS_LIST에서 default persona
       const d = ps.find(p => p.is_default) || ps[0];
       if (d?.persona_id) {
         return {
@@ -508,7 +522,7 @@
         };
       }
       
-      // 3) nothing
+      // 4) nothing
       return null;
     }
     
@@ -718,8 +732,12 @@
       }
 
       if (!CURRENT_WORLD_SESSION || !CURRENT_WORLD_SESSION.id) {
-        console.warn('[PERSONA] No session ID available');
-        showToast('세션 정보를 찾을 수 없습니다.');
+        // 새 세션(메시지 0건): API 호출 불가. 선택만 로컬 반영 후 모달 닫기
+        console.log('[PERSONA] No session ID (new session) - applying selection locally');
+        PENDING_PERSONA_ID = SELECTED_PERSONA_ID;
+        refreshHeaderPersonaBadge();
+        closePersonaModal();
+        showToast('페르조나가 선택되었습니다. 메시지를 보내면 적용됩니다.');
         return;
       }
 
@@ -762,6 +780,7 @@
         // CURRENT_WORLD_SESSION.persona 업데이트
         if (CURRENT_WORLD_SESSION && data.persona) {
           CURRENT_WORLD_SESSION.persona = data.persona;
+          PENDING_PERSONA_ID = null;  // 세션에 반영되었으므로 pending 제거
           console.log('[PERSONA] Updated CURRENT_WORLD_SESSION.persona:', CURRENT_WORLD_SESSION.persona);
           
           // UI 뱃지 즉시 갱신
