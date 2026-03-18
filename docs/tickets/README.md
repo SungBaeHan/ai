@@ -37,6 +37,10 @@ Steps:
 - **Analysis** (docs/analysis/) — Formal ticket-linked documents: root-cause analysis, implementation plan. Name e.g. `BUG-NNN_short_name_analysis.md`.
 - **Scratch** (docs/scratch/) — Temporary notes, debug context, experiments. Non-canonical; promote to docs/analysis/ or docs/architecture/ when they become long-term reference.
 
+For **ticket completion**, **report rules**, and **Definition of Done**, refer to:
+- [docs/QA_AND_DONE.md](../QA_AND_DONE.md)
+- [docs/analysis/README.md](../analysis/README.md)
+
 ---
 
 # Ticket Naming

@@ -30,15 +30,11 @@ All work must be based on a **Markdown ticket**.
 
 Ticket location:
 
-
 docs/tickets/
-
 
 Example:
 
-
 docs/tickets/MS-01/BUG-002_game_character_selection_not_applied.md
-
 
 The ticket defines:
 
@@ -68,9 +64,7 @@ API routes must **not access MongoDB directly**.
 
 Use the architecture structure:
 
-
 Route → Usecase → Adapter
-
 
 Legacy code may still use direct Mongo access, but **new implementations must follow the architecture rule**.
 
@@ -100,7 +94,7 @@ When implementing the ticket:
 
 # Post-Implementation Report
 
-After coding, provide:
+After coding, the AI must provide:
 
 - files changed
 - summary of changes
@@ -109,14 +103,61 @@ After coding, provide:
 
 ---
 
+## Report Rules (MANDATORY)
+
+After implementation, the AI MUST:
+
+1. Create an implementation report under `docs/analysis/`
+
+2. The report must follow:
+
+- `docs/analysis/README.md` (naming rules)
+- `docs/QA_AND_DONE.md` (report structure)
+
+3. The report MUST include:
+
+- Ticket ID
+- Summary of changes
+- Files modified
+- Root cause analysis
+- Implementation details
+- Verification steps
+- Risks / limitations
+- Completion Status section
+
+4. Completion Status must be:
+
+- Implementation Done: YES
+- Release Verified: PENDING
+
+5. Report filename format:
+
+docs/analysis/[TICKET-ID]-report.md
+
+Example:
+
+docs/analysis/FEAT-MyList-001-report.md
+
+---
+
 # Pull Request Rule
 
 One ticket should produce:
 
+1 branch  
+1 pull request  
 
-1 branch
-1 pull request
+---
 
+# Execution Rules (IMPORTANT)
+
+When executing a ticket, the AI must:
+
+1. Read and follow the ticket exactly  
+2. Do not skip analysis phase  
+3. Do not start coding immediately  
+4. Keep the change small and focused  
+5. Do not introduce unrelated changes  
 
 ---
 
@@ -130,3 +171,4 @@ Principles:
 - Architecture-first development
 - Ticket-driven development
 - AI-assisted implementation
+- Analysis-driven iteration
