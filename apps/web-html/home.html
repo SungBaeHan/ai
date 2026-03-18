@@ -56,6 +56,33 @@
     .category-tab.active:hover {
       background:#2563eb;
     }
+
+    /* My List 1Depth 탭 (Create / Favorite) */
+    .listmode-tabs { display:flex; gap:8px; margin:10px 0 12px; padding-bottom:0; }
+    .listmode-tab {
+      padding:10px 20px;
+      background:transparent;
+      border:none;
+      border-radius:12px;
+      color:#94a3b8;
+      font-size:14px;
+      font-weight:500;
+      cursor:pointer;
+      transition:all .2s ease;
+      position:relative;
+    }
+    .listmode-tab:hover {
+      color:#e5e7eb;
+      background:#1f2937;
+    }
+    .listmode-tab.active {
+      color:#ffffff;
+      background:#3b82f6;
+      font-weight:600;
+    }
+    .listmode-tab.active:hover {
+      background:#2563eb;
+    }
     
     .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px; }
     .card { display:block; background:#111827; border-radius:14px; overflow:hidden; border:1px solid #1f2937; text-decoration:none; color:inherit; box-shadow:0 6px 18px rgba(0,0,0,.25); transition: transform .15s ease, box-shadow .15s ease; }
@@ -97,6 +124,11 @@
   <div class="wrap">
     <h1>캐릭터 선택</h1>
 
+    <div class="listmode-tabs" aria-label="My List 1Depth Tabs">
+      <button class="listmode-tab active" data-mode="create">My Create</button>
+      <button class="listmode-tab" data-mode="favorite">My Favorite</button>
+    </div>
+
     <div class="category-tabs">
       <button class="category-tab active" data-category="characters">캐릭터 선택</button>
       <button class="category-tab" data-category="worlds">세계관 선택</button>
@@ -128,6 +160,7 @@
 
     // 검색/탭 공통 상태
     let currentCategory = 'characters';        // 'characters' | 'worlds' | 'games'
+    let currentListMode = 'create';            // 'create' | 'favorite'
     let qInput = '';                           // 입력창 값
     let qApplied = '';                         // 실제 검색에 사용된 값
     let searchApplied = false;                 // 검색 실행 여부
@@ -141,24 +174,59 @@
     
     // 페이지당 아이템 수 통일
     const LIMIT = 20;
+
+    // 로그인 세션(현재 사용자) 캐시
+    const USER_INFO_KEY = 'user_info_v2';
+    let cachedSession = null;
+
+    async function getCurrentSession() {
+      if (cachedSession) return cachedSession;
+      const token = localStorage.getItem(USER_INFO_KEY);
+      if (!token) return null;
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/v1/auth/validate-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token }),
+          credentials: "include",
+        });
+        if (!res.ok) return null;
+        cachedSession = await res.json();
+        return cachedSession;
+      } catch (e) {
+        console.warn('[home] Failed to validate session:', e);
+        return null;
+      }
+    }
     
     // 캐릭터 전용 offset (skip과 혼용 방지를 위해 분리)
     let characterOffset = 0;
 
     // 캐릭터 API 로더 (컨트롤러 규격: pageIndex -> offset 변환)
     async function loadCharactersPage(pageIndex, limit, query = '') {
-      const offset = pageIndex * limit;
-      const params = new URLSearchParams();
-      params.set('skip', String(offset)); // API는 skip 사용
-      params.set('limit', String(limit));
-      if (query && query.trim().length > 0) {
-        params.set('q', query.trim());
+      // My Favorite: favorites 데이터 소스가 준비되기 전까지는 빈 리스트 (UI 구조 우선)
+      if (currentListMode === 'favorite') {
+        return [];
       }
 
-      const r = await fetch(`${API_BASE_URL}/v1/characters?${params.toString()}`, {
+      const offset = pageIndex * limit;
+      const params = new URLSearchParams();
+      params.set('skip', String(offset));
+      params.set('limit', String(limit));
+      if (query && query.trim().length > 0) params.set('q', query.trim());
+
+      // My Create: /v1/characters/my (creator 기준)
+      // Default(Create)도 My Create로 동작한다.
+      const endpoint = `${API_BASE_URL}/v1/characters/my?${params.toString()}`;
+      const headers = { "Content-Type": "application/json" };
+      const accessToken = getToken();
+      if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+
+      const r = await fetch(endpoint, {
         method: "GET",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers,
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const j = await r.json();
@@ -167,6 +235,11 @@
     
     // 서버 API에서 세계관 목록 로드
     async function loadWorldsFromApi({ q = '', offset = 0, limit = 20 } = {}) {
+      // My Favorite: favorites 데이터 소스가 준비되기 전까지는 빈 리스트 (UI 구조 우선)
+      if (currentListMode === 'favorite') {
+        return [];
+      }
+
       const params = new URLSearchParams();
       params.set('offset', String(offset));
       params.set('limit', String(limit));
@@ -187,13 +260,26 @@
       const j = await r.json();
       console.log('[loadWorldsFromApi] Response:', j);
       // API 응답 구조: { items: [...], total: number, ... }
-      const items = j.items || [];
+      let items = j.items || [];
+
+      // My Create: reg_user 기준으로 현재 사용자 필터링 (google_id 우선, 없으면 email)
+      const session = await getCurrentSession();
+      if (!session) return [];
+      const userKey = String(session.google_id || session.googleId || session.sub || session.email || '');
+      if (!userKey) return [];
+      items = items.filter(it => String(it.reg_user || '') === userKey);
+
       console.log('[loadWorldsFromApi] Items count:', items.length);
       return items;
     }
     
     // 서버 API에서 게임 목록 로드
     async function loadGamesFromApi({ q = '', offset = 0, limit = 20 } = {}) {
+      // My Favorite: favorites 데이터 소스가 준비되기 전까지는 빈 리스트 (UI 구조 우선)
+      if (currentListMode === 'favorite') {
+        return [];
+      }
+
       const params = new URLSearchParams();
       params.set('offset', String(offset));
       params.set('limit', String(limit));
@@ -214,7 +300,15 @@
       const j = await r.json();
       console.log('[loadGamesFromApi] Response:', j);
       // API 응답 구조: { items: [...], total: number, ... }
-      const items = j.items || [];
+      let items = j.items || [];
+
+      // My Create: reg_user 기준으로 현재 사용자 필터링 (google_id 우선, 없으면 email)
+      const session = await getCurrentSession();
+      if (!session) return [];
+      const userKey = String(session.google_id || session.googleId || session.sub || session.email || '');
+      if (!userKey) return [];
+      items = items.filter(it => String(it.reg_user || '') === userKey);
+
       console.log('[loadGamesFromApi] Items count:', items.length);
       return items;
     }
@@ -812,6 +906,33 @@
       });
     }
 
+    // 1Depth (Create / Favorite) 탭 클릭 핸들러
+    function setupListModeTabs() {
+      document.querySelectorAll('.listmode-tab').forEach(tab => {
+        tab.addEventListener('click', async function() {
+          const mode = this.getAttribute('data-mode');
+          if (!mode || mode === currentListMode) return;
+
+          // 캐릭터 컨트롤러 cleanup (모드 전환 시)
+          if (currentCategory === 'characters' && infiniteControllers.characters) {
+            infiniteControllers.characters.cleanup();
+            infiniteControllers.characters = null;
+          }
+
+          // 모드 변경 및 탭 상태 갱신
+          document.querySelectorAll('.listmode-tab').forEach(t => t.classList.remove('active'));
+          this.classList.add('active');
+          currentListMode = mode;
+
+          // 세션 캐시 초기화 (필터 기준이 바뀔 수 있음)
+          cachedSession = null;
+
+          const query = searchApplied ? qApplied : '';
+          await fetchAndRender(currentCategory, query);
+        });
+      });
+    }
+
         // 초기화: 네비게이션 바 핸들러+캐릭터 목록 렌더링
     (async function init(){
       // nav buttons -> 처리
@@ -852,6 +973,7 @@
       // 검색바 + 카테고리 탭 설정
       setupSearchBar();
       setupCategoryTabs();
+      setupListModeTabs();
 
       // 초기 상태: 검색어 없이 캐릭터 기본 리스트 (공통 컨트롤러로 로드)
       await fetchAndRender(currentCategory, '');
