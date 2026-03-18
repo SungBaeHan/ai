@@ -213,8 +213,11 @@
       grid.innerHTML = '<div style="grid-column:1/-1;opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
 
       try {
-        // NOTE: Favorite 데이터 기능 신규 구현은 스코프 밖이므로, favorite 모드에서는 empty 상태로 유지
-        if (currentMode === 'favorite') {
+        // NOTE:
+        // - 본 단계에서는 My Create는 placeholder 상태로 고정 (데이터 연동은 후속 티켓)
+        // - Favorite 데이터 기능 신규 구현도 스코프 밖
+        // 따라서 create/favorite 모두 empty 상태로 유지한다.
+        if (currentMode === 'create' || currentMode === 'favorite') {
           renderEmptyState();
           return;
         }
