@@ -89,7 +89,7 @@
       <div class="tab" data-nav="logo">Logo</div>
       <a href="/search.html" class="tab" data-nav="search">Search</a>
       <a href="/create/index.html" class="tab" data-nav="create">Create</a>
-      <div class="tab" data-nav="list">My List</div>
+      <a href="/my_list.html" class="tab" data-nav="list">My List</a>
       <div class="tab" data-nav="my">My</div>
     </div>
   </div></div>
@@ -821,6 +821,11 @@
             return;
           }
           
+          if (navType === 'list') {
+            // My List 메뉴는 my_list.html로 단순 이동 (로그인 무관)
+            return;
+          }
+
           if (navType === 'my') {
             e.preventDefault();
             window.location.href = '/my.html';

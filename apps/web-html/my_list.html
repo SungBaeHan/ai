@@ -1,0 +1,289 @@
+<!-- ========================================
+     apps/web-html/my_list.html — My List 전용 화면
+     - 1Depth: My Create / My Favorite
+     - 2Depth: 캐릭터 / 세계관 / 게임
+     - 목적: Home(/home.html)과 분리된 My List 진입점을 제공
+     ======================================== -->
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>My List</title>
+  <script src="/js/config.js"></script>
+  <script src="/js/assets.js"></script>
+  <script>
+    // Cloudflare Pages 배포 환경에서 사용할 기본 API 엔드포인트
+    window.API_BASE_URL = 'https://api.arcanaverse.ai';
+    window.API_BASE = 'https://api.arcanaverse.ai';
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, 'Apple SD Gothic Neo','Malgun Gothic',sans-serif; background:#0b0f14; color:#e5e7eb;}
+    .nav { position:sticky; top:0; z-index:30; background:#0b1118; border-bottom:1px solid #18212c; }
+    .navin { max-width:1200px; margin:0 auto; padding:8px 12px; display:flex; align-items:center; gap:12px; }
+    .navin .tabs { display:grid; grid-template-columns: repeat(5, 1fr); gap:12px; flex: 1; }
+    .tab { text-align:center; padding:10px 8px; border-radius:10px; background:#0f172a; color:#a5b4fc; border:1px solid #1e293b; font-size:12px; cursor:pointer; user-select:none; text-decoration:none; display:block; }
+    .tab.active { background:#1e3a8a; border-color:#3b82f6; color:#e0e7ff; }
+    .tab:active { transform:translateY(1px); }
+
+    .wrap { max-width:1200px; margin:24px auto 40px; padding:0 16px;}
+    h1 { font-size:20px; font-weight:700; margin:8px 0 18px; color:#d1d5db; }
+
+    .mode-tabs { display:flex; gap:8px; margin:8px 0 12px; }
+    .mode-tab { padding:10px 20px; background:transparent; border:none; border-radius:12px; color:#94a3b8; font-size:14px; font-weight:500; cursor:pointer; transition:all .2s ease; }
+    .mode-tab:hover { color:#e5e7eb; background:#1f2937; }
+    .mode-tab.active { color:#fff; background:#3b82f6; font-weight:600; }
+    .mode-tab.active:hover { background:#2563eb; }
+
+    .type-tabs { display:flex; gap:8px; margin:8px 0 22px; }
+    .type-tab { padding:10px 20px; background:transparent; border:none; border-radius:12px; color:#94a3b8; font-size:14px; font-weight:500; cursor:pointer; transition:all .2s ease; }
+    .type-tab:hover { color:#e5e7eb; background:#1f2937; }
+    .type-tab.active { color:#fff; background:#3b82f6; font-weight:600; }
+    .type-tab.active:hover { background:#2563eb; }
+
+    .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:18px; }
+    .card { display:block; background:#111827; border-radius:14px; overflow:hidden; border:1px solid #1f2937; text-decoration:none; color:inherit; box-shadow:0 6px 18px rgba(0,0,0,.25); transition: transform .15s ease, box-shadow .15s ease; }
+    .card:hover { transform:translateY(-2px); box-shadow:0 10px 24px rgba(0,0,0,.35); }
+    .thumb { width:100%; aspect-ratio: 16/10; object-fit:cover; background:#0f172a; display:block; }
+    .body { padding:12px 14px 16px; }
+    .name { font-size:16px; font-weight:700; color:#f3f4f6; }
+    .meta { margin-top:6px; font-size:12px; color:#94a3b8; line-height:1.4; display:block; height:32px; overflow:hidden; }
+
+    /* toast layer */
+    .toast { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; opacity:0; transition:opacity .18s ease; z-index:50; }
+    .toast.show { opacity:1; }
+    .toast .box { pointer-events:auto; min-width:200px; max-width:80vw; background:#0f172a; border:1px solid #1f2937; color:#e5e7eb; padding:14px 18px; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.45); text-align:center; }
+  </style>
+</head>
+<body>
+  <div class="nav"><div class="navin">
+    <div class="tabs">
+      <a href="/home.html" class="tab" data-nav="logo">Logo</a>
+      <a href="/search.html" class="tab" data-nav="search">Search</a>
+      <a href="/create/index.html" class="tab" data-nav="create">Create</a>
+      <a href="/my_list.html" class="tab active" data-nav="list">My List</a>
+      <a href="/my.html" class="tab" data-nav="my">My</a>
+    </div>
+  </div></div>
+
+  <div class="wrap">
+    <h1>My List</h1>
+
+    <div class="mode-tabs" aria-label="My List Mode Tabs">
+      <button class="mode-tab active" data-mode="create">My Create</button>
+      <button class="mode-tab" data-mode="favorite">My Favorite</button>
+    </div>
+
+    <div class="type-tabs" aria-label="My List Type Tabs">
+      <button class="type-tab active" data-type="characters">캐릭터 선택</button>
+      <button class="type-tab" data-type="worlds">세계관 선택</button>
+      <button class="type-tab" data-type="games">게임 선택</button>
+    </div>
+
+    <div id="grid" class="grid"></div>
+  </div>
+
+  <div id="toast" class="toast" aria-live="polite" aria-atomic="true">
+    <div class="box">준비중입니다</div>
+  </div>
+
+  <script>
+    const API_BASE_URL =
+      window.location.hostname === "arcanaverse.ai" ||
+      window.location.hostname === "www.arcanaverse.ai"
+        ? "https://api.arcanaverse.ai"
+        : "http://localhost:8000";
+
+    const TOKEN_KEY = 'access_token';
+    const USER_INFO_KEY = 'user_info_v2';
+
+    let currentMode = 'create';       // 'create' | 'favorite'
+    let currentType = 'characters';   // 'characters' | 'worlds' | 'games'
+
+    function showToast(msg='준비중입니다', ms=1200){
+      const el = document.getElementById('toast');
+      el.querySelector('.box').textContent = msg;
+      el.classList.add('show');
+      clearTimeout(showToast.tid);
+      showToast.tid = setTimeout(() => el.classList.remove('show'), ms);
+    }
+
+    function isLoggedIn() {
+      return !!localStorage.getItem(TOKEN_KEY);
+    }
+
+    function renderEmptyState() {
+      const grid = document.getElementById('grid');
+      if (!grid) return;
+      grid.innerHTML = `
+        <div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:52px 16px;gap:8px;">
+          <div style="font-weight:700;color:#e5e7eb;">결과 없음</div>
+          <div style="opacity:.75;color:#94a3b8;">표시할 항목이 없습니다.</div>
+        </div>
+      `;
+    }
+
+    // 기존 home.html 카드 UI 마크업과 동일한 구조를 유지한다.
+    function resolvePath(p){
+      if (!p) return '/assets/img/placeholder.jpg';
+      if (/^https?:\/\//i.test(p)) return p;
+      p = String(p).replace(/\\/g, '/').trim();
+      if (p.startsWith('/')) return p;
+      if (p.startsWith('assets/')) return '/' + p;
+      if (p.includes('/world/') || p.startsWith('world/') || p.startsWith('assets/world/')) return '/assets/' + p.replace(/^assets\/?/, '');
+      if (p.includes('/char/') || p.startsWith('char/') || /^char_\d+/i.test(p) || p.startsWith('assets/char/')) return '/assets/' + p.replace(/^assets\/?/, '');
+      return '/assets/img/' + p;
+    }
+
+    function renderCharacterCard(item) {
+      const id = item.id ?? item._id ?? item.mongo_id ?? item.character_id;
+      const imgUrl = resolvePath(item.image || item.image_path || item.src_file || item.image_url);
+      const name = item.name || `캐릭터 ${id}`;
+      const summary = item.summary || item.shortBio || item.longBio || item.background || '';
+      const a = document.createElement('a');
+      a.className = 'card';
+      a.href = `/chat?character=${id}`;
+      a.innerHTML = `
+        <img class="thumb" src="${imgUrl}" alt="${name}" />
+        <div class="body">
+          <div class="name">${name}</div>
+          <span class="meta">${summary}</span>
+        </div>
+      `;
+      return a;
+    }
+
+    function worldCard(item) {
+      const id = item.id || item._id || item.mongo_id || 'world_01';
+      const a = document.createElement('a');
+      a.className = 'card';
+      a.href = `/world.html?world=${id}`;
+
+      const imgUrl = resolvePath(item.image || item.image_path || item.src_file);
+      const name = item.name || `World ${id}`;
+      const summary = item.summary || item.detail || '';
+
+      a.innerHTML = `
+        <img class="thumb" src="${imgUrl}" alt="${name}" />
+        <div class="body">
+          <div class="name">${name}</div>
+          <span class="meta">${summary}</span>
+        </div>
+      `;
+      return a;
+    }
+
+    function gameCard(item) {
+      const id = item.id || item._id || 'game_01';
+      const a = document.createElement('a');
+      a.className = 'card';
+      a.href = `/game.html?game=${id}`;
+
+      const imgUrl = item.image || (item.world_snapshot && item.world_snapshot.image_url) || '/assets/img/placeholder.jpg';
+      const name = item.title || `Game ${id}`;
+      const summary = item.scenario_summary || item.scenario_detail || '';
+
+      a.innerHTML = `
+        <img class="thumb" src="${imgUrl}" alt="${name}" />
+        <div class="body">
+          <div class="name">${name}</div>
+          <span class="meta">${summary}</span>
+        </div>
+      `;
+      return a;
+    }
+
+    async function fetchJson(url, headers = {}) {
+      const r = await fetch(url, { method: 'GET', credentials: 'include', headers: { 'Content-Type': 'application/json', ...headers } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    }
+
+    async function loadItems() {
+      // 비로그인에서도 My List 진입 자체는 가능해야 하므로, 여기서는 UI만 표시하고 empty state로 안내
+      if (!isLoggedIn()) {
+        renderEmptyState();
+        showToast('로그인이 필요합니다.', 1500);
+        return;
+      }
+
+      const grid = document.getElementById('grid');
+      if (!grid) return;
+      grid.innerHTML = '<div style="grid-column:1/-1;opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
+
+      try {
+        // NOTE: Favorite 데이터 기능 신규 구현은 스코프 밖이므로, favorite 모드에서는 empty 상태로 유지
+        if (currentMode === 'favorite') {
+          renderEmptyState();
+          return;
+        }
+
+        let items = [];
+        if (currentType === 'characters') {
+          const headers = {};
+          const accessToken = localStorage.getItem(TOKEN_KEY);
+          if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+          const j = await fetchJson(`${API_BASE_URL}/v1/characters/my?skip=0&limit=50`, headers);
+          items = j.items || [];
+        } else if (currentType === 'worlds') {
+          const j = await fetchJson(`${API_BASE_URL}/v1/worlds?offset=0&limit=50`);
+          items = j.items || [];
+        } else if (currentType === 'games') {
+          const j = await fetchJson(`${API_BASE_URL}/v1/games?offset=0&limit=50`);
+          items = j.items || [];
+        }
+
+        if (!items || items.length === 0) {
+          renderEmptyState();
+          return;
+        }
+
+        grid.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+        items.forEach(it => {
+          let el = null;
+          if (currentType === 'characters') el = renderCharacterCard(it);
+          if (currentType === 'worlds') el = worldCard(it);
+          if (currentType === 'games') el = gameCard(it);
+          if (el) fragment.appendChild(el);
+        });
+        grid.appendChild(fragment);
+      } catch (e) {
+        console.error('[my_list] loadItems failed:', e);
+        renderEmptyState();
+      }
+    }
+
+    function setupTabs() {
+      document.querySelectorAll('.mode-tab').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const mode = btn.getAttribute('data-mode');
+          if (!mode || mode === currentMode) return;
+          document.querySelectorAll('.mode-tab').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentMode = mode;
+          await loadItems();
+        });
+      });
+
+      document.querySelectorAll('.type-tab').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const t = btn.getAttribute('data-type');
+          if (!t || t === currentType) return;
+          document.querySelectorAll('.type-tab').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentType = t;
+          await loadItems();
+        });
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      setupTabs();
+      await loadItems();
+    });
+  </script>
+</body>
+</html>
+
