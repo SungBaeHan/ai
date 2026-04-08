@@ -191,6 +191,7 @@ from apps.api.routes import chat_v2
 from apps.api.routes import character_sessions
 from apps.api.routes import world_sessions
 from apps.api.routes import logs
+from apps.api.routes import my_create
 
 app.include_router(characters.router, prefix="/v1/characters", tags=["characters"])
 app.include_router(character_sessions.router, prefix="/v1/character-sessions", tags=["character-sessions"])
@@ -206,6 +207,7 @@ app.include_router(user_router, prefix="/v1")
 app.include_router(personas.router, prefix="/v1")
 app.include_router(chat_v2.router, prefix="/chat/v2", tags=["chat_v2"])
 app.include_router(logs.router, prefix="/v1/logs", tags=["logs"])
+app.include_router(my_create.router, prefix="/api", tags=["my-create"])
 app.include_router(debug_db.router)
 app.include_router(migrate.router)
 
