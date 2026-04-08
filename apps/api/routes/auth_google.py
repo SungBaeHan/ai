@@ -11,11 +11,12 @@ import time
 from datetime import datetime, timezone
 import requests
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response, Request
 from pydantic import BaseModel
 
 from adapters.persistence.mongo.factory import get_mongo_client
 from apps.api.core.user_info_token import create_user_info_token
+from apps.api.config import settings
 
 try:
     import jwt
@@ -136,7 +137,7 @@ def get_or_create_user(user_info: dict) -> dict:
     return doc
 
 @router.post("/google")
-async def google_login(body: GoogleLoginRequest):
+async def google_login(body: GoogleLoginRequest, response: Response, request: Request):
     """
     구글 로그인 엔드포인트
     - 프론트: POST /v1/auth/google { token }
@@ -171,7 +172,28 @@ async def google_login(body: GoogleLoginRequest):
         last_login_at=last_login_at,
     )
 
-    # 5) 응답: access_token과 암호화된 user_info_v2만 반환
+    # 5) user_info_v2 쿠키 설정
+    # - 프로덕션(arcanaverse.ai)에서는 모든 서브도메인 공유를 위해 domain=.arcanaverse.ai 사용
+    # - 로컬/기타 환경에서는 domain을 강제하지 않고 호스트 기본 정책을 사용
+    host = (request.url.hostname or "").lower()
+    is_arcanaverse_domain = host.endswith("arcanaverse.ai")
+    cookie_domain = ".arcanaverse.ai" if is_arcanaverse_domain else None
+    cookie_secure = True if is_arcanaverse_domain else False
+    cookie_samesite = "none" if is_arcanaverse_domain else "lax"
+    cookie_max_age = settings.AUTH_USER_INFO_V2_EXPIRE_MINUTES * 60
+
+    response.set_cookie(
+        key="user_info_v2",
+        value=user_info_v2,
+        max_age=cookie_max_age,
+        path="/",
+        domain=cookie_domain,
+        secure=cookie_secure,
+        httponly=True,
+        samesite=cookie_samesite,
+    )
+
+    # 6) 응답: access_token과 암호화된 user_info_v2 반환 (기존 호환성 유지)
     return {
         "access_token": access_token,
         "user_info_v2": user_info_v2,
