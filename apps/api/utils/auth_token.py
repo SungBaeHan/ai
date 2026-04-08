@@ -68,6 +68,7 @@ async def extract_token(request: Request) -> str:
     x_access_token_exists = "X-Access-Token" in request.headers
     x_user_info_token_exists = "X-User-Info-Token" in request.headers
     cookie_access_token_exists = "access_token" in request.cookies
+    cookie_user_info_v2_exists = "user_info_v2" in request.cookies
     cookie_token_exists = "token" in request.cookies
     cookie_session_exists = "session" in request.cookies
     
@@ -75,12 +76,13 @@ async def extract_token(request: Request) -> str:
     body_token_exists = False
     
     logger.info(
-        "[AUTH][TOKEN_SRC] auth_header=%s x_auth=%s x_access=%s x_user_info=%s cookie_access=%s cookie_token=%s cookie_session=%s body_token=%s",
+        "[AUTH][TOKEN_SRC] auth_header=%s x_auth=%s x_access=%s x_user_info=%s cookie_access=%s cookie_user_info_v2=%s cookie_token=%s cookie_session=%s body_token=%s",
         auth_header_exists,
         x_auth_header_exists,
         x_access_token_exists,
         x_user_info_token_exists,
         cookie_access_token_exists,
+        cookie_user_info_v2_exists,
         cookie_token_exists,
         cookie_session_exists,
         body_token_exists,
@@ -143,12 +145,24 @@ async def extract_token(request: Request) -> str:
             )
             return candidate
     
-    # 4) Cookie: access_token / token / session
-    cookie_token = request.cookies.get("access_token") or request.cookies.get("token") or request.cookies.get("session")
+    # 4) Cookie: access_token / user_info_v2 / token / session
+    cookie_token = (
+        request.cookies.get("access_token")
+        or request.cookies.get("user_info_v2")
+        or request.cookies.get("token")
+        or request.cookies.get("session")
+    )
     if cookie_token:
         candidate = _clean_token(cookie_token)
         if candidate:
-            cookie_source = "cookie_access_token" if request.cookies.get("access_token") else ("cookie_token" if request.cookies.get("token") else "cookie_session")
+            if request.cookies.get("access_token"):
+                cookie_source = "cookie_access_token"
+            elif request.cookies.get("user_info_v2"):
+                cookie_source = "cookie_user_info_v2"
+            elif request.cookies.get("token"):
+                cookie_source = "cookie_token"
+            else:
+                cookie_source = "cookie_session"
             logger.info(
                 "[AUTH][TRACE] token_source=%s len=%s prefix=%s",
                 cookie_source,
