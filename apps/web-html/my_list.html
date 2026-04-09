@@ -110,7 +110,44 @@
     }
 
     function isLoggedIn() {
-      return !!localStorage.getItem(TOKEN_KEY);
+      return !!localStorage.getItem(TOKEN_KEY) || !!getUserInfoToken();
+    }
+
+    function getCookieValue(name) {
+      const cookies = document.cookie ? document.cookie.split(';') : [];
+      const target = `${name}=`;
+      for (const raw of cookies) {
+        const item = raw.trim();
+        if (item.startsWith(target)) {
+          return decodeURIComponent(item.slice(target.length));
+        }
+      }
+      return '';
+    }
+
+    function getUserInfoToken() {
+      const cookieToken = getCookieValue(USER_INFO_KEY);
+      if (cookieToken) return cookieToken;
+      return localStorage.getItem(USER_INFO_KEY) || '';
+    }
+
+    async function resolveCurrentUser() {
+      const userInfoToken = getUserInfoToken();
+      if (!userInfoToken) return null;
+
+      try {
+        const r = await fetch(`${API_BASE_URL}/v1/auth/validate-session`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: userInfoToken }),
+        });
+        if (!r.ok) return null;
+        return await r.json();
+      } catch (err) {
+        console.warn('[my_list] validate-session failed:', err);
+        return null;
+      }
     }
 
     function renderEmptyState() {
@@ -120,6 +157,17 @@
         <div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:52px 16px;gap:8px;">
           <div style="font-weight:700;color:#e5e7eb;">결과 없음</div>
           <div style="opacity:.75;color:#94a3b8;">표시할 항목이 없습니다.</div>
+        </div>
+      `;
+    }
+
+    function renderErrorState(msg = '목록을 불러오지 못했습니다.') {
+      const grid = document.getElementById('grid');
+      if (!grid) return;
+      grid.innerHTML = `
+        <div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:52px 16px;gap:8px;">
+          <div style="font-weight:700;color:#fca5a5;">오류 발생</div>
+          <div style="opacity:.85;color:#fda4af;">${msg}</div>
         </div>
       `;
     }
@@ -201,29 +249,32 @@
     }
 
     async function loadItems() {
-      // 비로그인에서도 My List 진입 자체는 가능해야 하므로, 여기서는 UI만 표시하고 empty state로 안내
-      if (!isLoggedIn()) {
-        renderEmptyState();
-        showToast('로그인이 필요합니다.', 1500);
-        return;
-      }
-
       const grid = document.getElementById('grid');
       if (!grid) return;
       grid.innerHTML = '<div style="grid-column:1/-1;opacity:.7;text-align:center;padding:40px;">로딩 중...</div>';
 
       try {
-        // NOTE:
-        // - 본 단계에서는 My Create는 placeholder 상태로 고정 (데이터 연동은 후속 티켓)
-        // - Favorite 데이터 기능 신규 구현도 스코프 밖
-        // 따라서 create/favorite 모두 empty 상태로 유지한다.
-        if (currentMode === 'create' || currentMode === 'favorite') {
-          renderEmptyState();
-          return;
-        }
-
         let items = [];
-        if (currentType === 'characters') {
+
+        if (currentMode === 'create' && currentType === 'characters') {
+          const currentUser = await resolveCurrentUser();
+          if (!currentUser || !(currentUser.user_id || currentUser.id)) {
+            renderEmptyState();
+            showToast('로그인이 필요합니다.', 1500);
+            return;
+          }
+
+          const headers = {};
+          const accessToken = localStorage.getItem(TOKEN_KEY);
+          const userInfoToken = getUserInfoToken();
+          if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+          if (!accessToken && userInfoToken) headers['Authorization'] = `Bearer ${userInfoToken}`;
+          if (userInfoToken) headers['X-User-Info-Token'] = userInfoToken;
+          headers['X-User-Id'] = String(currentUser.user_id || currentUser.id);
+
+          const j = await fetchJson(`${API_BASE_URL}/api/my-create/characters?skip=0&limit=50`, headers);
+          items = j.items || [];
+        } else if (currentType === 'characters') {
           const headers = {};
           const accessToken = localStorage.getItem(TOKEN_KEY);
           if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
@@ -254,7 +305,7 @@
         grid.appendChild(fragment);
       } catch (e) {
         console.error('[my_list] loadItems failed:', e);
-        renderEmptyState();
+        renderErrorState('잠시 후 다시 시도해 주세요.');
       }
     }
 
