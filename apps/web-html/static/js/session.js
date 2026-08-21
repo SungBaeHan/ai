@@ -1,7 +1,8 @@
 // API Base URL 공통 함수
 function getApiBaseUrl() {
   return window.location.hostname === "arcanaverse.ai" ||
-    window.location.hostname === "www.arcanaverse.ai"
+    window.location.hostname === "www.arcanaverse.ai" ||
+    window.location.hostname === "trpg.arcanaverse.ai"
     ? "https://api.arcanaverse.ai"
     : "http://localhost:8000";
 }

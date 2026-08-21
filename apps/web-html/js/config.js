@@ -4,7 +4,7 @@
 (function () {
   const host = (typeof window !== 'undefined' && window.location && window.location.hostname) || '';
 
-  const isProd = host === 'arcanaverse.ai' || host === 'www.arcanaverse.ai';
+  const isProd = host === 'arcanaverse.ai' || host === 'www.arcanaverse.ai' || host === 'trpg.arcanaverse.ai';
 
   const API_BASE = isProd
     ? 'https://api.arcanaverse.ai'
